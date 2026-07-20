@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Reset Password Failed</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            text-align: center;
+            padding: 80px 20px;
+            color: #334155;
+        }
+
+        .card {
+            max-width: 500px;
+            margin: 0 auto;
+            background: white;
+            padding: 40px;
+            border-radius: 1px;
+            border: 1px solid #e2e8f0;
+        }
+
+        h1 {
+            color: #ef4444;
+            font-size: 26px;
+            margin-bottom: 16px;
+        }
+
+        p {
+            color: #64748b;
+            font-size: 16px;
+            margin-bottom: 24px;
+        }
+
+        .btn {
+            display: inline-block;
+            padding: 12px 24px;
+            background-color: #e11d48;
+            color: white;
+            text-decoration: none;
+            border-radius: 4px;
+            font-weight: 600;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="card">
+        <h1>Reset Failed</h1>
+        <p>{{.Error}}</p>
+        <a href="javascript:history.back()" class="btn">Try Again</a>
+    </div>
+</body>
+
+</html>

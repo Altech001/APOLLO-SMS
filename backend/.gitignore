@@ -1,0 +1,40 @@
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+/backend
+
+# Test binary
+*.test
+
+# Output of go coverage
+*.out
+
+# Go workspace
+go.work
+go.work.sum
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Environment
+.env
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Swagger generated
+docs/docs.go
+docs/swagger.json
+docs/swagger.yaml
+
+# Temporary
+tmp/
+.vercel

@@ -1,0 +1,28 @@
+-- migrations/001_initial.sql
+-- This file is for reference only. GORM AutoMigrate handles schema creation.
+-- Use raw SQL migrations for production environments.
+
+-- Example:
+-- CREATE TABLE IF NOT EXISTS customers (
+--     id SERIAL PRIMARY KEY,
+--     name VARCHAR(255) NOT NULL,
+--     phone VARCHAR(20) UNIQUE NOT NULL,
+--     mac_addr VARCHAR(17),
+--     plan VARCHAR(50),
+--     is_active BOOLEAN DEFAULT true,
+--     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+--     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+--     deleted_at TIMESTAMP WITH TIME ZONE
+-- );
+--
+-- CREATE TABLE IF NOT EXISTS sms_messages (
+--     id SERIAL PRIMARY KEY,
+--     customer_id INTEGER REFERENCES customers(id),
+--     phone VARCHAR(20) NOT NULL,
+--     message TEXT NOT NULL,
+--     status VARCHAR(20) DEFAULT 'pending',
+--     sent_at TIMESTAMP WITH TIME ZONE,
+--     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+--     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+--     deleted_at TIMESTAMP WITH TIME ZONE
+-- );

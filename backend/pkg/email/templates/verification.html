@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verify Your Email</title>
+    <style>
+        body {
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            color: #334155;
+            margin: 0;
+            padding: 0;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 40px auto;
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #2563eb, #1d4ed8);
+            color: #ffffff;
+            padding: 32px 24px;
+            text-align: center;
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 24px;
+            font-weight: 700;
+            letter-spacing: -0.025em;
+        }
+
+        .content {
+            padding: 40px 32px;
+            line-height: 1.6;
+        }
+
+        .content h2 {
+            margin-top: 0;
+            color: #1e293b;
+            font-size: 20px;
+            font-weight: 600;
+        }
+
+        .content p {
+            color: #64748b;
+            font-size: 16px;
+            margin-bottom: 24px;
+        }
+
+        .button-container {
+            text-align: center;
+            margin: 32px 0;
+        }
+
+        .button {
+            background-color: #2563eb;
+            color: #ffffff !important;
+            text-decoration: none;
+            padding: 14px 32px;
+            font-size: 16px;
+            font-weight: 600;
+            border-radius: 4px;
+            display: inline-block;
+            transition: background-color 0.2s;
+        }
+
+        .button:hover {
+            background-color: #1d4ed8;
+        }
+
+        .footer {
+            background-color: #f1f5f9;
+            padding: 24px 32px;
+            text-align: center;
+            font-size: 14px;
+            color: #94a3b8;
+            border-top: 1px solid #e2e8f0;
+        }
+
+        .footer a {
+            color: #64748b;
+            text-decoration: underline;
+        }
+
+        .fallback {
+            font-size: 13px;
+            color: #94a3b8;
+            word-break: break-all;
+            margin-top: 32px;
+            border-top: 1px solid #f1f5f9;
+            padding-top: 24px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Verification Required</h1>
+        </div>
+        <div class="content">
+            <h2>Hi {{.Name}},</h2>
+            <p>Thank you for signing up! Please verify your email address to activate your account and get started.</p>
+
+            <div class="button-container">
+                <a href="{{.URL}}" class="button" target="_blank">Verify Email Address</a>
+            </div>
+
+            <p>This verification link is valid for 24 hours. If you did not sign up for this account, you can safely
+                ignore this email.</p>
+
+            <div class="fallback">
+                If the button doesn't work, copy and paste this URL into your browser: <br>
+                <a href="{{.URL}}">{{.URL}}</a>
+            </div>
+        </div>
+        <div class="footer">
+            &copy; 2026 LUCO SMS. All rights reserved.<br>
+            If you have questions, please reach out to <a href="mailto:support@lucosms.com">support@lucosms.com</a>.
+        </div>
+    </div>
+</body>
+
+</html>

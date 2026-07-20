@@ -1,0 +1,37 @@
+# ── Server ──
+PORT=8000
+ENVIRONMENT=development
+
+# ── Database ──
+DATABASE_URL=postgresql://neondb_owner:npg_QiSXVl69kdmu@ep-autumn-night-a87nhh2d-pooler.eastus2.azure.neon.tech/master?sslmode=require
+
+# ── Resend Email Provider ──
+RESEND_API_KEY=re_4G4qaWTg_EK13zaFrJBso7CwvY92JcaVZ
+RESEND_FROM_EMAIL=LUCOSMS <support@info.pitbox.fun>
+
+# ── Auth ──
+JWT_SECRET=dev-secret-change-me
+
+# ── Storage Service ──
+STORAGE_PROVIDER=s3
+R2_ACCESS_KEY_ID=69708c0672b7ae3eae0d2851c5a6b886
+R2_SECRET_ACCESS_KEY=7d53b5bbac27fa13e86d3ecde1b68a30a16d6e27417738cf67a11db698459058
+R2_BUCKET_NAME=blob
+R2_ENDPOINT_URL=https://517555ff31fbd7d57822e6888c60f845.r2.cloudflarestorage.com
+R2_PUBLIC_BASE_URL=
+
+# ── Redis (optional; app falls back to Postgres if unavailable) ──
+REDIS_ADDR=redis-11773.c8.us-east-1-4.ec2.cloud.redislabs.com:11773
+REDIS_USERNAME=default
+REDIS_PASSWORD=TqmrsSgB4JwFrRxHPYJMriQUGwtAENjL
+REDIS_DB=0
+
+# ── Public URL used for payment callbacks ──
+PUBLIC_BASE_URL=https://your-app.com
+
+# ── MarzPay ──
+MARZPAY_BASE_URL=https://wallet.wearemarz.com/api/v1
+MARZPAY_BASIC_AUTH=bWFyel9BcXFTQmprQXhGUFhQakJCOlJnc0UwQTBvQkFpQUlpd21qNmFwTVhDaUhuYzJYY2Ru
+
+
+
