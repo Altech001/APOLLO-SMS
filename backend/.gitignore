@@ -5,6 +5,8 @@
 *.so
 *.dylib
 /backend
+.env
+.env.example
 
 # Test binary
 *.test
