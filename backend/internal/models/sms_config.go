@@ -102,6 +102,11 @@ type SMSPricingRangeResponse struct {
 	PricePerSMS int  `json:"price_per_sms"`
 }
 
+// SMSPublicPricingResponse exposes non-secret pricing data to authenticated users.
+type SMSPublicPricingResponse struct {
+	CostPerSegment int `json:"cost_per_segment"`
+}
+
 func (r *SMSPricingRange) ToResponse() SMSPricingRangeResponse {
 	return SMSPricingRangeResponse{
 		ID:          r.ID,

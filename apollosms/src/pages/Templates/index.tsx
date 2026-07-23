@@ -27,7 +27,7 @@ import {
     X,
     Loader2
 } from "lucide-react";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 
@@ -318,12 +318,12 @@ export default function TemplatesIndex() {
                 {isLoading ? (
                     <div className="text-center py-20 bg-card border border-border/30 rounded-lg">
                         <Loader2 className="w-8 h-8 mx-auto text-primary/70 mb-3 animate-spin" />
-                        <h3 className="text-sm font-bold text-foreground">Loading templates</h3>
+                        <h3 className="text-sm  text-foreground">Loading templates</h3>
                     </div>
                 ) : filteredTemplates.length === 0 ? (
                     <div className="text-center py-20 bg-card border border-border/30 rounded-lg">
                         <FileText className="w-10 h-10 mx-auto text-muted-foreground/50 mb-3" />
-                        <h3 className="text-sm font-bold text-foreground">{loadError ? "Unable to load templates" : "No templates found"}</h3>
+                        <h3 className="text-sm  text-foreground">{loadError ? "Unable to load templates" : "No templates found"}</h3>
                         <p className="text-xs text-muted-foreground mt-1 max-w-xs mx-auto">
                             {loadError || "Create a new template or adjust your search filters to get started."}
                         </p>
@@ -346,7 +346,7 @@ export default function TemplatesIndex() {
                                             {template.usageCount} uses
                                         </span>
                                     </div>
-                                    <CardTitle className="text-sm font-bold mt-2 text-foreground group-hover:text-primary transition-colors">
+                                    <CardTitle className="text-sm  mt-2 text-foreground group-hover:text-primary transition-colors">
                                         {template.name}
                                     </CardTitle>
                                 </CardHeader>
@@ -415,7 +415,7 @@ export default function TemplatesIndex() {
                     {/* Panel Header */}
                     <div className="flex items-center justify-between px-6 py-4 border-b border-border/20">
                         <div>
-                            <h2 className="text-sm font-bold text-foreground">
+                            <h2 className="text-sm  text-foreground">
                                 {panelMode === "view" && "Template Details"}
                                 {panelMode === "edit" && "Edit Template"}
                                 {panelMode === "create" && "Create SMS Template"}
@@ -441,7 +441,7 @@ export default function TemplatesIndex() {
                             <>
                                 {/* View Details Mode */}
                                 <div className="space-y-1">
-                                    <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest block">Template Name</span>
+                                    <span className="text-[10px]  text-muted-foreground uppercase tracking-widest block">Template Name</span>
                                     <h3 className="text-base font-black text-foreground">{activeTemplate.name}</h3>
                                     <div className="flex gap-2 mt-2">
                                         <Badge className={cn("text-[10px] px-2 py-0 border-none font-semibold rounded-full", getCategoryBadgeClass(activeTemplate.category))}>
@@ -451,7 +451,7 @@ export default function TemplatesIndex() {
                                 </div>
 
                                 <div className="space-y-2">
-                                    <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest block">Original Content</span>
+                                    <span className="text-[10px]  text-muted-foreground uppercase tracking-widest block">Original Content</span>
                                     <div className="bg-muted/30 border border-border/30 rounded p-4 text-xs font-medium font-sans text-foreground leading-relaxed whitespace-pre-wrap select-all">
                                         {activeTemplate.content}
                                     </div>
@@ -459,7 +459,7 @@ export default function TemplatesIndex() {
 
                                 {activeTemplate.variables.length > 0 && (
                                     <div className="space-y-2">
-                                        <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest block">Dynamic Placeholders</span>
+                                        <span className="text-[10px]  text-muted-foreground uppercase tracking-widest block">Dynamic Placeholders</span>
                                         <div className="flex flex-wrap gap-1.5">
                                             {activeTemplate.variables.map((v) => (
                                                 <Badge key={v} variant="outline" className="font-mono text-[10px] py-0 border-primary/20 text-primary bg-primary/5">
@@ -569,7 +569,7 @@ export default function TemplatesIndex() {
 
                                     {/* Suggestions Row */}
                                     <div className="space-y-1.5 pt-1">
-                                        <span className="text-[9px] font-bold text-muted-foreground uppercase block">Insert Dynamic Placeholder:</span>
+                                        <span className="text-[9px]  text-muted-foreground uppercase block">Insert Dynamic Placeholder:</span>
                                         <div className="flex flex-wrap gap-1">
                                             {SUGGESTED_VARIABLES.map((v) => (
                                                 <button

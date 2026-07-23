@@ -57,6 +57,7 @@ func Setup(app *fiber.App, db *gorm.DB, cfg *config.Config) {
 	templateService := services.NewSMSTemplateService(templateRepo, notifService)
 	smsConfigService := services.NewSMSConfigService(smsConfigRepo, notifService, cfg)
 	topupService := services.NewSMSTopupService(db, topupRepo, userRepo, notifService, smsConfigService, redisService)
+	topupService.SetEmailSender(emailSender)
 	developerKeyService := services.NewDeveloperKeyService(db, developerKeyRepo, userRepo, smsConfigRepo, notifService, redisService)
 	paymentService := services.NewPaymentService(db, paymentRepo, notifService, smsConfigService, redisService, cfg)
 
@@ -111,6 +112,7 @@ func Setup(app *fiber.App, db *gorm.DB, cfg *config.Config) {
 	users.Put("/:id", middleware.RoleRequired("admin"), userHandler.UpdateUser)
 	users.Delete("/:id", middleware.RoleRequired("admin"), userHandler.DeleteUser)
 	users.Post("/:id/profile-image", userHandler.UploadProfileImage)
+	users.Post("/share", middleware.AuthRequired(cfg, db), topupHandler.ShareCredits)
 	users.Post("/:id/topup", middleware.RoleRequired("admin"), topupHandler.PerformTopup)
 	users.Get("/:id/topups", middleware.RoleRequired("admin"), topupHandler.GetUserTopups)
 
@@ -132,6 +134,9 @@ func Setup(app *fiber.App, db *gorm.DB, cfg *config.Config) {
 
 	// Authenticated in-app SMS sending. This deducts user balance and records SMS jobs.
 	api.Post("/sms-config/send", middleware.AuthRequired(cfg, db), smsConfigHandler.SendSMS)
+	api.Get("/sms-pricing", middleware.AuthRequired(cfg, db), smsConfigHandler.GetPublicPricing)
+	api.Get("/sms/messages", middleware.AuthRequired(cfg, db), developerKeyHandler.ListUserMessages)
+	api.Get("/sms/dashboard", middleware.AuthRequired(cfg, db), developerKeyHandler.GetUserSMSDashboard)
 
 	// Protected SMS Config Group (Admin only — platform-wide provider configuration)
 	smsConfig := api.Group("/sms-config", middleware.AuthRequired(cfg, db), middleware.RoleRequired("admin"))

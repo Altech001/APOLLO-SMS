@@ -22,6 +22,7 @@ import {
   RotateCw,
   Settings
 } from "lucide-react";
+import { useAuth } from "@/lib/auth";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -56,6 +57,7 @@ const toDashboardMessage = (message: SmsMessageResponse) => ({
 export default function Dashboard() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   const [showTemplates, setShowTemplates] = useState(false);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [isFormsVisible, setIsFormsVisible] = useState(true);
@@ -92,7 +94,10 @@ export default function Dashboard() {
     queryFn: () => renultApi.sms.dashboard({ range: dateRange }),
   });
 
-  const recentSentMessages = useMemo(() => (smsDashboard?.recent || []).map(toDashboardMessage), [smsDashboard]);
+  const recentSentMessages = useMemo(
+    () => (smsDashboard?.recent || []).map(toDashboardMessage).slice(0, 5),
+    [smsDashboard]
+  );
   const chartData = smsDashboard?.chart || [];
   const heatmapData = smsDashboard?.heatmap || [];
   const successCount = smsDashboard?.success_count ?? 0;
@@ -176,6 +181,25 @@ export default function Dashboard() {
     window.addEventListener("sidebar-collapse-change", handler);
     return () => window.removeEventListener("sidebar-collapse-change", handler);
   }, []);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    queryClient.removeQueries({ queryKey: ["forms"] });
+    queryClient.removeQueries({ queryKey: ["sms-dashboard"] });
+  }, [user?.id, queryClient]);
+
+  useEffect(() => {
+    const resetDashboardCache = () => {
+      queryClient.removeQueries({ queryKey: ["forms"] });
+      queryClient.removeQueries({ queryKey: ["sms-dashboard"] });
+    };
+    window.addEventListener("apollosms-user-cache-cleared", resetDashboardCache);
+    window.addEventListener("apollosms-login", resetDashboardCache);
+    return () => {
+      window.removeEventListener("apollosms-user-cache-cleared", resetDashboardCache);
+      window.removeEventListener("apollosms-login", resetDashboardCache);
+    };
+  }, [queryClient]);
 
   // Listen for sidebar's "open-templates" event
   useEffect(() => {
@@ -458,7 +482,7 @@ export default function Dashboard() {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => navigate("/sales")}
+              onClick={() => navigate("/recents-sms")}
               className="text-xs text-primary hover:text-primary/80 font-semibold flex items-center gap-1 p-0 h-auto"
             >
               View Registry <ExternalLink className="w-3 h-3" />
@@ -480,14 +504,14 @@ export default function Dashboard() {
                 <TableBody>
                   {recentSentMessages.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="h-32 text-center text-xs text-muted-foreground">
+                      <TableCell colSpan={6} className="h-32 text-center text-xs text-muted-foreground truncate">
                         {smsError ? "Unable to load recent messages." : isSmsLoading ? "Loading recent messages..." : "No recent sent messages."}
                       </TableCell>
                     </TableRow>
                   ) : recentSentMessages.map((msg) => (
                     <TableRow
                       key={msg.id}
-                      className="cursor-pointer hover:bg-muted/30 group transition-colors"
+                      className="cursor-pointer hover:bg-muted/30 group transition-colors truncate"
                       onClick={() => copyMessageId(msg.id)}
                     >
                       <TableCell className="font-mono text-xs font-semibold text-primary">{msg.id}</TableCell>

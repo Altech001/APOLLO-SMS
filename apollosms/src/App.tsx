@@ -3,7 +3,7 @@ import { GoogleOAuthProvider } from "@react-oauth/google";
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Route, BrowserRouter as Router, Routes } from 'react-router-dom';
 import { Toaster as SonnerToaster } from "sonner";
-import { AuthProvider, ProtectedRoute } from './lib/auth';
+import { AdminRoute, AuthProvider, ProtectedRoute } from './lib/auth';
 import PageNotFound from './lib/PageNotFound';
 
 import AirTimeIndex from './pages/AirTime/index';
@@ -20,6 +20,7 @@ import MyContactsIndex from './pages/MyContacts/index';
 import NotificationsPage from './pages/Notifications';
 import ProfilePage from './pages/ProfilePage';
 import SalesIndex from './pages/Sales/index';
+import ShareCreditsPage from './pages/ShareCredits';
 import Withdrawal from './pages/Sales/Withdrawal';
 import TemplatesIndex from './pages/Templates/index';
 
@@ -57,7 +58,7 @@ const AppRoutes = () => {
         <Route path="/" element={protect(<Dashboard />)} />
         <Route path="/profile" element={protect(<ProfilePage />)} />
         <Route path="/my-contacts" element={protect(<MyContactsIndex />)} />
-        <Route path="/sales" element={protect(<SalesIndex />)} />
+        <Route path="/recents-sms" element={protect(<SalesIndex />)} />
         <Route path="/templates" element={protect(<TemplatesIndex />)} />
         <Route path="/compose" element={protect(<ComposeIndex />)} />
         <Route path="/withdraw" element={protect(<Withdrawal />)} />
@@ -65,6 +66,7 @@ const AppRoutes = () => {
         <Route path="/airtime" element={protect(<AirTimeIndex />)} />
         <Route path="/branches" element={protect(<BranchesPage />)} />
         <Route path="/notifications" element={protect(<NotificationsPage />)} />
+        <Route path="/share-sms" element={protect(<ShareCreditsPage />)} />
 
         {/* ── settings routes ── */}
         <Route path="/settings" element={protect(<MyDetailsPage />)} />
@@ -72,7 +74,8 @@ const AppRoutes = () => {
         <Route path="/settings/api-keys" element={protect(<DeveloperKeysPage />)} />
 
         <Route path="/settings/billing" element={protect(<BillingPage />)} />
-        <Route path="/settings/admin" element={protect(<APISettingsPage />)} />
+        <Route path="/billing" element={protect(<BillingPage />)} />
+        <Route path="/settings/admin" element={<AdminRoute><APISettingsPage /></AdminRoute>} />
         <Route path="/settings/notifications" element={protect(<SettingsPage />)} />
         <Route path="/settings/support" element={protect(<Campign />)} />
         <Route path="/security-logs" element={protect(<SecurityLogsPage />)} />

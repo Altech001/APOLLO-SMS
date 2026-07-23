@@ -78,6 +78,23 @@ func (h *SMSConfigHandler) SaveConfig(c *fiber.Ctx) error {
 	return response.Success(c, cfg)
 }
 
+// GetPublicPricing godoc
+// @Summary      Get public SMS pricing
+// @Description  Retrieve the per-segment SMS rate for authenticated users
+// @Tags         SMS Config
+// @Security     BearerAuth
+// @Produce      json
+// @Success      200  {object}  models.SMSPublicPricingResponse
+// @Failure      401  {object}  response.ErrorResponse
+// @Router       /sms-pricing [get]
+func (h *SMSConfigHandler) GetPublicPricing(c *fiber.Ctx) error {
+	pricing, err := h.service.GetPublicPricing()
+	if err != nil {
+		return response.Error(c, fiber.StatusInternalServerError, err.Error())
+	}
+	return response.Success(c, pricing)
+}
+
 // GetPricingRanges godoc
 // @Summary      Get SMS Pricing Ranges
 // @Description  Retrieve topup pricing bands (Admin only)

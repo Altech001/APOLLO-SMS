@@ -203,8 +203,8 @@ func (s *PaymentService) HandleMarzPayWebhook(payload *models.MarzPayWebhookPayl
 		if payload.Transaction.PhoneNumber != "" {
 			payment.PhoneNumber = payload.Transaction.PhoneNumber
 		}
-		if payload.Transaction.Amount.Raw > 0 {
-			payment.AmountUGX = payload.Transaction.Amount.Raw
+		if payload.Transaction.Amount.Raw.Int() > 0 {
+			payment.AmountUGX = payload.Transaction.Amount.Raw.Int()
 		}
 		payment.RawPayload = string(rawBody)
 
@@ -298,25 +298,148 @@ func (s *PaymentService) CreateWithdrawal(req *models.CreateWithdrawalRequest) (
 	return &resp, nil
 }
 
-func (s *PaymentService) GetByReference(reference string) (*models.PaymentTransactionResponse, error) {
-	var cached models.PaymentTransactionResponse
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-	if s.redisService != nil && s.redisService.IsActive() {
-		if err := s.redisService.Get(ctx, fmt.Sprintf("payment:reference:%s", reference), &cached); err == nil {
-			return &cached, nil
-		}
-	}
-
+func (s *PaymentService) GetByReference(reference string, forceSync bool) (*models.PaymentTransactionResponse, error) {
 	payment, err := s.repo.FindByReference(reference)
 	if err != nil {
 		return nil, err
 	}
-	resp := payment.ToResponse()
-	if s.redisService != nil && s.redisService.IsActive() {
-		_ = s.redisService.Set(ctx, fmt.Sprintf("payment:reference:%s", reference), resp, 30*time.Minute)
+
+	shouldSync := forceSync || (payment.Type == models.PaymentTypeCollection &&
+		payment.Status != models.PaymentStatusCompleted &&
+		payment.Status != models.PaymentStatusFailed)
+
+	if shouldSync {
+		if syncErr := s.syncCollectionFromMarzPay(payment); syncErr != nil {
+			fmt.Printf("MarzPay sync for %s failed: %v\n", reference, syncErr)
+		}
+		payment, err = s.repo.FindByReference(reference)
+		if err != nil {
+			return nil, err
+		}
 	}
+
+	resp := payment.ToResponse()
+	s.cachePayment(payment)
 	return &resp, nil
+}
+
+func (s *PaymentService) syncCollectionFromMarzPay(payment *models.PaymentTransaction) error {
+	if payment == nil || s.cfg.MarzPayBasicAuth == "" {
+		return nil
+	}
+
+	lookupIDs := make([]string, 0, 2)
+	if payment.TransactionUUID != "" {
+		lookupIDs = append(lookupIDs, payment.TransactionUUID)
+	}
+	if payment.Reference != "" && payment.Reference != payment.TransactionUUID {
+		lookupIDs = append(lookupIDs, payment.Reference)
+	}
+	if len(lookupIDs) == 0 {
+		return errors.New("payment has no transaction identifier for MarzPay lookup")
+	}
+
+	var respBody []byte
+	var lastErr error
+	for _, lookupID := range lookupIDs {
+		body, err := s.fetchMarzPayTransaction(lookupID)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		respBody = body
+		lastErr = nil
+		break
+	}
+	if lastErr != nil {
+		return lastErr
+	}
+
+	payload, err := parseMarzPayTransactionResponse(respBody, payment.Reference)
+	if err != nil {
+		return err
+	}
+
+	txStatus := strings.ToLower(strings.TrimSpace(payload.Transaction.Status))
+	eventType := strings.ToLower(strings.TrimSpace(payload.EventType))
+	switch {
+	case eventType == "collection.completed" ||
+		txStatus == "completed" ||
+		txStatus == "successful" ||
+		txStatus == "success" ||
+		txStatus == "complete":
+		payload.EventType = "collection.completed"
+		payload.Transaction.Status = models.PaymentStatusCompleted
+	case strings.Contains(eventType, "failed") ||
+		strings.Contains(eventType, "cancelled") ||
+		strings.Contains(eventType, "canceled") ||
+		txStatus == models.PaymentStatusFailed ||
+		txStatus == "cancelled" ||
+		txStatus == "canceled" ||
+		txStatus == "declined":
+		payload.EventType = "collection.failed"
+		payload.Transaction.Status = models.PaymentStatusFailed
+	default:
+		return nil
+	}
+
+	return s.HandleMarzPayWebhook(payload, respBody)
+}
+
+func (s *PaymentService) fetchMarzPayTransaction(lookupID string) ([]byte, error) {
+	endpoint := strings.TrimRight(s.cfg.MarzPayBaseURL, "/") + "/transactions/" + lookupID
+	httpReq, err := http.NewRequest(http.MethodGet, endpoint, nil)
+	if err != nil {
+		return nil, err
+	}
+	httpReq.Header.Set("Accept", "application/json")
+	httpReq.Header.Set("Authorization", s.marzAuthorizationHeader())
+
+	resp, err := s.httpClient.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("MarzPay transaction lookup failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read MarzPay transaction response: %w", err)
+	}
+	if resp.StatusCode >= 400 {
+		return nil, fmt.Errorf("MarzPay returned status %d: %s", resp.StatusCode, string(respBody))
+	}
+	return respBody, nil
+}
+
+func parseMarzPayTransactionResponse(respBody []byte, fallbackReference string) (*models.MarzPayWebhookPayload, error) {
+	var payload models.MarzPayWebhookPayload
+	if err := json.Unmarshal(respBody, &payload); err != nil {
+		return nil, fmt.Errorf("failed to parse MarzPay transaction response: %w", err)
+	}
+
+	if payload.Transaction.Reference == "" && payload.EventType == "" {
+		var wrapped struct {
+			Data struct {
+				Transaction json.RawMessage `json:"transaction"`
+				Collection  json.RawMessage `json:"collection"`
+			} `json:"data"`
+		}
+		if err := json.Unmarshal(respBody, &wrapped); err == nil && len(wrapped.Data.Transaction) > 0 {
+			_ = json.Unmarshal(wrapped.Data.Transaction, &payload.Transaction)
+			if len(wrapped.Data.Collection) > 0 {
+				_ = json.Unmarshal(wrapped.Data.Collection, &payload.Collection)
+			}
+		}
+	}
+
+	if payload.Transaction.Reference == "" && fallbackReference != "" {
+		payload.Transaction.Reference = fallbackReference
+	}
+	if payload.Transaction.Reference == "" {
+		return nil, errors.New("MarzPay response missing transaction.reference")
+	}
+
+	return &payload, nil
 }
 
 func (s *PaymentService) List(limit int) ([]models.PaymentTransactionResponse, error) {

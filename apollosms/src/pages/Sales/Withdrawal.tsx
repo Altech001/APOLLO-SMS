@@ -1,4 +1,4 @@
-import { renultApi } from "@/api/apollosms";
+import { renultApi, apollosmsApi } from "@/api/apollosms";
 import AppHeader from "@/components/Header/AppHeader";
 import SEO from "@/components/SEO";
 import { Button } from "@/components/ui/button";
@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/lib/auth";
+import { isPaymentComplete, isPaymentFailed, normalizePaymentStatus } from "@/lib/payment-status";
 import { cn } from "@/lib/utils";
 import { AnimatePresence, motion, Variants } from "framer-motion";
 import {
@@ -19,7 +20,7 @@ import {
     ShoppingCart,
     Verified
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 
@@ -33,6 +34,16 @@ const TIERS = [
 const getRateForAmount = (amount: number) => {
     const tier = TIERS.find(t => amount >= t.min && amount <= t.max);
     return tier?.rate ?? 32;
+};
+
+const formatUgandanPhone = (phone: string) => {
+    let clean = phone.replace(/[^0-9+]/g, "").trim();
+    if (clean.startsWith("0")) {
+        clean = "+256" + clean.slice(1);
+    } else if (clean.startsWith("256") && !clean.startsWith("+")) {
+        clean = "+" + clean;
+    }
+    return clean;
 };
 
 export default function Withdrawal() {
@@ -52,6 +63,119 @@ export default function Withdrawal() {
     const [purchasingId, setPurchasingId] = useState<string | null>(null);
     const [purchaseStage, setPurchaseStage] = useState<"idle" | "processing" | "success">("idle");
     const [step, setStep] = useState<1 | 2 | 3>(1);
+
+    // Polling and real payment states
+    const [paymentReference, setPaymentReference] = useState<string | null>(null);
+    const [paymentStatus, setPaymentStatus] = useState<string>("pending");
+    const [pollingSeconds, setPollingSeconds] = useState<number>(0);
+
+    const pollIntervalRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    const pollingActiveRef = useRef(false);
+
+    const stopPolling = () => {
+        pollingActiveRef.current = false;
+        if (pollIntervalRef.current) {
+            clearTimeout(pollIntervalRef.current);
+            pollIntervalRef.current = null;
+        }
+        if (timerIntervalRef.current) {
+            clearInterval(timerIntervalRef.current);
+            timerIntervalRef.current = null;
+        }
+    };
+
+    // Clean up timers on unmount
+    useEffect(() => {
+        return () => stopPolling();
+    }, []);
+
+    const completePurchase = async (smsCount: number) => {
+        stopPolling();
+        setPurchaseStage("success");
+        toast.success(`${smsCount.toLocaleString()} SMS credits added!`);
+
+        try {
+            await apollosmsApi.auth.me();
+            const wallet = await renultApi.wallet.get();
+            setWalletBalance(wallet.cash_balance);
+            window.dispatchEvent(new CustomEvent("renult-wallet-change"));
+        } catch {
+            // Wallet refresh is best-effort; payment already succeeded.
+        }
+
+        setStep(3);
+        setPurchasingId(null);
+        setPurchaseStage("idle");
+        setPaymentReference(null);
+        setPaymentStatus("completed");
+        setPollingSeconds(0);
+    };
+
+    const failPurchase = (message: string) => {
+        stopPolling();
+        toast.error(message);
+        setPurchaseStage("idle");
+        setPurchasingId(null);
+        setPaymentReference(null);
+        setPaymentStatus("failed");
+        setPollingSeconds(0);
+    };
+
+    const startPaymentPolling = (reference: string, smsCount: number) => {
+        stopPolling();
+        pollingActiveRef.current = true;
+
+        setPollingSeconds(0);
+        timerIntervalRef.current = setInterval(() => {
+            setPollingSeconds((prev) => prev + 1);
+        }, 1000);
+
+        let attempts = 0;
+        const maxAttempts = 60;
+        let consecutiveErrors = 0;
+
+        const poll = async () => {
+            if (!pollingActiveRef.current) return;
+
+            attempts += 1;
+            try {
+                const tx = await apollosmsApi.payments.getCollection(reference, { sync: true });
+                consecutiveErrors = 0;
+                setPaymentStatus(normalizePaymentStatus(tx.status));
+
+                if (isPaymentComplete(tx)) {
+                    await completePurchase(smsCount);
+                    return;
+                }
+
+                if (isPaymentFailed(tx)) {
+                    const reason = tx.description?.includes("Auto-failed") || tx.description?.includes("failed")
+                        ? "Payment failed — insufficient funds or declined by mobile money."
+                        : "Payment failed or was declined.";
+                    failPurchase(reason);
+                    return;
+                }
+            } catch (err) {
+                consecutiveErrors += 1;
+                console.error("Collection status poll failed:", err);
+                if (consecutiveErrors >= 3) {
+                    toast.error(err instanceof Error ? err.message : "Unable to check payment status");
+                }
+            }
+
+            if (!pollingActiveRef.current) return;
+
+            if (attempts >= maxAttempts) {
+                failPurchase("Payment authorization timed out. Please try again.");
+                return;
+            }
+
+            pollIntervalRef.current = setTimeout(poll, 2000);
+        };
+
+        void poll();
+    };
 
     useEffect(() => {
         if (!topupPhone && user?.phone_number) setTopupPhone(user.phone_number);
@@ -81,12 +205,12 @@ export default function Withdrawal() {
     }, []);
 
     const handlePurchase = async () => {
-        if (customNumeric > walletBalance) {
-            toast.error("Insufficient wallet balance.");
+        if (customNumeric < 500) {
+            toast.error("Minimum topup amount is 500 UGX.");
             return;
         }
-        if (customNumeric <= 0) {
-            toast.error("Enter a valid amount.");
+        if (customNumeric > 10000000) {
+            toast.error("Maximum topup amount is 10,000,000 UGX.");
             return;
         }
         if (!topupPhone.trim()) {
@@ -94,28 +218,46 @@ export default function Withdrawal() {
             return;
         }
 
+        const formattedPhone = formatUgandanPhone(topupPhone.trim());
+
         setPurchasingId("custom");
         setPurchaseStage("processing");
-        try {
-            const result = await renultApi.topups.sms({
-                amount: customNumeric,
-                sms_count: customSmsCount,
-                phone: topupPhone.trim() || null
-            });
-            setPurchaseStage("success");
-            setWalletBalance(result.wallet.cash_balance);
-            window.dispatchEvent(new CustomEvent("renult-wallet-change"));
-            toast.success(`${customSmsCount.toLocaleString()} SMS credits added!`);
+        setPaymentStatus("pending");
+        setPollingSeconds(0);
 
-            // Go to success step
-            setStep(3);
-            setPurchasingId(null);
-            setPurchaseStage("idle");
+        try {
+            // Initiate the collection payment
+            const result = await apollosmsApi.payments.createCollection({
+                amount_ugx: customNumeric,
+                phone_number: formattedPhone,
+                method: "mobile_money",
+                description: `Buy ${customSmsCount} SMS credits`
+            });
+
+            const ref = result.reference;
+            setPaymentReference(ref);
+            setPaymentStatus(normalizePaymentStatus(result.status));
+            startPaymentPolling(ref, customSmsCount);
+
         } catch (error) {
+            stopPolling();
             toast.error(error instanceof Error ? error.message : "Unable to buy SMS credits");
             setPurchasingId(null);
             setPurchaseStage("idle");
+            setPaymentReference(null);
+            setPaymentStatus("pending");
+            setPollingSeconds(0);
         }
+    };
+
+    const handleCancelPayment = () => {
+        stopPolling();
+        setPurchaseStage("idle");
+        setPurchasingId(null);
+        setPaymentReference(null);
+        setPaymentStatus("pending");
+        setPollingSeconds(0);
+        toast.info("Payment cancelled.");
     };
 
     const handleReset = () => {
@@ -292,15 +434,20 @@ export default function Withdrawal() {
                                         <Button
                                             type="button"
                                             onClick={() => changeStep(2)}
-                                            disabled={customNumeric <= 0 || customNumeric > walletBalance}
+                                            disabled={customNumeric < 500 || customNumeric > 10000000}
                                             className="w-full h-11 text-xs font-bold gap-1.5 bg-primary text-primary-foreground hover:bg-primary/95 transition-all"
                                         >
                                             Next: Recipient Details
                                             <ArrowRight className="w-3.5 h-3.5" />
                                         </Button>
-                                        {customNumeric > walletBalance && (
+                                        {customNumeric > 0 && customNumeric < 500 && (
                                             <p className="text-[10px] text-rose-500 font-semibold text-center mt-2">
-                                                Insufficient wallet balance.
+                                                Minimum topup amount is 500 UGX.
+                                            </p>
+                                        )}
+                                        {customNumeric > 10000000 && (
+                                            <p className="text-[10px] text-rose-500 font-semibold text-center mt-2">
+                                                Maximum topup amount is 10,000,000 UGX.
                                             </p>
                                         )}
                                     </div>
@@ -317,61 +464,101 @@ export default function Withdrawal() {
                                     exit="exit"
                                     className="space-y-5 flex-1 flex flex-col justify-between"
                                 >
-                                    <div className="space-y-4">
-                                        <div>
-                                            <h2 className="text-base font-bold text-foreground">Recipient Details</h2>
-                                            <p className="text-[11px] text-muted-foreground">Specify the phone number to top up</p>
-                                        </div>
-                                        <div className="space-y-1.5">
-                                            <div className="flex justify-between items-center">
-                                                <Label htmlFor="topup-phone" className="text-xs font-bold text-muted-foreground">Phone Number</Label>
-                                                {user?.phone_number && topupPhone !== user.phone_number && (
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setTopupPhone(user.phone_number || "")}
-                                                        className="text-[10px] font-bold text-primary hover:underline"
-                                                    >
-                                                        Use Account Phone
-                                                    </button>
-                                                )}
-                                            </div>
+                                    {purchaseStage === "processing" ? (
+                                        <div className="space-y-6 flex-1 flex flex-col justify-center items-center py-6">
                                             <div className="relative">
-                                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground"><Phone className="w-3.5 h-3.5" /></span>
-                                                <Input
-                                                    id="topup-phone"
-                                                    value={topupPhone}
-                                                    onChange={(e) => setTopupPhone(e.target.value)}
-                                                    placeholder="+256..."
-                                                    className="pl-9 h-11 text-sm bg-muted/20 border-border/40 focus-visible:ring-primary font-bold"
-                                                />
+                                                <div className="absolute inset-0 bg-primary/20 rounded-full blur-md animate-pulse" />
+                                                <div className="w-14 h-14 rounded-full bg-primary/10 border border-primary/30 flex items-center justify-center relative">
+                                                    <Loader2 className="w-8 h-8 text-primary animate-spin" />
+                                                </div>
                                             </div>
-                                            <p className="text-[10px] text-muted-foreground">Enter number with country code, e.g. +256701XXXXXX</p>
+                                            <div className="space-y-2 text-center max-w-[280px]">
+                                                <h3 className="text-sm font-bold text-foreground">Waiting for MM PIN...</h3>
+                                                <p className="text-[11px] text-muted-foreground leading-normal">
+                                                    We sent a Mobile Money PIN prompt of <strong className="text-foreground">{customNumeric.toLocaleString()} UGX</strong> to <strong className="text-foreground">{topupPhone}</strong>.
+                                                </p>
+                                                <p className="text-[10px] text-amber-500 font-semibold bg-amber-500/10 px-2 py-1 rounded inline-block mt-1 animate-pulse">
+                                                    Please authorize the payment on your device.
+                                                </p>
+                                            </div>
+                                            <div className="w-full bg-muted/20 border border-border/10 rounded p-3 text-[10px] space-y-1.5 max-w-[320px]">
+                                                <div className="flex justify-between">
+                                                    <span className="text-muted-foreground font-medium">Reference</span>
+                                                    <span className="font-semibold font-mono text-foreground truncate max-w-[120px]">{paymentReference || "Generating..."}</span>
+                                                </div>
+                                                <div className="flex justify-between">
+                                                    <span className="text-muted-foreground font-medium">Payment Status</span>
+                                                    <span className="font-bold text-primary uppercase">{paymentStatus}</span>
+                                                </div>
+                                                <div className="flex justify-between">
+                                                    <span className="text-muted-foreground font-medium">Time Elapsed</span>
+                                                    <span className="font-semibold text-foreground">{pollingSeconds}s</span>
+                                                </div>
+                                            </div>
+                                            <Button
+                                                type="button"
+                                                variant="destructive"
+                                                onClick={handleCancelPayment}
+                                                className="h-9 text-xs font-bold px-4 bg-rose-600 hover:bg-rose-700 text-white"
+                                            >
+                                                Cancel Payment
+                                            </Button>
                                         </div>
-                                    </div>
+                                    ) : (
+                                        <>
+                                            <div className="space-y-4">
+                                                <div>
+                                                    <h2 className="text-base font-bold text-foreground">Recipient Details</h2>
+                                                    <p className="text-[11px] text-muted-foreground">Specify the phone number to top up</p>
+                                                </div>
+                                                <div className="space-y-1.5">
+                                                    <div className="flex justify-between items-center">
+                                                        <Label htmlFor="topup-phone" className="text-xs font-bold text-muted-foreground">Phone Number</Label>
+                                                        {user?.phone_number && topupPhone !== user.phone_number && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setTopupPhone(user.phone_number || "")}
+                                                                className="text-[10px] font-bold text-primary hover:underline"
+                                                            >
+                                                                Use Account Phone
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                    <div className="relative">
+                                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground"><Phone className="w-3.5 h-3.5" /></span>
+                                                        <Input
+                                                            id="topup-phone"
+                                                            value={topupPhone}
+                                                            onChange={(e) => setTopupPhone(e.target.value)}
+                                                            placeholder="+256..."
+                                                            className="pl-9 h-11 text-sm bg-muted/20 border-border/40 focus-visible:ring-primary font-bold"
+                                                        />
+                                                    </div>
+                                                    <p className="text-[10px] text-muted-foreground">Enter number with country code, e.g. +256701XXXXXX</p>
+                                                </div>
+                                            </div>
 
-                                    <div className="pt-4 border-t border-border/10 flex gap-3">
-                                        <Button
-                                            type="button"
-                                            variant="outline"
-                                            onClick={() => changeStep(1)}
-                                            className="flex-1 h-11 text-xs font-bold gap-1 border-border/60"
-                                        >
-                                            <ArrowLeft className="w-3.5 h-3.5" />
-                                            Back
-                                        </Button>
-                                        <Button
-                                            type="button"
-                                            onClick={handlePurchase}
-                                            disabled={!topupPhone.trim() || purchaseStage === "processing"}
-                                            className="flex-[2] h-11 text-xs font-bold gap-1.5 bg-primary text-primary-foreground hover:bg-primary/95 transition-all"
-                                        >
-                                            {purchaseStage === "processing" ? (
-                                                <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Processing...</>
-                                            ) : (
-                                                <><ShoppingCart className="w-3.5 h-3.5" /> Confirm & Pay</>
-                                            )}
-                                        </Button>
-                                    </div>
+                                            <div className="pt-4 border-t border-border/10 flex gap-3">
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    onClick={() => changeStep(1)}
+                                                    className="flex-1 h-11 text-xs font-bold gap-1 border-border/60"
+                                                >
+                                                    <ArrowLeft className="w-3.5 h-3.5" />
+                                                    Back
+                                                </Button>
+                                                <Button
+                                                    type="button"
+                                                    onClick={handlePurchase}
+                                                    disabled={!topupPhone.trim()}
+                                                    className="flex-[2] h-11 text-xs font-bold gap-1.5 bg-primary text-primary-foreground hover:bg-primary/95 transition-all"
+                                                >
+                                                    <ShoppingCart className="w-3.5 h-3.5" /> Confirm & Pay
+                                                </Button>
+                                            </div>
+                                        </>
+                                    )}
                                 </motion.div>
                             )}
 
@@ -425,10 +612,10 @@ export default function Withdrawal() {
                                         <Button
                                             type="button"
                                             variant="outline"
-                                            onClick={() => navigate("/sales")}
+                                            onClick={() => navigate("/billings")}
                                             className="w-full sm:flex-1 h-10 text-xs font-bold gap-1.5 border-border/60"
                                         >
-                                            View Logs
+                                            View Recent Logs
                                             <ArrowUpRight className="w-3.5 h-3.5" />
                                         </Button>
                                         <Button

@@ -42,7 +42,7 @@ func Load() *Config {
 		DatabaseURL:       getEnv("DATABASE_URL", "postgres://postgres:postgres@localhost:5432/lucosms?sslmode=disable"),
 		JWTSecret:         getEnv("JWT_SECRET", "super-secret-change-me"),
 		Environment:       getEnv("ENVIRONMENT", "development"),
-		ResendAPIKey:      getEnv("RESEND_API_KEY", "re_4G4qaWTg_EK13zaFrJBso7CwvY92JcaVZ"),
+		ResendAPIKey:      getEnv("RESEND_API_KEY", ""),
 		ResendFromEmail:   getEnv("RESEND_FROM_EMAIL", "Beta <beta@info.pitbox.fun>"),
 		IPGeoAPIKey:       getEnv("IPGEO_API_KEY", "cac1d67f47e94328bae8f50764d4342e"),
 		StorageProvider:   getEnv("STORAGE_PROVIDER", "local"),

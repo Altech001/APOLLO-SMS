@@ -8,6 +8,7 @@ import (
 
 	"backend/internal/models"
 	"backend/internal/repository"
+	"backend/pkg/email"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -29,6 +30,7 @@ func NewSMSTopupService(
 		notifService:     notifService,
 		smsConfigService: smsConfigService,
 		redisService:     redisService,
+		emailSender:      nil,
 	}
 }
 
@@ -40,10 +42,79 @@ type SMSTopupService struct {
 	notifService     *NotificationService
 	smsConfigService *SMSConfigService
 	redisService     *RedisService
+	emailSender      *email.EmailSender
 }
 
 // PerformTopup updates user's SMS balance and logs the transaction atomically.
 func (s *SMSTopupService) PerformTopup(userID uint, req *models.SMSTopupRequest) (*models.SMSTopupResponse, error) {
+	var res models.SMSTopupResponse
+	var updatedUser models.User
+
+	if req.RecipientID > 0 {
+		if req.Amount <= 0 {
+			return nil, errors.New("amount must be greater than zero")
+		}
+
+		credits := req.Amount
+		var recipientEmail string
+		var recipientBalance int
+		var recipientID uint
+		err := s.db.Transaction(func(tx *gorm.DB) error {
+			var sender models.User
+			if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&sender, userID).Error; err != nil {
+				return errors.New("user not found")
+			}
+			if err := s.validateTransferRequest(sender, models.User{ID: req.RecipientID}, credits); err != nil {
+				return err
+			}
+
+			var recipient models.User
+			if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&recipient, req.RecipientID).Error; err != nil {
+				return errors.New("recipient user not found")
+			}
+
+			recipientEmail = recipient.Email
+			recipientBalance = recipient.SMSBalance + credits
+			recipientID = recipient.ID
+			sender.SMSBalance -= credits
+			recipient.SMSBalance += credits
+			if err := tx.Save(&sender).Error; err != nil {
+				return fmt.Errorf("failed to update sender SMS balance: %w", err)
+			}
+			if err := tx.Save(&recipient).Error; err != nil {
+				return fmt.Errorf("failed to update recipient SMS balance: %w", err)
+			}
+			updatedUser = sender
+
+			topup := &models.SMSTopup{
+				UserID:      userID,
+				Amount:      credits,
+				AmountUGX:   0,
+				PricePerSMS: 0,
+				Description: req.Description,
+				Reference:   req.Reference,
+			}
+			if err := s.topupRepo.CreateWithTx(tx, topup); err != nil {
+				return fmt.Errorf("failed to save transfer record: %w", err)
+			}
+			res = topup.ToResponse()
+			return nil
+		})
+		if err != nil {
+			return nil, err
+		}
+
+		s.cacheTopupUser(&updatedUser)
+		s.notifService.Notify(userID, "SMS Balance Transfer", fmt.Sprintf("You sent %d SMS credits. New balance: %d", credits, updatedUser.SMSBalance), "success")
+		if recipientID > 0 {
+			s.notifService.Notify(recipientID, "SMS Credits Received", fmt.Sprintf("You received %d SMS credits. New balance: %d", credits, recipientBalance), "success")
+		}
+		if s.emailSender != nil && recipientEmail != "" {
+			_ = s.emailSender.Send(recipientEmail, "You received SMS credits", fmt.Sprintf("<p>Hello,</p><p>You received <strong>%d</strong> SMS credits from another user.</p><p>Your current balance is <strong>%d</strong> SMS credits.</p>", credits, recipientBalance))
+		}
+		return &res, nil
+	}
+
 	amountUGX := req.AmountUGX
 	if amountUGX <= 0 {
 		amountUGX = req.Amount
@@ -52,8 +123,6 @@ func (s *SMSTopupService) PerformTopup(userID uint, req *models.SMSTopupRequest)
 		return nil, errors.New("amount or amount_ugx must be greater than zero")
 	}
 
-	var res models.SMSTopupResponse
-	var updatedUser models.User
 	pricePerSMS, err := s.smsConfigService.PriceForAmountUGX(amountUGX)
 	if err != nil {
 		return nil, err
@@ -65,17 +134,21 @@ func (s *SMSTopupService) PerformTopup(userID uint, req *models.SMSTopupRequest)
 
 	// Run within GORM database transaction to guarantee ACID updates
 	err = s.db.Transaction(func(tx *gorm.DB) error {
-		var user models.User
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&user, userID).Error; err != nil {
+		var sender models.User
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&sender, userID).Error; err != nil {
 			return errors.New("user not found")
 		}
 
+		if sender.SMSBalance < credits {
+			return fmt.Errorf("insufficient SMS balance: available %d, required %d", sender.SMSBalance, credits)
+		}
+
 		// Update balance
-		user.SMSBalance += credits
-		if err := tx.Save(&user).Error; err != nil {
+		sender.SMSBalance += credits
+		if err := tx.Save(&sender).Error; err != nil {
 			return fmt.Errorf("failed to update user SMS balance: %w", err)
 		}
-		updatedUser = user
+		updatedUser = sender
 
 		// Create Topup audit entry
 		topup := &models.SMSTopup{
@@ -102,6 +175,23 @@ func (s *SMSTopupService) PerformTopup(userID uint, req *models.SMSTopupRequest)
 	s.notifService.Notify(userID, "SMS Balance Top-Up", fmt.Sprintf("Your balance was topped up by %d SMS credits. New balance: %d", credits, updatedUser.SMSBalance), "success")
 
 	return &res, nil
+}
+
+func (s *SMSTopupService) validateTransferRequest(sender, recipient models.User, credits int) error {
+	if sender.ID == 0 || recipient.ID == 0 {
+		return errors.New("sender and recipient are required")
+	}
+	if sender.ID == recipient.ID {
+		return errors.New("you cannot transfer to yourself")
+	}
+	if sender.SMSBalance < credits {
+		return fmt.Errorf("insufficient SMS balance: available %d, required %d", sender.SMSBalance, credits)
+	}
+	return nil
+}
+
+func (s *SMSTopupService) SetEmailSender(emailSender *email.EmailSender) {
+	s.emailSender = emailSender
 }
 
 func (s *SMSTopupService) cacheTopupUser(user *models.User) {

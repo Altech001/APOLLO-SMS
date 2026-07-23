@@ -292,6 +292,163 @@ func (s *DeveloperKeyService) GetFailedJobs(limit int) ([]models.SMSJob, error) 
 	return s.repo.FindFailedJobs(limit)
 }
 
+func dashboardRangeStart(rangeName string) time.Time {
+	now := time.Now()
+	switch rangeName {
+	case "week":
+		return now.AddDate(0, 0, -7)
+	case "month":
+		return now.AddDate(0, -1, 0)
+	case "year":
+		return now.AddDate(-1, 0, 0)
+	default:
+		y, m, d := now.Date()
+		return time.Date(y, m, d, 0, 0, 0, 0, now.Location())
+	}
+}
+
+func messageTimestamp(msg models.SMSMessage) time.Time {
+	if msg.SentAt != nil {
+		return *msg.SentAt
+	}
+	return msg.CreatedAt
+}
+
+func isSuccessStatus(status string) bool {
+	return status == models.SMSMessageStatusSent || status == models.SMSMessageStatusDelivered
+}
+
+func isQueuedStatus(status string) bool {
+	return status == models.SMSMessageStatusQueued || status == models.SMSMessageStatusProcessing
+}
+
+// ListUserMessages returns SMS messages for the authenticated user.
+func (s *DeveloperKeyService) ListUserMessages(userID uint, limit int) ([]models.SMSMessageListItem, error) {
+	if limit <= 0 {
+		limit = 200
+	}
+	messages, err := s.repo.FindMessagesByUserID(userID, limit)
+	if err != nil {
+		return nil, err
+	}
+	items := make([]models.SMSMessageListItem, 0, len(messages))
+	for _, message := range messages {
+		items = append(items, message.ToListItem())
+	}
+	return items, nil
+}
+
+// GetUserSMSDashboard builds dashboard stats from persisted SMS messages.
+func (s *DeveloperKeyService) GetUserSMSDashboard(userID uint, rangeName string) (*models.SMSDashboardStats, error) {
+	rangeStart := dashboardRangeStart(rangeName)
+	heatmapStart := time.Now().AddDate(0, 0, -83)
+
+	messages, err := s.repo.FindMessagesByUserIDSince(userID, heatmapStart, 0)
+	if err != nil {
+		return nil, err
+	}
+
+	pendingCount, err := s.repo.CountPendingMessagesByUser(userID)
+	if err != nil {
+		return nil, err
+	}
+
+	stats := &models.SMSDashboardStats{
+		Chart:   make([]models.SMSDashboardChartPoint, 7),
+		Heatmap: make([]models.SMSDashboardHeatmapCell, 84),
+		Recent:  make([]models.SMSMessageListItem, 0, 10),
+	}
+
+	for i := 0; i < 7; i++ {
+		day := time.Now().AddDate(0, 0, -(6 - i))
+		stats.Chart[i] = models.SMSDashboardChartPoint{
+			Date: day.Format("Jan 2"),
+		}
+	}
+
+	for i := 0; i < 84; i++ {
+		stats.Heatmap[i] = models.SMSDashboardHeatmapCell{Day: i}
+	}
+
+	recentMessages, err := s.repo.FindMessagesByUserID(userID, 10)
+	if err != nil {
+		return nil, err
+	}
+	for _, message := range recentMessages {
+		stats.Recent = append(stats.Recent, message.ToListItem())
+	}
+
+	rangeMessages, err := s.repo.FindMessagesByUserIDSince(userID, rangeStart, 0)
+	if err != nil {
+		return nil, err
+	}
+
+	var rangeTotal, rangeSuccess, rangeFailed int
+	for _, message := range rangeMessages {
+		rangeTotal++
+		if isSuccessStatus(message.Status) {
+			rangeSuccess++
+		} else if message.Status == models.SMSMessageStatusFailed {
+			rangeFailed++
+		}
+	}
+
+	stats.SuccessCount = rangeSuccess
+	stats.FailedCount = rangeFailed
+	stats.TotalSent = rangeTotal
+	stats.QueuedCount = int(pendingCount)
+	if rangeTotal > 0 {
+		stats.DeliveryRate = math.Round((float64(rangeSuccess)/float64(rangeTotal))*1000) / 10
+	} else {
+		stats.DeliveryRate = 100
+	}
+
+	now := time.Now()
+	for _, message := range messages {
+		ts := messageTimestamp(message)
+		dayIndex := int(now.Sub(time.Date(ts.Year(), ts.Month(), ts.Day(), 0, 0, 0, 0, ts.Location())).Hours() / 24)
+		if dayIndex < 0 || dayIndex >= 84 {
+			continue
+		}
+		cell := &stats.Heatmap[83-dayIndex]
+		cell.Count++
+	}
+
+	for i := range stats.Heatmap {
+		count := stats.Heatmap[i].Count
+		level := 0
+		switch {
+		case count > 10:
+			level = 4
+		case count > 5:
+			level = 3
+		case count > 2:
+			level = 2
+		case count > 0:
+			level = 1
+		}
+		stats.Heatmap[i].Level = level
+	}
+
+	for i := 0; i < 7; i++ {
+		dayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location()).AddDate(0, 0, -(6 - i))
+		dayEnd := dayStart.Add(24 * time.Hour)
+		for _, message := range messages {
+			ts := messageTimestamp(message)
+			if ts.Before(dayStart) || !ts.Before(dayEnd) {
+				continue
+			}
+			if message.Status == models.SMSMessageStatusFailed {
+				stats.Chart[i].Failed++
+			} else if isSuccessStatus(message.Status) {
+				stats.Chart[i].Delivered++
+			}
+		}
+	}
+
+	return stats, nil
+}
+
 // ── Background Queue Worker ──────────────────────────────────────────────────
 
 // StartQueueWorker spins up a background worker goroutine to process pending jobs in batches.

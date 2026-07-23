@@ -218,7 +218,7 @@ function toActiveSession(session: SessionResponse): ActiveSession {
         id: String(session.id),
         device: /mobile|iphone|android/i.test(device) ? "Mobile" : "Desktop",
         browser: device,
-        os: session.is_current ? "Current session" : "Active session",
+        os: session.is_current ? "Current session" : "",
         ip: session.ip_address || "-",
         location: session.location || "Unknown location",
         lastActive: session.created_at,
@@ -320,6 +320,8 @@ export default function SecurityLogsPage() {
     const [sessions, setSessions] = useState<ActiveSession[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
+    const activeSessionCount = sessions.filter((session) => !session.isCurrent).length;
+
     const loadSecurityData = async (showToast = false) => {
         setIsLoading(true);
         try {
@@ -327,7 +329,7 @@ export default function SecurityLogsPage() {
                 renultApi.security.logs(),
                 renultApi.security.sessions(),
             ]);
-            setLogs(logsData.map(toSecurityLog));
+            setLogs(logsData.map(toSecurityLog).slice(0, 10));
             setSessions(sessionsData.map(toActiveSession));
             if (showToast) toast.success("Security data refreshed");
         } catch (error) {
@@ -426,7 +428,7 @@ export default function SecurityLogsPage() {
                             <Monitor className="w-3.5 h-3.5" />
                             Active Sessions
                             <span className="ml-1 bg-background/20 px-1.5 py-0.5 rounded text-[10px] font-bold">
-                                {sessions.length}
+                                {activeSessionCount}
                             </span>
                         </button>
                     </div>
@@ -456,11 +458,14 @@ export default function SecurityLogsPage() {
                                             <TableHead className="w-[35%] text-xs text-muted-foreground font-semibold">
                                                 Event
                                             </TableHead>
+                                            <TableHead className="w-[15%] text-xs text-muted-foreground font-semibold truncate">
+                                                Country
+                                            </TableHead>
                                             <TableHead className="w-[15%] text-xs text-muted-foreground font-semibold">
                                                 Status
                                             </TableHead>
                                             <TableHead className="w-[20%] text-xs text-muted-foreground font-semibold">
-                                                IP / Location
+                                                IP Address
                                             </TableHead>
                                             <TableHead className="w-[15%] text-xs text-muted-foreground font-semibold">
                                                 Device
@@ -497,6 +502,11 @@ export default function SecurityLogsPage() {
                                                         </div>
                                                     </TableCell>
                                                     <TableCell className="py-4">
+                                                        <span className="text-xs font-mono text-foreground">
+                                                            {log.location}
+                                                        </span>
+                                                    </TableCell>
+                                                    <TableCell className="py-4">
                                                         <span
                                                             className={`inline-flex items-center gap-1.5 px-2.5 rounded-full text-[11px] font-semibold ${badge.bg} ${badge.text}`}
                                                         >
@@ -505,12 +515,12 @@ export default function SecurityLogsPage() {
                                                     </TableCell>
                                                     <TableCell className="py-4">
                                                         <div className="flex flex-col gap-0.5">
-                                                            <span className="text-xs font-mono text-foreground">
+                                                            <span className="text-xs font-mono text-foreground truncate">
                                                                 {log.ip}
                                                             </span>
-                                                            <span className="text-[11px] text-muted-foreground flex items-center gap-1">
+                                                            {/* <span className="text-[11px] text-muted-foreground flex items-center gap-1">
                                                                 <Globe className="w-3 h-3" /> {log.location}
-                                                            </span>
+                                                            </span> */}
                                                         </div>
                                                     </TableCell>
                                                     <TableCell className="py-4">
@@ -518,7 +528,7 @@ export default function SecurityLogsPage() {
                                                             {log.userAgent}
                                                         </span>
                                                     </TableCell>
-                                                    <TableCell className="py-4 text-right pr-6">
+                                                    <TableCell className="py-4 text-right pr-6 truncate">
                                                         <div className="flex flex-col items-end gap-0.5">
                                                             <span className="text-xs font-medium text-foreground">
                                                                 {timeAgo(log.timestamp)}
@@ -542,9 +552,9 @@ export default function SecurityLogsPage() {
                             {sessions.filter((s) => !s.isCurrent).length > 0 && (
                                 <div className="flex justify-end">
                                     <Button
-                                        variant="outline"
+                                        variant="destructive"
                                         onClick={handleRevokeAllOther}
-                                        className="h-9 text-xs font-semibold rounded px-4 gap-2 border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
+                                        className="h-9 text-xs font-semibold rounded px-4 gap-2"
                                     >
                                         <LogOut className="w-3.5 h-3.5" />
                                         Revoke all other sessions
@@ -580,7 +590,10 @@ export default function SecurityLogsPage() {
                                             <div className="flex flex-col gap-1">
                                                 <div className="flex items-center gap-2">
                                                     <span className="text-sm font-semibold text-foreground">
-                                                        {session.browser} — {session.os}
+                                                        {session.browser}
+                                                        <label className="text-xs text-primary ml-1">
+                                                            {session.os}
+                                                        </label>
                                                     </span>
                                                     {session.isCurrent && (
                                                         <Badge className="bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 rounded-full text-[10px] px-2 py-0 font-bold hover:bg-emerald-500/15">

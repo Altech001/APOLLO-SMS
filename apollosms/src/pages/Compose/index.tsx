@@ -1,6 +1,8 @@
-import { ContactGroupResponse, ContactResponse, renultApi, TemplateResponse } from "@/api/apollosms";
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import { apollosmsApi, ContactGroupResponse, ContactResponse, renultApi, TemplateResponse } from "@/api/apollosms";
 import AppHeader from "@/components/Header/AppHeader";
 import SEO from "@/components/SEO";
+import CsvImport from "./CsvImport";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -108,14 +110,14 @@ export default function ComposeIndex() {
             renultApi.contacts.list(),
             renultApi.contactGroups.list(),
             renultApi.templates.list(),
-            renultApi.apiSettings.smsProviders(),
+            apollosmsApi.smsPricing.get().catch(() => ({ cost_per_segment: 31 })),
         ])
-            .then(([wallet, contactsData, groupsData, templatesData, apiSettings]) => {
+            .then(([wallet, contactsData, groupsData, templatesData, pricing]) => {
                 if (!mounted) return;
                 const nextContacts = contactsData.map(toContact);
                 setWalletBalance(wallet.cash_balance);
                 setSmsBalance(wallet.sms_balance);
-                setCostPerSms(apiSettings.cost_per_sms || 31);
+                setCostPerSms(pricing.cost_per_segment || 31);
                 setContacts(nextContacts);
                 setGroups(groupsData.map((group) => toGroup(group, nextContacts)));
                 setTemplates(templatesData.map(toTemplate));
@@ -190,7 +192,7 @@ export default function ComposeIndex() {
 
     // Auto formatter function for bulk inputs
     const formatPhoneNumber = (num: string): string => {
-        let cleaned = num.trim().replace(/[^\d+]/g, ""); // Keep only digits and '+'
+        const cleaned = num.trim().replace(/[^\d+]/g, ""); // Keep only digits and '+'
         if (!cleaned) return "";
 
         // If it already starts with '+', keep it
@@ -280,6 +282,33 @@ export default function ComposeIndex() {
 
     const handleRemoveContact = (id: string) => {
         setSelectedContacts(selectedContacts.filter(c => c.id !== id));
+    };
+
+    const handleCsvImportComplete = (csvContacts: Array<{ name: string; phone: string; email: string }>) => {
+        const mergedContacts = [...selectedContacts];
+        let addedCount = 0;
+
+        csvContacts.forEach((contact) => {
+            const normalizedPhone = contact.phone.trim();
+            if (!normalizedPhone) return;
+
+            const exists = mergedContacts.some((item) => item.phone === normalizedPhone || item.id === `csv-${normalizedPhone}`);
+            if (exists) return;
+
+            mergedContacts.push({
+                id: `csv-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`,
+                name: contact.name || "Imported Contact",
+                phone: normalizedPhone,
+                email: contact.email || "",
+                groups: []
+            });
+            addedCount += 1;
+        });
+
+        setSelectedContacts(mergedContacts);
+        if (addedCount > 0) {
+            toast.success(`Added ${addedCount} recipient${addedCount === 1 ? "" : "s"} from the CSV file`);
+        }
     };
 
     const handleClearAll = () => {
@@ -392,7 +421,7 @@ export default function ComposeIndex() {
                 {/* Header Title */}
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
                     <div>
-                        <h1 className="text-base font-black tracking-tight text-foreground sm:text-xl">
+                        <h1 className="text-base tracking-tight text-foreground sm:text-lg">
                             Bulk Message Compose
                         </h1>
                         <p className="text-xs text-muted-foreground mt-1">
@@ -407,7 +436,7 @@ export default function ComposeIndex() {
                     <Card className="lg:col-span-1 border-border/10 shadow-sm rounded-none flex flex-col min-h-[480px]">
                         <CardHeader className="pb-3 border-b border-border/10 flex flex-row items-center justify-between space-y-0">
                             <div>
-                                <CardTitle className="text-sm font-bold">
+                                <CardTitle className="text-sm ">
                                     Contacts ({selectedContacts.length})
                                 </CardTitle>
                                 <CardDescription className="text-[10px] mt-0.5">
@@ -428,7 +457,7 @@ export default function ComposeIndex() {
                                 <Button
                                     onClick={() => openPanel("numbers")}
                                     size="sm"
-                                    className="h-10 text-xs font-bold gap-1.5"
+                                    className="h-10 text-xs  gap-1.5"
                                 >
                                     <Plus className="w-3.5 h-3.5" />
                                     Use Numbers
@@ -443,7 +472,7 @@ export default function ComposeIndex() {
                                     <div className="p-3 bg-muted/40 rounded-full text-muted-foreground/60 mb-2">
                                         <Users className="w-6 h-6" />
                                     </div>
-                                    <p className="text-xs font-bold text-foreground">No recipients selected</p>
+                                    <p className="text-xs  text-foreground">No recipients selected</p>
                                     <p className="text-[10px] text-muted-foreground mt-1 max-w-[180px]">
                                         Import contacts from a group or add numbers manually to get started.
                                     </p>
@@ -456,11 +485,11 @@ export default function ComposeIndex() {
                                             className="flex items-center justify-between p-2 rounded border border-border/50 hover:bg-muted/10 transition-colors"
                                         >
                                             <div className="flex items-center gap-2">
-                                                <div className="w-8 h-8 rounded-full bg-primary/5 text-primary text-[10px] font-bold flex items-center justify-center shrink-0">
+                                                <div className="w-8 h-8 rounded-full bg-primary/5 text-primary text-[10px]  flex items-center justify-center shrink-0">
                                                     {contact.name.split(" ").map(n => n[0]).join("").substring(0, 2).toUpperCase()}
                                                 </div>
                                                 <div className="min-w-0">
-                                                    <p className="text-xs font-bold text-foreground truncate">{contact.name}</p>
+                                                    <p className="text-xs  text-foreground truncate">{contact.name}</p>
                                                     <p className="text-[10px] text-muted-foreground font-mono mt-0.5">{contact.phone}</p>
                                                 </div>
                                             </div>
@@ -489,8 +518,8 @@ export default function ComposeIndex() {
                                 size="sm"
                                 className="w-full sm:w-auto h-10 text-xs font-semibold border-border/80"
                             >
-                                <Users className="w-3.5 h-3.5 mr-1.5 text-primary" />
-                                Import From Group
+                                
+                                Import CSV File
                             </Button>
                         </div>
                     </Card>
@@ -499,7 +528,7 @@ export default function ComposeIndex() {
                     <Card className="lg:col-span-2 border-border/20 rounded shadow-sm flex flex-col justify-between">
                         <CardHeader className="pb-3 border-b border-border/10 flex flex-row items-center justify-between space-y-0">
                             <div>
-                                <CardTitle className="text-sm font-bold">
+                                <CardTitle className="text-sm ">
                                     Composing to {selectedContacts.length} contacts
                                 </CardTitle>
                                 <CardDescription className="text-[10px] mt-0.5">
@@ -511,7 +540,7 @@ export default function ComposeIndex() {
                                     onClick={() => openPanel("templates")}
                                     variant="outline"
                                     size="sm"
-                                    className="h-10 text-xs font-bold border-border/80"
+                                    className="h-10 text-xs  border-border/80"
                                 >
                                     <FileText className="w-3.5 h-3.5 mr-1" />
                                     Use Template
@@ -520,7 +549,7 @@ export default function ComposeIndex() {
                                     onClick={handleClearAll}
                                     variant="outline"
                                     size="sm"
-                                    className="h-10 text-xs font-bold text-rose-500 border-rose-200/50 bg-rose-50 hover:bg-rose-50/50"
+                                    className="h-10 text-xs  text-rose-500 border-rose-200/50 bg-rose-50 hover:bg-rose-50/50"
                                 >
                                     Clear All
                                 </Button>
@@ -538,16 +567,16 @@ export default function ComposeIndex() {
                                 </div>
                                 <div className="flex items-center gap-3">
                                     <div className="space-y-1">
-                                        <Label htmlFor="sender-id" className="text-[12px] font-bold text-muted-foreground">Sender ID</Label>
+                                        <Label htmlFor="sender-id" className="text-[12px]  text-muted-foreground">Sender ID</Label>
                                         <Input
                                             id="sender-id"
                                             value={senderId}
                                             onChange={(e) => setSenderId(e.target.value)}
-                                            className="h-8 text-xs bg-card w-28 text-center font-bold"
+                                            className="h-8 text-xs bg-card w-28 text-center "
                                         />
                                     </div>
                                     <div className="space-y-1">
-                                        <Label htmlFor="batch-size" className="text-[12px] font-bold text-muted-foreground">Batch Size</Label>
+                                        <Label htmlFor="batch-size" className="text-[12px]  text-muted-foreground">Batch Size</Label>
                                         <Input
                                             id="batch-size"
                                             value={batchSize}
@@ -597,7 +626,7 @@ export default function ComposeIndex() {
 
                         {/* Broadcast Dispatch Footer */}
                         <div className="px-5 py-4 border-t border-border/10 bg-muted/15 flex items-center justify-between">
-                            <div className="text-[10px] font-bold text-muted-foreground uppercase">
+                            <div className="text-[10px]  text-muted-foreground uppercase">
                                 Dispatch to {selectedContacts.length} numbers
                             </div>
                             <div className="flex gap-2">
@@ -605,7 +634,7 @@ export default function ComposeIndex() {
                                     type="button"
                                     variant="outline"
                                     onClick={handleQueueMessage}
-                                    className="h-10 text-xs font-bold border-border/80 bg-card"
+                                    className="h-10 text-xs  border-border/80 bg-card"
                                     disabled={selectedContacts.length === 0 || isSending || isLoadingData}
                                 >
                                     Queue ({selectedContacts.length})
@@ -641,17 +670,17 @@ export default function ComposeIndex() {
                 {/* Panel Header */}
                 <div className="px-6 py-4 border-b border-border/10 flex items-center justify-between bg-muted/5">
                     <div>
-                        <h3 className="text-sm font-bold text-foreground flex items-center gap-1.5">
+                        <h3 className="text-sm  text-foreground flex items-center gap-1.5">
                             {panelType === "numbers" && <Plus className="w-4 h-4 text-primary" />}
                             {panelType === "groups" && <Users className="w-4 h-4 text-primary" />}
                             {panelType === "templates" && <FileText className="w-4 h-4 text-primary" />}
                             {panelType === "numbers" && "Bulk Number Import"}
-                            {panelType === "groups" && "Import Group Contacts"}
+                            {panelType === "groups" && "Upload CSV File"}
                             {panelType === "templates" && "Use SMS Template"}
                         </h3>
                         <p className="text-[10px] text-muted-foreground mt-0.5">
                             {panelType === "numbers" && "Paste multiple numbers to auto-format and import"}
-                            {panelType === "groups" && "Load all numbers mapped to a contact group"}
+                            {panelType === "groups" && "Upload a CSV file for contacts to send onto."}
                             {panelType === "templates" && "Select a template and input variables to inject"}
                         </p>
                     </div>
@@ -685,7 +714,7 @@ export default function ComposeIndex() {
                             </div>
 
                             <div className="p-3 bg-amber-500/20 border border-amber-500/50 rounded text-xs leading-normal space-y-1">
-                                <p className="font-bold text-foreground">Auto Formatter Helper:</p>
+                                <p className=" text-foreground">Auto Formatter Helper:</p>
                                 <ul className="list-disc pl-4 space-y-0.5 font-mono">
                                     <li>0700xxxxxx &rarr; +256700xxxxxx</li>
                                     <li>777xxxxxx &rarr; +256777xxxxxx</li>
@@ -716,30 +745,37 @@ export default function ComposeIndex() {
 
                     {/* PANEL TYPE: GROUPS */}
                     {panelType === "groups" && (
-                        <div className="space-y-2">
-                            {groups.length === 0 && (
-                                <p className="text-xs text-muted-foreground text-center py-8">
-                                    {isLoadingData ? "Loading groups..." : "No contact groups available."}
-                                </p>
-                            )}
-                            {groups.map(group => (
-                                <button
-                                    key={group.id}
-                                    onClick={() => handleImportFromGroup(group.id)}
-                                    className="w-full flex items-center justify-between p-3.5 rounded-lg border border-border/60 hover:bg-muted/10 transition-colors text-left"
-                                >
-                                    <div className="flex items-center gap-3">
-                                        <div className="p-2 bg-primary/5 text-primary rounded-md">
-                                            <Users className="w-4 h-4" />
-                                        </div>
-                                        <div>
-                                            <p className="text-xs font-bold text-foreground">{group.name}</p>
-                                            <p className="text-[10px] text-muted-foreground mt-0.5">{group.count} contacts in group</p>
-                                        </div>
-                                    </div>
-                                    <span className="text-[10px] font-bold text-primary hover:underline">Import &rarr;</span>
-                                </button>
-                            ))}
+                        <div className="space-y-4">
+                            <CsvImport onImportComplete={handleCsvImportComplete} />
+
+                            <div className="rounded-lg border border-border/60 bg-muted/10 p-3">
+                                <p className="text-[11px] font-semibold text-foreground">Or import from an existing group</p>
+                                {groups.length === 0 && (
+                                    <p className="mt-2 text-xs text-muted-foreground">
+                                        {isLoadingData ? "Loading groups..." : "No groups are available yet."}
+                                    </p>
+                                )}
+                                <div className="mt-3 space-y-2">
+                                    {groups.map(group => (
+                                        <button
+                                            key={group.id}
+                                            onClick={() => handleImportFromGroup(group.id)}
+                                            className="w-full flex items-center justify-between p-3 rounded-lg border border-border/60 hover:bg-muted/20 transition-colors text-left"
+                                        >
+                                            <div className="flex items-center gap-3">
+                                                <div className="p-2 bg-primary/5 text-primary rounded-md">
+                                                    <Users className="w-4 h-4" />
+                                                </div>
+                                                <div>
+                                                    <p className="text-xs text-foreground">{group.name}</p>
+                                                    <p className="text-[10px] text-muted-foreground mt-0.5">{group.count} contacts in group</p>
+                                                </div>
+                                            </div>
+                                            <span className="text-[10px] text-primary hover:underline">Import &rarr;</span>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
                         </div>
                     )}
 
@@ -770,7 +806,7 @@ export default function ComposeIndex() {
                                                 <FileText className="w-4 h-4 text-muted-foreground" />
                                             </div>
                                             <div className="min-w-0">
-                                                <p className="text-xs font-bold">{t.name}</p>
+                                                <p className="text-xs ">{t.name}</p>
                                                 <p className="text-[9px] text-muted-foreground font-mono mt-0.5 truncate">{t.content}</p>
                                             </div>
                                         </button>
@@ -888,12 +924,12 @@ export default function ComposeIndex() {
                             {sendProgress < 100 ? (
                                 <Loader2 className="w-6 h-6 text-primary animate-spin" />
                             ) : (
-                                <Check className="w-6 h-6 text-emerald-500 font-bold" />
+                                <Check className="w-6 h-6 text-emerald-500 " />
                             )}
                         </div>
 
                         <div className="space-y-1">
-                            <h3 className="text-sm font-bold text-foreground">
+                            <h3 className="text-sm  text-foreground">
                                 {sendProgress < 100 ? "Sending Broadcast" : "Broadcast Complete!"}
                             </h3>
                             <p className="text-[10px] text-muted-foreground">{sendStage}</p>
@@ -901,7 +937,7 @@ export default function ComposeIndex() {
 
                         {/* Progress bar */}
                         <div className="space-y-1">
-                            <div className="flex justify-between text-[9px] font-bold text-muted-foreground">
+                            <div className="flex justify-between text-[9px]  text-muted-foreground">
                                 <span>Progress</span>
                                 <span className="font-mono">{sendProgress}%</span>
                             </div>

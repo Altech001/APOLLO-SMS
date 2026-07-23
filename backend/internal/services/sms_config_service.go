@@ -107,6 +107,17 @@ func (s *SMSConfigService) GetConfig() (*models.SMSConfigResponse, error) {
 	return &resp, nil
 }
 
+// GetPublicPricing returns the per-segment SMS rate for authenticated users.
+func (s *SMSConfigService) GetPublicPricing() (*models.SMSPublicPricingResponse, error) {
+	cfg, err := s.GetConfig()
+	if err != nil {
+		return nil, err
+	}
+	return &models.SMSPublicPricingResponse{
+		CostPerSegment: cfg.CostPerSegment,
+	}, nil
+}
+
 // SaveConfig validates, encrypts, and persists the SMS provider configuration.
 func (s *SMSConfigService) SaveConfig(req *models.SMSConfigRequest, adminUserID uint) (*models.SMSConfigResponse, error) {
 	// Validate provider-specific required fields

@@ -27,9 +27,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const nextUser = await apollosmsApi.auth.me();
       setUser(nextUser);
-    } catch {
-      apollosmsApi.auth.clear();
-      setUser(null);
+    } catch (err: any) {
+      // Only clear storage and user state on 401 Unauthorized.
+      // Do not log out on transient network or 5xx server errors.
+      if (err && err.status === 401) {
+        apollosmsApi.auth.clear();
+        setUser(null);
+      } else {
+        console.error("Failed to refresh user:", err);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -55,6 +61,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     login: (auth) => {
       apollosmsApi.auth.save(auth);
       setUser(auth.user);
+      window.dispatchEvent(new CustomEvent("apollosms-login", { detail: { userId: auth.user.id } }));
     },
     refreshUser,
     logout: () => {
@@ -82,6 +89,25 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace state={{ from: location }} />;
+  }
+
+  return <>{children}</>;
+}
+
+export function AdminRoute({ children }: { children: React.ReactNode }) {
+  const { user, isAuthenticated, isLoading } = useAuth();
+  const location = useLocation();
+
+  if (isLoading) {
+    return <div className="min-h-screen bg-background flex items-center justify-center text-sm text-muted-foreground">Loading account...</div>;
+  }
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace state={{ from: location }} />;
+  }
+
+  if (user?.role !== "admin") {
+    return <Navigate to="/settings" replace />;
   }
 
   return <>{children}</>;

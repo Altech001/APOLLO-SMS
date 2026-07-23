@@ -7,8 +7,25 @@ const configuredApiUrl =
 
 const AUTH_TOKEN_KEY = "apollosms:auth-token";
 const AUTH_USER_KEY = "apollosms:auth-user";
+const SESSION_USER_ID_KEY = "apollosms:session-user-id";
 const LEGACY_AUTH_TOKEN_KEY = "renult:auth-token";
 const LEGACY_AUTH_USER_KEY = "renult:auth-user";
+
+const USER_DATA_CACHE_KEYS = [
+  "apollosms:branches",
+  "apollosms:staff",
+  "apollosms:tickets",
+  "apollosms:contacts",
+  "apollosms:contact-groups",
+  "apollosms:airtime-topups",
+  "apollosms:sms-history",
+  "apollosms:sms-queue",
+  "apollosms:forms",
+  "apollosms:tasks",
+  "apollosms:documents",
+  "apollosms:cash-balance",
+  "selected-workspace",
+] as const;
 
 function normalizeBaseUrl(value: string) {
   const trimmed = value.replace(/\/+$/, "");
@@ -46,7 +63,7 @@ export interface UserResponse {
 
 export interface AuthResponse {
   access_token: string;
-  token: string;
+  token?: string;
   token_type?: string;
   user: UserResponse;
 }
@@ -285,6 +302,32 @@ export interface SMSJob {
   attempts: number;
   created_at: string;
   updated_at: string;
+}
+
+export interface SMSMessageRecord {
+  id: ID;
+  message_id: string;
+  phone: string;
+  message: string;
+  segments: number;
+  credits: number;
+  status: string;
+  error_message?: string;
+  sent_at?: string | null;
+  delivered_at?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SMSDashboardStatsResponse {
+  success_count: number;
+  queued_count: number;
+  total_sent: number;
+  failed_count: number;
+  delivery_rate: number;
+  chart: Array<{ date: string; delivered: number; failed: number }>;
+  heatmap: Array<{ day: number; level?: number; count: number }>;
+  recent: SMSMessageRecord[];
 }
 
 export interface CreateCollectionRequest {
@@ -568,8 +611,25 @@ function getStoredUser(): UserResponse | null {
   }
 }
 
+function clearUserDataCache() {
+  USER_DATA_CACHE_KEYS.forEach((key) => localStorage.removeItem(key));
+  window.dispatchEvent(new CustomEvent("apollosms-user-cache-cleared"));
+}
+
+function prepareAuthSession(user: UserResponse) {
+  const nextUserId = String(user.id);
+  const previousUserId = localStorage.getItem(SESSION_USER_ID_KEY);
+  const userChanged = !previousUserId || previousUserId !== nextUserId;
+  if (userChanged) {
+    clearUserDataCache();
+  }
+  localStorage.setItem(SESSION_USER_ID_KEY, nextUserId);
+  return userChanged;
+}
+
 function saveAuth(auth: AuthResponse) {
   const normalized = normalizeAuth(auth);
+  prepareAuthSession(normalized.user);
   localStorage.setItem(AUTH_TOKEN_KEY, normalized.access_token);
   localStorage.setItem(AUTH_USER_KEY, JSON.stringify(normalized.user));
   localStorage.setItem(LEGACY_AUTH_TOKEN_KEY, normalized.access_token);
@@ -590,6 +650,8 @@ function clearAuth() {
   localStorage.removeItem(AUTH_USER_KEY);
   localStorage.removeItem(LEGACY_AUTH_TOKEN_KEY);
   localStorage.removeItem(LEGACY_AUTH_USER_KEY);
+  localStorage.removeItem(SESSION_USER_ID_KEY);
+  clearUserDataCache();
   dispatchAuthChange(null);
 }
 
@@ -658,7 +720,7 @@ const memoryStore = <T extends { id: string }>(key: string) => {
   const write = (items: T[]) => writeJson(key, items);
   return {
     list: async () => read(),
-    create: async (data: Omit<T, "id"> & Record<string, unknown>) => {
+    create: async (data: Omit<T, "id" | "created_at" | "updated_at"> & Record<string, unknown>) => {
       const now = new Date().toISOString();
       const item = { id: crypto.randomUUID(), created_at: now, updated_at: now, ...data } as T;
       write([item, ...read()]);
@@ -682,8 +744,6 @@ const localTickets = memoryStore<TicketResponse>("apollosms:tickets");
 const localContacts = memoryStore<ContactResponse>("apollosms:contacts");
 const localContactGroups = memoryStore<ContactGroupResponse>("apollosms:contact-groups");
 const localAirtimeTopups = memoryStore<TopupResponse>("apollosms:airtime-topups");
-const localSmsHistory = memoryStore<SmsMessageResponse>("apollosms:sms-history");
-const localSmsQueue = memoryStore<SmsMessageResponse>("apollosms:sms-queue");
 const localForms = memoryStore<any>("apollosms:forms");
 const localTasks = memoryStore<any>("apollosms:tasks");
 const localDocuments = memoryStore<any>("apollosms:documents");
@@ -754,6 +814,63 @@ function toSmsMessage(job: SMSJob): SmsMessageResponse {
   };
 }
 
+const QUEUED_SMS_STATUSES = new Set(["queued", "processing"]);
+const HISTORY_SMS_STATUSES = new Set(["sent", "delivered", "failed"]);
+
+function mapSmsDisplayStatus(status: string, forQueue = false): string {
+  switch (status) {
+    case "queued":
+      return forQueue ? "Pending" : "Enqueued";
+    case "processing":
+      return "Sending";
+    case "sent":
+      return "Sent";
+    case "delivered":
+      return "Delivered";
+    case "failed":
+      return "Failed";
+    case "completed":
+      return "Sent";
+    default:
+      return status;
+  }
+}
+
+function toSmsMessageFromRecord(message: SMSMessageRecord, forQueue = false): SmsMessageResponse {
+  const sentAt = message.sent_at || message.created_at;
+  return {
+    id: message.message_id || String(message.id),
+    recipient_name: null,
+    recipientName: null,
+    phone: message.phone,
+    message: message.message,
+    sender_id: "Default",
+    senderId: "Default",
+    sent_at: sentAt,
+    sentAt,
+    scheduled_for: forQueue ? "Immediate" : "Immediate",
+    scheduledFor: forQueue ? "Immediate" : "Immediate",
+    status: mapSmsDisplayStatus(message.status, forQueue),
+    cost: message.credits,
+    segments: message.segments,
+    fail_reason: message.error_message || null,
+    failReason: message.error_message || null,
+  };
+}
+
+function toSmsDashboardResponse(stats: SMSDashboardStatsResponse): SmsDashboardResponse {
+  return {
+    success_count: stats.success_count,
+    queued_count: stats.queued_count,
+    total_sent: stats.total_sent,
+    failed_count: stats.failed_count,
+    delivery_rate: stats.delivery_rate,
+    chart: stats.chart,
+    heatmap: stats.heatmap,
+    recent: stats.recent.map((message) => toSmsMessageFromRecord(message)),
+  };
+}
+
 export const apollosmsApi = {
   baseUrl: APOLLOSMS_API_BASE_URL,
   request: apiRequest,
@@ -762,17 +879,18 @@ export const apollosmsApi = {
     storedUser: getStoredUser,
     save: saveAuth,
     clear: clearAuth,
+    clearUserDataCache,
     me: async () => {
       if (!getStoredToken()) throw new ApiError("No signed in user is stored locally", 401);
       const user = normalizeUser(await apiRequest<UserResponse>("/users/me"));
       return saveUser(user);
     },
-    register: async (payload: RegisterRequest | { email: string; password: string; full_name?: string; name?: string }) =>
+    register: async (payload: { email: string; password: string; name?: string; full_name?: string }) =>
       normalizeUser(await apiRequest<UserResponse>("/auth/register", {
         method: "POST",
         auth: false,
         body: JSON.stringify({
-          name: "name" in payload && payload.name ? payload.name : payload.full_name,
+          name: payload.name || payload.full_name || "",
           email: payload.email,
           password: payload.password,
         }),
@@ -854,6 +972,8 @@ export const apollosmsApi = {
   topups: {
     perform: (userId: ID, payload: SMSTopupRequest) =>
       apiRequest<SMSTopupResponse>(`/users/${userId}/topup`, { method: "POST", body: JSON.stringify(payload) }),
+    share: (payload: SMSTopupRequest & { recipient_id: ID; amount: number; description: string }) =>
+      apiRequest<SMSTopupResponse>("/users/share", { method: "POST", body: JSON.stringify(payload) }),
     forUser: (userId: ID) => apiRequest<SMSTopupResponse[]>(`/users/${userId}/topups`),
     all: () => apiRequest<SMSTopupResponse[]>("/users/topups"),
     mine: () => apiRequest<SMSTopupResponse[]>("/users/me/topups"),
@@ -916,6 +1036,10 @@ export const apollosmsApi = {
         }),
       });
     },
+    messages: (query?: { limit?: number }) =>
+      apiRequest<SMSMessageRecord[]>("/sms/messages", { query }),
+    dashboard: (query?: { range?: string }) =>
+      apiRequest<SMSDashboardStatsResponse>("/sms/dashboard", { query }),
     gatewaySend: (apiKey: string, payload: SendSMSRequest) =>
       apiRequest<GatewaySendSMSResponse>("/gateway/send", {
         method: "POST",
@@ -923,6 +1047,9 @@ export const apollosmsApi = {
         apiKey,
         body: JSON.stringify(payload),
       }),
+  },
+  smsPricing: {
+    get: () => apiRequest<{ cost_per_segment: number }>("/sms-pricing"),
   },
   smsConfig: {
     get: () => apiRequest<SMSConfigResponse>("/sms-config"),
@@ -957,7 +1084,10 @@ export const apollosmsApi = {
   payments: {
     createCollection: (payload: CreateCollectionRequest) =>
       apiRequest<CreateCollectionResponse>("/payments/collections", { method: "POST", body: JSON.stringify(payload) }),
-    getCollection: (reference: string) => apiRequest<PaymentTransactionResponse>(`/payments/collections/${reference}`),
+    getCollection: (reference: string, options?: { sync?: boolean }) =>
+      apiRequest<PaymentTransactionResponse>(`/payments/collections/${encodeURIComponent(reference)}`, {
+        query: options?.sync ? { sync: "true" } : undefined,
+      }),
     transactions: (query?: { limit?: number }) => apiRequest<PaymentTransactionResponse[]>("/payments/transactions", { query }),
     createWithdrawal: (payload: CreateWithdrawalRequest) =>
       apiRequest<PaymentTransactionResponse>("/payments/withdrawals", { method: "POST", body: JSON.stringify(payload) }),
@@ -1070,6 +1200,10 @@ export const renultApi: any = {
     get: getWallet,
   },
   topups: {
+    perform: (userId: ID, payload: { amount?: number; amount_ugx?: number; description: string; reference?: string }) =>
+      apollosmsApi.topups.perform(userId, payload),
+    share: (payload: { recipient_id: ID; amount: number; description: string }) =>
+      apollosmsApi.topups.share(payload),
     list: async (query?: { kind?: string }) => {
       const smsTopups = query?.kind === "airtime"
         ? []
@@ -1174,72 +1308,52 @@ export const renultApi: any = {
   },
   sms: {
     ...apollosmsApi.sms,
-    dashboard: async (): Promise<SmsDashboardResponse> => {
-      const [summary, recent] = await Promise.all([
-        apollosmsApi.smsConfig.usageSummary().catch(() => null),
-        localSmsHistory.list(),
-      ]);
-      const total = summary ? summary.sms_used + summary.sms_failed + summary.sms_pending : recent.length;
-      const failed = summary?.sms_failed || recent.filter((item) => item.status === "Failed").length;
-      const sent = summary?.sms_used || recent.filter((item) => item.status !== "Failed").length;
-      return {
-        success_count: sent,
-        queued_count: summary?.sms_pending || 0,
-        total_sent: total,
-        failed_count: failed,
-        delivery_rate: total > 0 ? Math.round((sent / total) * 1000) / 10 : 100,
-        chart: [],
-        heatmap: [],
-        recent,
-      };
+    dashboard: async (query?: { range?: string }): Promise<SmsDashboardResponse> => {
+      const stats = await apollosmsApi.sms.dashboard({ range: query?.range || "today" });
+      return toSmsDashboardResponse(stats);
     },
-    history: async () => {
-      const local = await localSmsHistory.list();
-      if (local.length > 0) return local;
-      return apollosmsApi.smsConfig.failedJobs({ limit: 100 })
-        .then((jobs) => jobs.map(toSmsMessage))
-        .catch(() => []);
+    history: async (query?: { limit?: number }) => {
+      const messages = await apollosmsApi.sms.messages({ limit: query?.limit || 200 });
+      return messages
+        .filter((message) => HISTORY_SMS_STATUSES.has(message.status))
+        .map((message) => toSmsMessageFromRecord(message));
     },
-    queue: async () => localSmsQueue.list(),
+    queue: async (query?: { limit?: number }) => {
+      const messages = await apollosmsApi.sms.messages({ limit: query?.limit || 200 });
+      return messages
+        .filter((message) => QUEUED_SMS_STATUSES.has(message.status))
+        .map((message) => toSmsMessageFromRecord(message, true));
+    },
     send: async (payload: SendSMSRequest | { recipients: Array<{ name?: string; phone: string; email?: string; groups?: string[] }>; message: string; sender_id?: string; scheduled_for?: string | null }) => {
-      const recipients = "recipients" in payload ? payload.recipients : [];
-      const phones = "recipients" in payload ? recipients.map((recipient) => recipient.phone).filter(Boolean) : payload.phones;
+      const phones = "recipients" in payload ? payload.recipients.map((recipient) => recipient.phone).filter(Boolean) : payload.phones;
       const message = payload.message;
       const response = await apollosmsApi.sms.send({ phone: "phone" in payload ? payload.phone : undefined, phones, message });
-      const now = new Date().toISOString();
-      const records = (phones || []).map((phone, index) => ({
-        id: crypto.randomUUID(),
-        recipient_name: recipients[index]?.name || null,
-        recipientName: recipients[index]?.name || null,
-        phone,
-        message,
-        sender_id: "sender_id" in payload ? payload.sender_id || "Default" : "Default",
-        senderId: "sender_id" in payload ? payload.sender_id || "Default" : "Default",
-        sent_at: now,
-        sentAt: now,
-        scheduled_for: "scheduled_for" in payload && payload.scheduled_for ? payload.scheduled_for : "Immediate",
-        scheduledFor: "scheduled_for" in payload && payload.scheduled_for ? payload.scheduled_for : "Immediate",
-        status: "Sent",
-        cost: 1,
-        segments: Math.max(1, Math.ceil(message.length / 160)),
-        fail_reason: null,
-        failReason: null,
-      } satisfies SmsMessageResponse));
-      const existing = await localSmsHistory.list();
-      writeJson("apollosms:sms-history", [...records, ...existing]);
-      return { ...response, messages: records, wallet: await getWallet() };
+
+      const segments = Math.max(1, Math.ceil(message.length / 160));
+      const creditsUsed = segments * (phones?.length || 0);
+      const currentUser = getStoredUser();
+      if (currentUser) {
+        const optimisticBalance = Math.max(0, (currentUser.sms_balance || 0) - creditsUsed);
+        saveUser({ ...currentUser, sms_balance: optimisticBalance });
+      }
+
+      apiRequest<UserResponse>("/users/me")
+        .then((freshUser) => {
+          saveUser(normalizeUser(freshUser));
+          window.dispatchEvent(new CustomEvent("renult-wallet-change"));
+        })
+        .catch(() => {});
+
+      return { ...response, wallet: await getWallet() };
     },
-    cancelQueued: (id: string) => localSmsQueue.delete(id),
-    rescheduleQueued: async (id: string, scheduled_for: string | null) =>
-      localSmsQueue.update(id, { scheduled_for: scheduled_for || "Immediate", scheduledFor: scheduled_for || "Immediate", status: scheduled_for ? "Scheduled" : "Pending" }),
-    sendQueuedNow: async (id: string) => {
-      const queued = (await localSmsQueue.list()).find((item) => item.id === id);
-      if (!queued) throw new ApiError("Queued message not found", 404);
-      await localSmsQueue.delete(id);
-      const sent = { ...queued, status: "Sent", sent_at: new Date().toISOString(), sentAt: new Date().toISOString() };
-      const history = await localSmsHistory.list();
-      writeJson("apollosms:sms-history", [sent, ...history]);
-      return sent;
+    cancelQueued: async () => {
+      throw new ApiError("Queued messages cannot be cancelled once submitted to the gateway", 400);
+    },
+    rescheduleQueued: async () => {
+      throw new ApiError("Rescheduling is not supported for gateway-backed SMS messages", 400);
+    },
+    sendQueuedNow: async () => {
+      throw new ApiError("Queued messages are processed automatically by the gateway worker", 400);
     },
   },
   apiSettings: apollosmsApi.apiSettings,

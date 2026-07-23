@@ -221,6 +221,37 @@ func (r *DeveloperKeyRepository) CreateDeliveryLogsForJobs(jobIDs []uint, status
 	return r.db.Create(&logs).Error
 }
 
+// FindMessagesByUserID lists SMS messages for a user, newest first.
+func (r *DeveloperKeyRepository) FindMessagesByUserID(userID uint, limit int) ([]models.SMSMessage, error) {
+	var messages []models.SMSMessage
+	q := r.db.Where("user_id = ?", userID).Order("created_at desc")
+	if limit > 0 {
+		q = q.Limit(limit)
+	}
+	err := q.Find(&messages).Error
+	return messages, err
+}
+
+// FindMessagesByUserIDSince lists SMS messages for a user created on or after since.
+func (r *DeveloperKeyRepository) FindMessagesByUserIDSince(userID uint, since time.Time, limit int) ([]models.SMSMessage, error) {
+	var messages []models.SMSMessage
+	q := r.db.Where("user_id = ? AND created_at >= ?", userID, since).Order("created_at desc")
+	if limit > 0 {
+		q = q.Limit(limit)
+	}
+	err := q.Find(&messages).Error
+	return messages, err
+}
+
+// CountPendingMessagesByUser counts queued/processing messages for a user.
+func (r *DeveloperKeyRepository) CountPendingMessagesByUser(userID uint) (int64, error) {
+	var count int64
+	err := r.db.Model(&models.SMSMessage{}).
+		Where("user_id = ? AND status IN ?", userID, []string{models.SMSMessageStatusQueued, models.SMSMessageStatusProcessing}).
+		Count(&count).Error
+	return count, err
+}
+
 // FindFailedJobs lists failed jobs for admin review.
 func (r *DeveloperKeyRepository) FindFailedJobs(limit int) ([]models.SMSJob, error) {
 	var jobs []models.SMSJob

@@ -33,7 +33,8 @@ func (h *PaymentHandler) CreateCollection(c *fiber.Ctx) error {
 
 func (h *PaymentHandler) GetCollection(c *fiber.Ctx) error {
 	reference := c.Params("reference")
-	res, err := h.service.GetByReference(reference)
+	forceSync := c.Query("sync") == "true" || c.Query("sync") == "1"
+	res, err := h.service.GetByReference(reference, forceSync)
 	if err != nil {
 		return response.Error(c, fiber.StatusNotFound, "payment transaction not found")
 	}

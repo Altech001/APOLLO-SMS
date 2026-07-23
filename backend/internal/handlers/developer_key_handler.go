@@ -167,3 +167,50 @@ func (h *DeveloperKeyHandler) GetFailedJobs(c *fiber.Ctx) error {
 
 	return response.Success(c, jobs)
 }
+
+// ListUserMessages godoc
+// @Summary      List user SMS messages
+// @Description  Retrieve SMS message history for the authenticated user from the database
+// @Tags         SMS
+// @Security     BearerAuth
+// @Produce      json
+// @Param        limit  query  int  false  "Max messages to return (default 200)"
+// @Success      200    {array}  models.SMSMessageListItem
+// @Failure      401    {object}  response.ErrorResponse
+// @Router       /sms/messages [get]
+func (h *DeveloperKeyHandler) ListUserMessages(c *fiber.Ctx) error {
+	limit := 200
+	if l := c.Query("limit"); l != "" {
+		if parsed, err := strconv.Atoi(l); err == nil && parsed > 0 {
+			limit = parsed
+		}
+	}
+
+	userID := getUserID(c)
+	messages, err := h.service.ListUserMessages(userID, limit)
+	if err != nil {
+		return response.Error(c, fiber.StatusInternalServerError, err.Error())
+	}
+
+	return response.Success(c, messages)
+}
+
+// GetUserSMSDashboard godoc
+// @Summary      Get user SMS dashboard stats
+// @Description  Retrieve SMS analytics and recent messages for the authenticated user
+// @Tags         SMS
+// @Security     BearerAuth
+// @Produce      json
+// @Param        range  query  string  false  "Date range: today, week, month, year"
+// @Success      200    {object}  models.SMSDashboardStats
+// @Failure      401    {object}  response.ErrorResponse
+// @Router       /sms/dashboard [get]
+func (h *DeveloperKeyHandler) GetUserSMSDashboard(c *fiber.Ctx) error {
+	userID := getUserID(c)
+	stats, err := h.service.GetUserSMSDashboard(userID, c.Query("range", "today"))
+	if err != nil {
+		return response.Error(c, fiber.StatusInternalServerError, err.Error())
+	}
+
+	return response.Success(c, stats)
+}

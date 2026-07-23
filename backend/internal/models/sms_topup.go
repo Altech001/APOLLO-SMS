@@ -20,12 +20,13 @@ type SMSTopup struct {
 	DeletedAt   gorm.DeletedAt `json:"-" gorm:"index"`
 }
 
-// SMSTopupRequest is the payload for adding SMS credits to a user.
+// SMSTopupRequest is the payload for adding SMS credits to a user or transferring credits between users.
 type SMSTopupRequest struct {
 	Amount      int    `json:"amount"` // Backward-compatible alias for amount_ugx.
 	AmountUGX   int    `json:"amount_ugx"`
 	Description string `json:"description" validate:"required"`
 	Reference   string `json:"reference"`
+	RecipientID uint   `json:"recipient_id,omitempty"`
 }
 
 // SMSTopupResponse formats a topup transaction for HTTP responses.

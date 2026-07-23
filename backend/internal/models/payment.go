@@ -1,10 +1,45 @@
 package models
 
 import (
+	"encoding/json"
+	"strconv"
+	"strings"
 	"time"
 
 	"gorm.io/gorm"
 )
+
+// FlexInt unmarshals MarzPay amount fields that may be JSON numbers or strings.
+type FlexInt int
+
+func (f *FlexInt) UnmarshalJSON(data []byte) error {
+	if len(data) == 0 || string(data) == "null" {
+		return nil
+	}
+	var n int
+	if err := json.Unmarshal(data, &n); err == nil {
+		*f = FlexInt(n)
+		return nil
+	}
+	var s string
+	if err := json.Unmarshal(data, &s); err != nil {
+		return err
+	}
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return nil
+	}
+	v, err := strconv.Atoi(s)
+	if err != nil {
+		return err
+	}
+	*f = FlexInt(v)
+	return nil
+}
+
+func (f FlexInt) Int() int {
+	return int(f)
+}
 
 const (
 	PaymentTypeCollection   = "collection"
@@ -115,8 +150,8 @@ type MarzPayWebhookPayload struct {
 		PhoneNumber string `json:"phone_number"`
 		Description string `json:"description"`
 		Amount      struct {
-			Raw      int    `json:"raw"`
-			Currency string `json:"currency"`
+			Raw      FlexInt `json:"raw"`
+			Currency string  `json:"currency"`
 		} `json:"amount"`
 	} `json:"transaction"`
 	Collection struct {
@@ -125,8 +160,8 @@ type MarzPayWebhookPayload struct {
 		Mode                  string `json:"mode"`
 		ProviderTransactionID string `json:"provider_transaction_id"`
 		Amount                struct {
-			Raw      int    `json:"raw"`
-			Currency string `json:"currency"`
+			Raw      FlexInt `json:"raw"`
+			Currency string  `json:"currency"`
 		} `json:"amount"`
 	} `json:"collection"`
 }

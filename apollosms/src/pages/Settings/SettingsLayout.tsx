@@ -10,7 +10,8 @@ import {
   Settings,
   User,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useAuth } from "@/lib/auth";
+import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
 /* ─── sidebar nav config ─── */
@@ -66,6 +67,11 @@ export default function SettingsLayout({
 }: SettingsLayoutProps) {
   const navigate = useNavigate();
   const location = useLocation();
+  const { user } = useAuth();
+  const visibleNavItems = useMemo(
+    () => navItems.filter((item) => item.id !== "admin-settings" || user?.role === "admin"),
+    [user?.role],
+  );
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() =>
     localStorage.getItem("sidebar-collapsed") === "true"
@@ -101,7 +107,7 @@ export default function SettingsLayout({
 
           <nav className="flex-1 px-2 pb-4 pt-1">
             <div className="flex flex-col gap-px">
-              {navItems.map((item) => {
+              {visibleNavItems.map((item) => {
                 const active = isActive(item.path);
                 return (
                   <button

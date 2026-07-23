@@ -7,6 +7,7 @@ import {
     ChevronsUpDown,
     CircleDollarSign,
     CopySlash,
+    EqualApproximatelyIcon,
     History,
     MenuSquareIcon,
     MessageCircleCodeIcon,
@@ -18,6 +19,7 @@ import {
     Send,
     SendHorizonal,
     Settings,
+    Share2Icon,
     Ticket,
     Users,
     Wallet2Icon
@@ -52,7 +54,7 @@ const primaryNavItems: NavItem[] = [
     {
         label: "Recent History",
         icon: <History className="w-5 h-5" />,
-        path: "/sales",
+        path: "/recents-sms",
     },
     {
         label: "SMS Templates",
@@ -67,16 +69,21 @@ const supportNavItems: NavItem[] = [
         icon: <Wallet2Icon className="w-5 h-5" />,
         path: "/sms-tp",
     },
+    {
+        label: "Share SMS",
+        icon: <Share2Icon className="w-5 h-5" />,
+        path: "/share-sms",
+    },
     // {
     //     label: "Contacts",
     //     icon: <PersonStanding className="w-5 h-5" />,
     //     path: "/my-contacts",
     // },
-    {
-        label: "Airtime Resell",
-        icon: <CopySlash className="w-5 h-5" />,
-        path: "/airtime",
-    },
+    // {
+    //     label: "Airtime Resell",
+    //     icon: <CopySlash className="w-5 h-5" />,
+    //     path: "/airtime",
+    // },
 ];
 
 const secondaryNavItems: NavItem[] = [
@@ -109,7 +116,7 @@ export default function SideBar({ isOpen, onClose }: SideBarProps) {
     const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
     const [selectedWorkspace, setSelectedWorkspace] = useState<Workspace | null>(null);
     const [smsBalance, setSmsBalance] = useState(0);
-    const selectedName = selectedWorkspace?.name || "No Branch";
+    const selectedName = selectedWorkspace?.name || "My Workspace";
     const selectedIconColor = selectedWorkspace?.iconColor || workspaceIconColors[0];
 
     const handleSelectWorkspace = (workspace: Workspace) => {
@@ -212,16 +219,16 @@ export default function SideBar({ isOpen, onClose }: SideBarProps) {
         `}
             >
                 {isCollapsed ? (
-                    <span className={`shrink-0 ${active ? "text-primary" : item.iconColor || "text-foreground"}`}>
+                    <span className={`shrink-0 ${active ? "text-primary" : item.iconColor || "text-foreground/70"}`}>
                         {item.icon}
                     </span>
                 ) : (
                     <>
                         <div className="flex items-center gap-4 overflow-hidden">
-                            <span className={`shrink-0 ${active ? "text-primary" : item.iconColor || "text-foreground"}`}>
+                            <span className={`shrink-0 ${active ? "text-primary" : item.iconColor || "text-foreground/80"}`}>
                                 {item.icon}
                             </span>
-                            <span className={`${active ? "truncate text-primary" : "truncate text-foreground font-semibold"}`}>{item.label}</span>
+                            <span className={`${active ? "truncate text-primary" : "truncate text-foreground/80 font-medium"}`}>{item.label}</span>
                         </div>
                         {item.hasSubmenu && (
                             <MoreVerticalIcon className="w-4 h-4 text-muted-foreground group-hover:text-foreground shrink-0 transition-colors" />
@@ -310,12 +317,12 @@ export default function SideBar({ isOpen, onClose }: SideBarProps) {
                             className="w-64 p-2 bg-popover border border-border/60 shadow rounded"
                         >
                             <div className="px-2 py-1.5 text-xs font-mono text-muted-foreground">
-                                Locations
+                                
                             </div>
                             <div className="space-y-0.5 my-1">
                                 {workspaces.length === 0 && (
-                                    <div className="px-2.5 py-3 text-xs text-muted-foreground">
-                                        No branches available.
+                                    <div className="px-2.5 py-2 text-xs text-muted-foreground">
+                                        <EqualApproximatelyIcon className="w-10 h-10 mx-auto" />
                                     </div>
                                 )}
                                 {workspaces.map((workspace) => {
@@ -346,13 +353,13 @@ export default function SideBar({ isOpen, onClose }: SideBarProps) {
                                     <Settings className="w-4 h-4 text-muted-foreground" />
                                     <span className="font-medium">Manage Branches</span>
                                 </button> */}
-                                <button
+                                {/* <button
                                     onClick={() => handleNavigate("/branches?new=branch")}
                                     className="w-full flex items-center gap-2 px-2.5 py-2 rounded text-sm text-foreground/80 hover:bg-muted/60 transition-colors text-left"
                                 >
                                     <Plus className="w-4 h-4 text-muted-foreground" />
                                     <span className="font-medium">Create New Branch</span>
-                                </button>
+                                </button> */}
 
                             </div>
                         </PopoverContent>

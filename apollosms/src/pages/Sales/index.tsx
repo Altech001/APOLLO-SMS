@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { renultApi, SmsMessageResponse } from "@/api/apollosms";
 import AppHeader from "@/components/Header/AppHeader";
 import SEO from "@/components/SEO";
@@ -40,7 +41,8 @@ import {
     Send,
     Trash2
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useAuth } from "@/lib/auth";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 
@@ -84,7 +86,7 @@ const formatDateTimeInput = (value: string) => {
     // Strip all non-digits
     const digits = value.replace(/\D/g, "");
     let formatted = "";
-    
+
     if (digits.length > 0) {
         formatted += digits.substring(0, 4);
     }
@@ -133,6 +135,7 @@ const toQueuedRecord = (message: SmsMessageResponse): QueuedSms => ({
 
 export default function SalesIndex() {
     const navigate = useNavigate();
+    const { user } = useAuth();
     const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem("sidebar-collapsed") === "true");
 
     useEffect(() => {
@@ -175,7 +178,7 @@ export default function SalesIndex() {
     const [newScheduleTime, setNewScheduleTime] = useState("");
 
     const [isRefreshing, setIsRefreshing] = useState(false);
-    const loadLogs = async (showToast = false) => {
+    const loadLogs = useCallback(async (showToast = false) => {
         setLoadError("");
         setIsLoadingLogs(true);
         setIsRefreshing(true);
@@ -197,11 +200,22 @@ export default function SalesIndex() {
             setIsLoadingLogs(false);
             setIsRefreshing(false);
         }
-    };
+    }, []);
 
     useEffect(() => {
+        if (!user?.id) return;
         loadLogs();
-    }, []);
+    }, [user?.id, loadLogs]);
+
+    useEffect(() => {
+        const reloadOnLogin = () => loadLogs();
+        window.addEventListener("apollosms-login", reloadOnLogin);
+        window.addEventListener("apollosms-user-cache-cleared", reloadOnLogin);
+        return () => {
+            window.removeEventListener("apollosms-login", reloadOnLogin);
+            window.removeEventListener("apollosms-user-cache-cleared", reloadOnLogin);
+        };
+    }, [loadLogs]);
 
     const handleRefresh = () => loadLogs(true);
 
@@ -386,22 +400,22 @@ export default function SalesIndex() {
     const getStatusBadge = (status: SmsRecord['status'] | QueuedSms['status']) => {
         switch (status) {
             case "Delivered":
-                return <Badge variant="outline" className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 font-bold">Delivered</Badge>;
+                return <Badge variant="outline" className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 ">Delivered</Badge>;
             case "Sent":
-                return <Badge variant="outline" className="bg-blue-500/10 text-blue-500 border-blue-500/20 font-bold">Sent</Badge>;
+                return <Badge variant="outline" className="bg-blue-500/10 text-blue-500 border-blue-500/20 ">Sent</Badge>;
             case "Failed":
-                return <Badge variant="outline" className="bg-rose-500/10 text-rose-500 border-rose-500/20 font-bold">Failed</Badge>;
+                return <Badge variant="outline" className="bg-rose-500/10 text-rose-500 border-rose-500/20 ">Failed</Badge>;
             case "Pending":
-                return <Badge variant="outline" className="bg-amber-500/10 text-amber-500 border-amber-500/20 font-bold">Pending</Badge>;
+                return <Badge variant="outline" className="bg-amber-500/10 text-amber-500 border-amber-500/20 ">Pending</Badge>;
             case "Sending":
                 return (
-                    <Badge variant="outline" className="bg-cyan-500/10 text-cyan-500 border-cyan-500/20 font-bold flex items-center gap-1 w-max">
+                    <Badge variant="outline" className="bg-cyan-500/10 text-cyan-500 border-cyan-500/20  flex items-center gap-1 w-max">
                         <Loader2 className="w-2.5 h-2.5 animate-spin" />
                         Sending
                     </Badge>
                 );
             case "Scheduled":
-                return <Badge variant="outline" className="bg-purple-500/10 text-purple-500 border-purple-500/20 font-bold">Scheduled</Badge>;
+                return <Badge variant="outline" className="bg-purple-500/10 text-purple-500 border-purple-500/20 ">Scheduled</Badge>;
         }
     };
 
@@ -454,7 +468,7 @@ export default function SalesIndex() {
                         <button
                             onClick={() => { setActiveTab("history"); setStatusFilter("all"); }}
                             className={cn(
-                                "flex items-center gap-1.5 px-4 py-2.5 text-xs font-bold border-b-2 transition-all duration-150 -mb-px",
+                                "flex items-center gap-1.5 px-4 py-2.5 text-xs  border-b-2 transition-all duration-150 -mb-px",
                                 activeTab === "history"
                                     ? "border-primary text-primary"
                                     : "border-transparent text-muted-foreground hover:text-foreground"
@@ -469,7 +483,7 @@ export default function SalesIndex() {
                         <button
                             onClick={() => { setActiveTab("queue"); setStatusFilter("all"); }}
                             className={cn(
-                                "flex items-center gap-1.5 px-4 py-2.5 text-xs font-bold border-b-2 transition-all duration-150 -mb-px",
+                                "flex items-center gap-1.5 px-4 py-2.5 text-xs  border-b-2 transition-all duration-150 -mb-px",
                                 activeTab === "queue"
                                     ? "border-primary text-primary"
                                     : "border-transparent text-muted-foreground hover:text-foreground"
@@ -478,7 +492,7 @@ export default function SalesIndex() {
                             <Clock className="w-3.5 h-3.5" />
                             Outbox Queue
                             {queue.length > 0 && (
-                                <span className="ml-1 bg-amber-500/10 px-1.5 py-0.5 rounded text-[10px] text-amber-500  font-bold">
+                                <span className="ml-1 bg-amber-500/10 px-1.5 py-0.5 rounded text-[10px] text-amber-500  ">
                                     {queue.length}
                                 </span>
                             )}
@@ -489,7 +503,7 @@ export default function SalesIndex() {
                     <Card className="border border-border/10 shadow-none rounded">
                         <CardHeader className="pb-3 flex flex-row items-center justify-between">
                             <div>
-                                <CardTitle className="text-sm font-bold tracking-tight text-foreground">
+                                <CardTitle className="text-sm  tracking-tight text-foreground">
                                     {activeTab === "history" ? "SMS Transmission Records" : "Outbound Queue"}
                                 </CardTitle>
                                 <CardDescription className="text-xs text-muted-foreground mt-0.5">
@@ -504,16 +518,16 @@ export default function SalesIndex() {
                                 <Table>
                                     <TableHeader className="bg-muted/30">
                                         <TableRow>
-                                            <TableHead className="w-[50px] font-bold text-xs  text-foreground">#</TableHead>
-                                            <TableHead className="font-bold text-xs  text-foreground">Recipient</TableHead>
-                                            <TableHead className="font-bold text-xs truncate  text-foreground">Sender ID</TableHead>
-                                            <TableHead className="font-bold text-xs  text-foreground w-[40%]">Message</TableHead>
-                                            <TableHead className="font-bold text-xs  text-foreground">
+                                            <TableHead className="w-[50px]  text-xs  text-foreground">#</TableHead>
+                                            <TableHead className=" text-xs  text-foreground">Recipient</TableHead>
+                                            <TableHead className=" text-xs truncate  text-foreground">Sender ID</TableHead>
+                                            <TableHead className=" text-xs  text-foreground w-[40%]">Message</TableHead>
+                                            <TableHead className=" text-xs  text-foreground">
                                                 {activeTab === "history" ? "Sent At" : "Scheduled For"}
                                             </TableHead>
-                                            <TableHead className="font-bold text-xs  text-foreground text-center">Cost</TableHead>
-                                            <TableHead className="font-bold text-xs  text-foreground text-center">Status</TableHead>
-                                            <TableHead className="font-bold text-xs  text-foreground text-right">Actions</TableHead>
+                                            <TableHead className=" text-xs  text-foreground text-center">UNIT(S)</TableHead>
+                                            <TableHead className=" text-xs  text-foreground text-center">Status</TableHead>
+                                            <TableHead className=" text-xs  text-foreground text-right">Actions</TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
@@ -522,7 +536,7 @@ export default function SalesIndex() {
                                                 <TableCell colSpan={8} className="h-44 text-center">
                                                     <div className="flex flex-col items-center justify-center text-muted-foreground">
                                                         <Loader2 className="w-8 h-8 mb-2 animate-spin text-primary/70" />
-                                                        <span className="text-sm font-bold text-foreground">Loading SMS records</span>
+                                                        <span className="text-sm  text-foreground">Loading SMS records</span>
                                                     </div>
                                                 </TableCell>
                                             </TableRow>
@@ -531,7 +545,7 @@ export default function SalesIndex() {
                                                 <TableCell colSpan={8} className="h-44 text-center">
                                                     <div className="flex flex-col items-center justify-center text-muted-foreground">
                                                         <MessageSquare className="w-10 h-10 mb-2 stroke-[1.2] text-muted-foreground/60" />
-                                                        <span className="text-sm font-bold text-foreground">{loadError ? "Unable to load SMS records" : "No records found"}</span>
+                                                        <span className="text-sm  text-foreground">{loadError ? "Unable to load SMS records" : "No records found"}</span>
                                                         <span className="text-xs mt-0.5">{loadError || "There are no messages matching the active filter parameters."}</span>
                                                     </div>
                                                 </TableCell>
@@ -547,7 +561,7 @@ export default function SalesIndex() {
                                                         <TableCell className=" text-xs font-semibold text-muted-foreground">{serialNum}</TableCell>
                                                         <TableCell>
                                                             <div className="flex flex-col">
-                                                                {/* <span className="text-xs font-bold text-foreground">{record.recipientName}</span> */}
+                                                                {/* <span className="text-xs  text-foreground">{record.recipientName}</span> */}
                                                                 <span className="text-xs  text-muted-foreground mt-0.5">{record.phone}</span>
                                                             </div>
                                                         </TableCell>
@@ -568,8 +582,8 @@ export default function SalesIndex() {
                                                                     ? "Immediate"
                                                                     : (record as QueuedSms).scheduledFor}
                                                         </TableCell>
-                                                        <TableCell className="text-center truncate  text-xs font-bold text-foreground">
-                                                            {record.cost > 0 ? `${record.cost} UGX` : "Free"}
+                                                        <TableCell className="text-center truncate  text-xs  text-foreground">
+                                                            {record.cost > 0 ? `${record.cost} SMS` : "Free"}
                                                         </TableCell>
                                                         <TableCell className="text-center">{getStatusBadge(record.status)}</TableCell>
                                                         <TableCell className="text-right">
@@ -663,7 +677,7 @@ export default function SalesIndex() {
                                                 variant={currentPage === p ? "default" : "outline"}
                                                 size="icon"
                                                 onClick={() => setCurrentPage(p)}
-                                                className={cn("w-8 h-8 rounded text-xs font-bold", currentPage === p ? "bg-primary" : "border-border/80")}
+                                                className={cn("w-8 h-8 rounded text-xs ", currentPage === p ? "bg-primary" : "border-border/80")}
                                             >
                                                 {p}
                                             </Button>
@@ -691,7 +705,7 @@ export default function SalesIndex() {
             <Sheet open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
                 <SheetContent className="sm:max-w-md w-full bg-card border-l border-border/60 p-6 overflow-y-auto">
                     <SheetHeader className="pb-3 border-b border-border/40">
-                        <SheetTitle className="text-base font-bold text-foreground flex items-center gap-2">
+                        <SheetTitle className="text-base  text-foreground flex items-center gap-2">
                             Message Transmission Audit
                         </SheetTitle>
                     </SheetHeader>
@@ -701,11 +715,11 @@ export default function SalesIndex() {
                             {/* Status and ID */}
                             <div className="flex items-center justify-between">
                                 <div>
-                                    <span className="text-muted-foreground block text-[10px]  font-bold ">SMS Reference ID</span>
-                                    <span className=" font-bold text-foreground">{selectedMessage.id}</span>
+                                    <span className="text-muted-foreground block text-[10px]   ">SMS Reference ID</span>
+                                    <span className="  text-foreground">{selectedMessage.id}</span>
                                 </div>
                                 <div>
-                                    <span className="text-muted-foreground block text-[10px]  font-bold  text-right mb-0.5">Status</span>
+                                    <span className="text-muted-foreground block text-[10px]    text-right mb-0.5">Status</span>
                                     {getStatusBadge(selectedMessage.status)}
                                 </div>
                             </div>
@@ -714,19 +728,19 @@ export default function SalesIndex() {
                             <div className="p-3 bg-muted/20 border border-border/40 rounded">
                                 <div className="grid grid-cols-2 gap-3">
                                     <div>
-                                        <span className="text-muted-foreground block text-[11px]  font-bold  mb-0.5">Recipient Name</span>
-                                        <span className="font-bold text-foreground">{selectedMessage.recipientName}</span>
+                                        <span className="text-muted-foreground block text-[11px]    mb-0.5">Recipient Name</span>
+                                        <span className=" text-foreground">{selectedMessage.recipientName}</span>
                                     </div>
                                     <div>
-                                        <span className="text-muted-foreground block text-[10px]  font-bold  mb-0.5">Phone Number</span>
-                                        <span className=" font-bold text-foreground">{selectedMessage.phone}</span>
+                                        <span className="text-muted-foreground block text-[10px]    mb-0.5">Phone Number</span>
+                                        <span className="  text-foreground">{selectedMessage.phone}</span>
                                     </div>
                                 </div>
                             </div>
 
                             {/* Message content */}
                             <div className="space-y-1">
-                                <span className="text-muted-foreground block text-[10px]  font-bold ">SMS Content</span>
+                                <span className="text-muted-foreground block text-[10px]   ">SMS Content</span>
                                 <div className="p-3 bg-primary/20 border border-primary/60 rounded leading-relaxed break-words relative group">
                                     {selectedMessage.message}
                                     <Button
@@ -744,23 +758,23 @@ export default function SalesIndex() {
                             {/* Audit metrics */}
                             <div className="grid grid-cols-3 gap-3 text-center border-t border-border/20 pt-3">
                                 <div>
-                                    <span className="text-muted-foreground block text-[10px]  font-bold  mb-0.5">Sender ID</span>
-                                    <span className="font-bold text-foreground ">{selectedMessage.senderId}</span>
+                                    <span className="text-muted-foreground block text-[10px]    mb-0.5">Sender ID</span>
+                                    <span className=" text-foreground ">{selectedMessage.senderId}</span>
                                 </div>
                                 <div>
-                                    <span className="text-muted-foreground block text-[10px]  font-bold  mb-0.5">Billing cost</span>
-                                    <span className="font-bold text-foreground ">{selectedMessage.cost} UGX</span>
+                                    <span className="text-muted-foreground block text-[10px]    mb-0.5">Billing cost</span>
+                                    <span className=" text-foreground ">{selectedMessage.cost} UGX</span>
                                 </div>
                                 <div>
-                                    <span className="text-muted-foreground block text-[10px]  font-bold  mb-0.5">Segments</span>
-                                    <span className="font-bold text-foreground ">{selectedMessage.segments} SMS</span>
+                                    <span className="text-muted-foreground block text-[10px]    mb-0.5">Segments</span>
+                                    <span className=" text-foreground ">{selectedMessage.segments} SMS</span>
                                 </div>
                             </div>
 
                             {/* Time sent */}
                             <div className="flex items-center justify-between border-t border-border/20 pt-3 text-muted-foreground">
                                 <span>Sent Timestamp:</span>
-                                <span className=" font-bold text-foreground/80">{selectedMessage.sentAt}</span>
+                                <span className="  text-foreground/80">{selectedMessage.sentAt}</span>
                             </div>
 
                             {/* Fail reason if failed */}
@@ -768,7 +782,7 @@ export default function SalesIndex() {
                                 <div className="p-3 bg-rose-500/5 border border-rose-500/15 rounded text-rose-500 flex items-start gap-2">
                                     <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
                                     <div>
-                                        <p className="font-bold">Transmission Failure Cause:</p>
+                                        <p className="">Transmission Failure Cause:</p>
                                         <p className="mt-0.5 leading-normal">{selectedMessage.failReason}</p>
                                     </div>
                                 </div>
@@ -805,7 +819,7 @@ export default function SalesIndex() {
             <Dialog open={isCancelDialogOpen} onOpenChange={setIsCancelDialogOpen}>
                 <DialogContent className="sm:max-w-md w-full bg-card border border-border/60 rounded p-6">
                     <DialogHeader>
-                        <DialogTitle className="text-base font-bold text-foreground">Cancel Outbound Message</DialogTitle>
+                        <DialogTitle className="text-base  text-foreground">Cancel Outbound Message</DialogTitle>
                         <DialogDescription className="text-xs text-muted-foreground mt-1">
                             Are you sure you want to cancel this outbound transmission? It will be permanently removed from the gateway queue.
                         </DialogDescription>
@@ -836,7 +850,7 @@ export default function SalesIndex() {
             <Dialog open={isRescheduleOpen} onOpenChange={setIsRescheduleOpen}>
                 <DialogContent className="sm:max-w-md w-full bg-card border border-border/60 rounded p-6">
                     <DialogHeader className="pb-3 border-b border-border/40">
-                        <DialogTitle className="text-base font-bold text-foreground">Reschedule Delivery</DialogTitle>
+                        <DialogTitle className="text-base  text-foreground">Reschedule Delivery</DialogTitle>
                     </DialogHeader>
 
                     <div className="space-y-4 py-3 text-xs">

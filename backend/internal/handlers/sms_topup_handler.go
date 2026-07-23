@@ -53,6 +53,29 @@ func (h *SMSTopupHandler) PerformTopup(c *fiber.Ctx) error {
 	return response.Success(c, res)
 }
 
+// ShareCredits lets an authenticated user transfer SMS credits to another user.
+func (h *SMSTopupHandler) ShareCredits(c *fiber.Ctx) error {
+	currentUserID := getUserID(c)
+	if currentUserID == 0 {
+		return response.Error(c, fiber.StatusUnauthorized, "Unauthorized")
+	}
+
+	var req models.SMSTopupRequest
+	if err := c.BodyParser(&req); err != nil {
+		return response.Error(c, fiber.StatusBadRequest, "Invalid request body")
+	}
+	if req.RecipientID == 0 {
+		return response.Error(c, fiber.StatusBadRequest, "recipient_id is required")
+	}
+
+	res, err := h.service.PerformTopup(currentUserID, &req)
+	if err != nil {
+		return response.Error(c, fiber.StatusBadRequest, err.Error())
+	}
+
+	return response.Success(c, res)
+}
+
 // GetMyTopups godoc
 // @Summary      Get My Topup History
 // @Description  Get SMS credit top-up logs for the logged-in user
