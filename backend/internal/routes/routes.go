@@ -26,7 +26,7 @@ func Setup(app *fiber.App, db *gorm.DB, cfg *config.Config) {
 	storageProvider, err := storage.NewProvider(
 		cfg.StorageProvider,
 		"uploads",
-		"http://localhost:8000/uploads",
+		cfg.PublicURL("/uploads"),
 		cfg.R2EndpointURL,
 		cfg.R2AccessKeyID,
 		cfg.R2SecretAccessKey,
@@ -107,6 +107,7 @@ func Setup(app *fiber.App, db *gorm.DB, cfg *config.Config) {
 	users.Get("/me", userHandler.GetMe)
 	users.Put("/me", userHandler.UpdateMe)
 	users.Get("/me/topups", topupHandler.GetMyTopups)
+	users.Get("/share/recipients", userHandler.SearchCreditRecipients)
 	users.Get("/:id", middleware.RoleRequired("admin"), userHandler.GetUser)
 	users.Post("/", middleware.RoleRequired("admin"), userHandler.CreateUser)
 	users.Put("/:id", middleware.RoleRequired("admin"), userHandler.UpdateUser)

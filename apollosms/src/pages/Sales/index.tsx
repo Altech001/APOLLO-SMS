@@ -436,15 +436,18 @@ export default function SalesIndex() {
                 {/* Page Title */}
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-2 pb-2">
                     <div>
-                        {/* <h1 className="text-base font-black tracking-tight text-foreground sm:text-base">
-                            SMS History & Outbox
-                        </h1> */}
-                        <p className="text-xs text-muted-foreground mt-1">
-                            Review detailed SMS logs, audit delivery rates, and control pending broadcasts.
+                        <h1 className="text-base tracking-tight text-foreground sm:text-base">
+                            History - Outbox
+                        </h1>
+                        <p className="text-xs text-muted-foreground mt-4">
+                            SMS logs, audit delivery rates, and control pending broadcasts.
                         </p>
                     </div>
 
                     <div className="flex items-center gap-2">
+                        <Button className="text-xs h-9 rounded flex items-center gap-1.5">
+                            Download Logs
+                        </Button>
                         <Button
                             variant="outline"
                             onClick={handleRefresh}
@@ -544,7 +547,7 @@ export default function SalesIndex() {
                                             <TableRow>
                                                 <TableCell colSpan={8} className="h-44 text-center">
                                                     <div className="flex flex-col items-center justify-center text-muted-foreground">
-                                                        <MessageSquare className="w-10 h-10 mb-2 stroke-[1.2] text-muted-foreground/60" />
+                                                        <img src="/bg/empty.png" className="w-10 h-10 mb-2 stroke-[1.2] text-muted-foreground/60" />
                                                         <span className="text-sm  text-foreground">{loadError ? "Unable to load SMS records" : "No records found"}</span>
                                                         <span className="text-xs mt-0.5">{loadError || "There are no messages matching the active filter parameters."}</span>
                                                     </div>

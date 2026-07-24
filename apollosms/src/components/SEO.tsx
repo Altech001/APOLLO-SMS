@@ -1,7 +1,7 @@
 import { Helmet } from 'react-helmet-async';
 
 interface SEOProps {
-    /** Page title – will be appended with "| Foreform" */
+    /** Page title – will be appended with "| LUCOSMS" */
     title?: string;
     /** Meta description – keep under 160 characters */
     description?: string;
@@ -17,11 +17,11 @@ interface SEOProps {
     noIndex?: boolean;
 }
 
-const SITE_NAME = 'Foreform';
+const SITE_NAME = 'LUCOSMS';
 const BASE_URL = 'https://form.pitbox.fun';
 const DEFAULT_OG_IMAGE = `${BASE_URL}/og-image.png`;
 const DEFAULT_DESCRIPTION =
-    'Foreform is a free, fast online form builder. Create surveys, contact forms, registration forms, and quizzes in minutes — no coding needed.';
+    'LUCOSMS is a free, fast online form builder. Create surveys, contact forms, registration forms, and quizzes in minutes — no coding needed.';
 const DEFAULT_KEYWORDS =
     'form builder, online form creator, free form builder, survey maker, contact form, Google Forms alternative, quiz builder, registration form';
 

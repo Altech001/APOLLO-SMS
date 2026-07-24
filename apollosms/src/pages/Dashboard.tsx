@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { base44, renultApi, SmsMessageResponse } from "@/api/apollosms";
+import { base44, SmsMessageResponse } from "@/api/apollosms";
 import AppHeader from "@/components/Header/AppHeader";
 import SEO from "@/components/SEO";
 import { Badge } from "@/components/ui/badge";
@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowUp,
   ArrowUpRight,
@@ -25,6 +25,7 @@ import {
 import { useAuth } from "@/lib/auth";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { dashboardQueryKeys, type DashboardDateRange, useDashboardForms, useDashboardSmsDashboard } from "@/hooks/use-dashboard-data";
 
 import {
   Popover,
@@ -49,7 +50,7 @@ const toDashboardMessage = (message: SmsMessageResponse) => ({
   id: message.id,
   phone: message.phone,
   message: message.message,
-  cost: `${message.cost ?? 0} UGX`,
+  cost: `${message.cost ?? 0} SMS`,
   sentTime: message.sentAt || message.sent_at || "",
   status: message.status,
 });
@@ -63,7 +64,10 @@ export default function Dashboard() {
   const [isFormsVisible, setIsFormsVisible] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [chartType, setChartType] = useState<"area" | "bar">("area");
-  const [dateRange, setDateRange] = useState("today");
+  const [dateRange, setDateRange] = useState<DashboardDateRange>("month");
+  const dashboardUserId = user?.id || null;
+  const formsQueryKey = dashboardQueryKeys.forms(dashboardUserId);
+  const smsDashboardQueryKey = dashboardQueryKeys.sms(dashboardUserId, dateRange);
 
   const getMessageStatusBadgeClass = (status: string) => {
     switch (status) {
@@ -84,15 +88,8 @@ export default function Dashboard() {
     toast.success(`Message ID ${id} copied to clipboard!`);
   };
 
-  const { data: forms = [], isLoading } = useQuery({
-    queryKey: ["forms"],
-    queryFn: () => base44.entities.Form.list(),
-  });
-
-  const { data: smsDashboard, isLoading: isSmsLoading, error: smsError } = useQuery({
-    queryKey: ["sms-dashboard", dateRange],
-    queryFn: () => renultApi.sms.dashboard({ range: dateRange }),
-  });
+  const { data: forms = [], isLoading } = useDashboardForms(dashboardUserId);
+  const { data: smsDashboard, isLoading: isSmsLoading, error: smsError } = useDashboardSmsDashboard(dashboardUserId, dateRange);
 
   const recentSentMessages = useMemo(
     () => (smsDashboard?.recent || []).map(toDashboardMessage).slice(0, 5),
@@ -109,7 +106,7 @@ export default function Dashboard() {
   const deleteMutation = useMutation({
     mutationFn: (id: string) => base44.entities.Form.delete(String(id)),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["forms"] });
+      queryClient.invalidateQueries({ queryKey: formsQueryKey });
       toast.success("Form deleted");
     },
   });
@@ -122,6 +119,7 @@ export default function Dashboard() {
       status: "draft",
       response_count: 0,
     });
+    queryClient.invalidateQueries({ queryKey: formsQueryKey });
     navigate(`/forms/${form.id}/edit`);
   };
 
@@ -139,6 +137,7 @@ export default function Dashboard() {
       branding: template.branding || {},
     });
     setShowTemplates(false);
+    queryClient.invalidateQueries({ queryKey: formsQueryKey });
     toast.success(`Created from "${template.title}" template`);
     navigate(`/forms/${form.id}/edit`);
   };
@@ -152,8 +151,10 @@ export default function Dashboard() {
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
-      await queryClient.invalidateQueries({ queryKey: ["forms"] });
-      await queryClient.invalidateQueries({ queryKey: ["sms-dashboard"] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: formsQueryKey }),
+        queryClient.invalidateQueries({ queryKey: smsDashboardQueryKey }),
+      ]);
       toast.success("Dashboard data updated!");
     } catch (err) {
       toast.error("Failed to refresh dashboard data");
@@ -169,7 +170,7 @@ export default function Dashboard() {
     const items = Array.from(forms);
     const [moved] = items.splice(result.source.index, 1);
     items.splice(result.destination.index, 0, moved);
-    queryClient.setQueryData(["forms"], items);
+    queryClient.setQueryData(formsQueryKey, items);
   };
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem("sidebar-collapsed") === "true");
@@ -183,15 +184,8 @@ export default function Dashboard() {
   }, []);
 
   useEffect(() => {
-    if (!user?.id) return;
-    queryClient.removeQueries({ queryKey: ["forms"] });
-    queryClient.removeQueries({ queryKey: ["sms-dashboard"] });
-  }, [user?.id, queryClient]);
-
-  useEffect(() => {
     const resetDashboardCache = () => {
-      queryClient.removeQueries({ queryKey: ["forms"] });
-      queryClient.removeQueries({ queryKey: ["sms-dashboard"] });
+      queryClient.removeQueries({ queryKey: dashboardQueryKeys.all });
     };
     window.addEventListener("apollosms-user-cache-cleared", resetDashboardCache);
     window.addEventListener("apollosms-login", resetDashboardCache);
@@ -496,7 +490,7 @@ export default function Dashboard() {
                     <TableHead className="w-[140px] text-xs">Message ID</TableHead>
                     <TableHead className="text-xs">Recipient</TableHead>
                     <TableHead className="text-xs">Message Content</TableHead>
-                    <TableHead className="text-xs">Cost</TableHead>
+                    <TableHead className="text-xs">Unit</TableHead>
                     <TableHead className="text-xs">Sent Time</TableHead>
                     <TableHead className="text-xs">Status</TableHead>
                   </TableRow>

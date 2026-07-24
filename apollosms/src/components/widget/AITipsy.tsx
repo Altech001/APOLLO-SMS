@@ -80,7 +80,7 @@ type ExpertBrief = {
 const HELP_ACTIONS = [
     { label: "Find forms", prompt: "Search through all my forms and show me the most important ones to review.", icon: Search },
     { label: "Analyze forms", prompt: "Analyze my forms and tell me patterns, risks, missing fields, and next actions.", icon: BarChart3 },
-    { label: "Teach me", prompt: "Teach me how to use ForeForm step by step with clickable places to go.", icon: BookOpen },
+    { label: "Teach me", prompt: "Teach me how to use LUCOSMS step by step with clickable places to go.", icon: BookOpen },
     { label: "Fix grammar", prompt: "Correct the grammar and wording of this text: ", icon: Wand2 },
 ];
 
@@ -96,7 +96,7 @@ type CommandType = "action" | "prefix" | "navigate";
 const COMMANDS: { name: string; label: string; description: string; prompt?: string; path?: string; icon: React.ElementType; type: CommandType }[] = [
     { name: "analysis", label: "Analyze forms", description: "Patterns, risks & missing fields", prompt: "Analyze my forms and tell me patterns, risks, missing fields, and next actions.", icon: BarChart3, type: "action" },
     { name: "find", label: "Find forms", description: "Search through your workspace forms", prompt: "Search through all my forms and show me the most important ones to review.", icon: Search, type: "action" },
-    { name: "teach", label: "Teach me", description: "Step-by-step guide to ForeForm", prompt: "Teach me how to use ForeForm step by step with clickable places to go.", icon: BookOpen, type: "action" },
+    { name: "teach", label: "Teach me", description: "Step-by-step guide to LUCOSMS", prompt: "Teach me how to use LUCOSMS step by step with clickable places to go.", icon: BookOpen, type: "action" },
     { name: "grammar", label: "Fix grammar", description: "Correct the grammar of text you type", prompt: "Correct the grammar and wording of this text: ", icon: Wand2, type: "prefix" },
     { name: "dashboard", label: "Dashboard", description: "Go to the main Dashboard", path: "/", icon: Navigation, type: "navigate" },
     { name: "builder", label: "AI Builder", description: "Open the AI form builder", path: "/complex-ai", icon: GitBranch, type: "navigate" },
@@ -273,13 +273,13 @@ function buildExpertBriefs(args: {
         {
             key: "navigator",
             name: "Navigator Agent",
-            role: "Maps user requests to ForeForm routes and quick actions.",
+            role: "Maps user requests to LUCOSMS routes and quick actions.",
             confidence: Math.min(0.85, 0.18 + intentScores.navigate * 0.22),
             findings: [
                 `Available guide routes: ${ROUTE_GUIDES.map((routeGuide) => routeGuide.label).join(", ")}.`,
                 intentScores.navigate > 0 ? "User may benefit from step-by-step navigation." : "Keep navigation lightweight.",
             ],
-            handoff: "Point to the right ForeForm page when it shortens the workflow.",
+            handoff: "Point to the right LUCOSMS page when it shortens the workflow.",
         },
     ];
 
@@ -876,7 +876,7 @@ function WidgetMessageBubble({
     );
 }
 
-export default function ForeFormAIWidget() {
+export default function LUCOSMSAIWidget() {
     const user = { full_name: "User", email: "user@lucosms.app" };
     const location = useLocation();
     const navigate = useNavigate();
@@ -1035,7 +1035,7 @@ export default function ForeFormAIWidget() {
 
         try {
             const result = await base44.integrations.Core.InvokeLLM({
-                prompt: `You are Maxxie, the ForeForm workspace assistant.
+                prompt: `You are Maxxie, the LUCOSMS workspace assistant.
 
 Internal execution model:
 - Treat the following planning notes as private backend/tool context.
@@ -1045,7 +1045,7 @@ Internal execution model:
 - Use artifacts deliberately: Mermaid for flows, chart JSON for graphs, JSON for form drafts, and code blocks for implementation patterns.
 
 Current route: ${location.pathname}
-User: ${user.full_name || user.email || "ForeForm user"}
+User: ${user.full_name || user.email || "LUCOSMS user"}
 
 Private planning notes:
 ${JSON.stringify(experts.map((expert) => ({
@@ -1265,7 +1265,7 @@ ${prompt}`,
                                 </div>
                                 <div>
                                     <p className="text-sm font-semibold">Maxxie</p>
-                                    <p className="text-[11px] text-muted-foreground">ForeForm AI</p>
+                                    <p className="text-[11px] text-muted-foreground">LUCOSMS AI</p>
                                 </div>
                             </div>
                             <div className="flex items-center gap-1">
@@ -1294,7 +1294,7 @@ ${prompt}`,
                                         <li>Search and summarize forms in your workspace.</li>
                                         <li>Analyze question quality, missing fields, response patterns, and next actions.</li>
                                         <li>Generate diagrams, charts, form drafts, and implementation examples.</li>
-                                        <li>Guide you through ForeForm pages with quick navigation.</li>
+                                        <li>Guide you through LUCOSMS pages with quick navigation.</li>
                                         <li>Listen to speech, clean grammar, and read answers aloud.</li>
                                     </ul>
                                 </div>

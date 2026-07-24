@@ -473,7 +473,7 @@ func (s *PaymentService) marzCallbackURL() string {
 	if s.cfg.PublicBaseURL == "" {
 		return ""
 	}
-	return strings.TrimRight(s.cfg.PublicBaseURL, "/") + "/api/v1/payments/webhooks/marzpay"
+	return s.cfg.PublicURL("/api/v1/payments/webhooks/marzpay")
 }
 
 func (s *PaymentService) cachePayment(payment *models.PaymentTransaction) {

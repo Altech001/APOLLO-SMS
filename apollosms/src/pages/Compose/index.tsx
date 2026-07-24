@@ -7,13 +7,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import {
-    Check,
-    Coins,
     FileText,
     Layers,
-    Loader2,
     Plus,
     RefreshCw,
     Send,
@@ -22,8 +20,10 @@ import {
     X
 } from "lucide-react";
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { Slab } from "react-loading-indicators";
 import { useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { useAuth } from "@/lib/auth";
 
 interface Contact {
     id: string;
@@ -32,6 +32,19 @@ interface Contact {
     email: string;
     groups: string[];
 }
+
+interface ComposeDraft {
+    selectedContacts: Contact[];
+    messageText: string;
+    senderId: string;
+    batchSize: string;
+    showAdvancedConfig: boolean;
+}
+
+const DEFAULT_MESSAGE_TEXT = "LUCOSMS: ";
+const DEFAULT_SENDER_ID = "ATInfo";
+const DEFAULT_BATCH_SIZE = "100";
+const composeDraftKey = (userId?: string | number | null) => `apollosms:compose-draft:${userId || "anonymous"}`;
 
 const toContact = (contact: ContactResponse): Contact => ({
     id: contact.id,
@@ -57,7 +70,10 @@ const toTemplate = (template: TemplateResponse) => ({
 export default function ComposeIndex() {
     const location = useLocation();
     const navigate = useNavigate();
+    const { user } = useAuth();
     const consumedNavigationState = useRef<string | null>(null);
+    const skipNextDraftSave = useRef(true);
+    const suppressNextBatchAutoSync = useRef(false);
 
     // Sidebar state
     const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem("sidebar-collapsed") === "true");
@@ -72,9 +88,10 @@ export default function ComposeIndex() {
 
     // Form States
     const [selectedContacts, setSelectedContacts] = useState<Contact[]>([]);
-    const [messageText, setMessageText] = useState("LUCOSMS: ");
-    const [senderId, setSenderId] = useState("ATInfo");
-    const [batchSize, setBatchSize] = useState("100");
+    const [messageText, setMessageText] = useState(DEFAULT_MESSAGE_TEXT);
+    const [senderId, setSenderId] = useState(DEFAULT_SENDER_ID);
+    const [batchSize, setBatchSize] = useState(DEFAULT_BATCH_SIZE);
+    const [showAdvancedConfig, setShowAdvancedConfig] = useState(false);
     const [walletBalance, setWalletBalance] = useState(0);
     const [smsBalance, setSmsBalance] = useState(0);
     const [costPerSms, setCostPerSms] = useState(31);
@@ -101,6 +118,60 @@ export default function ComposeIndex() {
     const [isSending, setIsSending] = useState(false);
     const [sendStage, setSendStage] = useState("");
     const [sendProgress, setSendProgress] = useState(0);
+    const draftKey = composeDraftKey(user?.id);
+
+    const clearComposeDraft = () => {
+        localStorage.removeItem(draftKey);
+    };
+
+    useEffect(() => {
+        skipNextDraftSave.current = true;
+        const rawDraft = localStorage.getItem(draftKey);
+        if (!rawDraft) {
+            skipNextDraftSave.current = false;
+            return;
+        }
+
+        try {
+            const draft = JSON.parse(rawDraft) as Partial<ComposeDraft>;
+            suppressNextBatchAutoSync.current = true;
+            setSelectedContacts(Array.isArray(draft.selectedContacts) ? draft.selectedContacts : []);
+            setMessageText(typeof draft.messageText === "string" ? draft.messageText : DEFAULT_MESSAGE_TEXT);
+            setSenderId(typeof draft.senderId === "string" ? draft.senderId : DEFAULT_SENDER_ID);
+            setBatchSize(typeof draft.batchSize === "string" ? draft.batchSize : DEFAULT_BATCH_SIZE);
+            setShowAdvancedConfig(Boolean(draft.showAdvancedConfig));
+        } catch {
+            localStorage.removeItem(draftKey);
+        }
+    }, [draftKey]);
+
+    useEffect(() => {
+        if (skipNextDraftSave.current) {
+            skipNextDraftSave.current = false;
+            return;
+        }
+
+        const hasDraftContent =
+            selectedContacts.length > 0 ||
+            messageText.trim() !== DEFAULT_MESSAGE_TEXT.trim() ||
+            senderId !== DEFAULT_SENDER_ID ||
+            batchSize !== DEFAULT_BATCH_SIZE ||
+            showAdvancedConfig;
+
+        if (!hasDraftContent) {
+            localStorage.removeItem(draftKey);
+            return;
+        }
+
+        const draft: ComposeDraft = {
+            selectedContacts,
+            messageText,
+            senderId,
+            batchSize,
+            showAdvancedConfig,
+        };
+        localStorage.setItem(draftKey, JSON.stringify(draft));
+    }, [batchSize, draftKey, messageText, selectedContacts, senderId, showAdvancedConfig]);
 
     useEffect(() => {
         let mounted = true;
@@ -133,10 +204,14 @@ export default function ComposeIndex() {
 
     // Auto-adjust Batch Size according to selected contacts count
     useEffect(() => {
+        if (suppressNextBatchAutoSync.current) {
+            suppressNextBatchAutoSync.current = false;
+            return;
+        }
         if (selectedContacts.length > 0) {
             setBatchSize(selectedContacts.length.toString());
         } else {
-            setBatchSize("100");
+            setBatchSize(DEFAULT_BATCH_SIZE);
         }
     }, [selectedContacts.length]);
 
@@ -312,8 +387,12 @@ export default function ComposeIndex() {
     };
 
     const handleClearAll = () => {
+        clearComposeDraft();
         setSelectedContacts([]);
-        setMessageText("LUCOSMS: ");
+        setMessageText(DEFAULT_MESSAGE_TEXT);
+        setSenderId(DEFAULT_SENDER_ID);
+        setBatchSize(DEFAULT_BATCH_SIZE);
+        setShowAdvancedConfig(false);
         toast.info("Cleared composition parameters");
     };
 
@@ -337,7 +416,7 @@ export default function ComposeIndex() {
             toast.error("Please add at least one recipient");
             return false;
         }
-        if (!messageText.trim() || messageText.trim() === "LUCOSMS:") {
+        if (!messageText.trim() || messageText.trim() === DEFAULT_MESSAGE_TEXT.trim()) {
             toast.error("Please compose a message content");
             return false;
         }
@@ -360,13 +439,15 @@ export default function ComposeIndex() {
         setWalletBalance(result.wallet.cash_balance);
         setSmsBalance(result.wallet.sms_balance);
         window.dispatchEvent(new CustomEvent("renult-wallet-change"));
+        clearComposeDraft();
         setSelectedContacts([]);
-        setMessageText("LUCOSMS: ");
+        setMessageText(DEFAULT_MESSAGE_TEXT);
+        setBatchSize(DEFAULT_BATCH_SIZE);
         return true;
     };
 
     const handleSendMessage = async () => {
-        if (selectedContacts.length === 0 || !messageText.trim() || messageText.trim() === "LUCOSMS:" || requiredCash > walletBalance) {
+        if (selectedContacts.length === 0 || !messageText.trim() || messageText.trim() === DEFAULT_MESSAGE_TEXT.trim() || requiredCash > walletBalance) {
             await submitSms(null);
             return;
         }
@@ -470,7 +551,7 @@ export default function ComposeIndex() {
                             {selectedContacts.length === 0 ? (
                                 <div className="h-64 border border-dashed border-border/80 rounded flex flex-col items-center justify-center text-center p-4">
                                     <div className="p-3 bg-muted/40 rounded-full text-muted-foreground/60 mb-2">
-                                        <Users className="w-6 h-6" />
+                                        <img src="/bg/empty.png" className="w-15 h-12"/>
                                     </div>
                                     <p className="text-xs  text-foreground">No recipients selected</p>
                                     <p className="text-[10px] text-muted-foreground mt-1 max-w-[180px]">
@@ -532,7 +613,7 @@ export default function ComposeIndex() {
                                     Composing to {selectedContacts.length} contacts
                                 </CardTitle>
                                 <CardDescription className="text-[10px] mt-0.5">
-                                    Draft message contents and configure broadcasting options
+                                    Draft message contents to send to recipients.
                                 </CardDescription>
                             </div>
                             <div className="flex items-center gap-1.5">
@@ -547,57 +628,67 @@ export default function ComposeIndex() {
                                 </Button>
                                 <Button
                                     onClick={handleClearAll}
-                                    variant="outline"
+                                    variant="destructive"
                                     size="sm"
-                                    className="h-10 text-xs  text-rose-500 border-rose-200/50 bg-rose-50 hover:bg-rose-50/50"
+                                    className="h-10 text-xs"
                                 >
-                                    Clear All
+                                    <Trash2 className="w-3.5 h-3.5 mr-1" />
+                                    Reset All
                                 </Button>
                             </div>
                         </CardHeader>
 
-                        <CardContent className="p-5 space-y-4">
-                            {/* Intermediate Config Panel */}
-                            <div className="p-3 bg-muted/15 border border-border/30 rounded flex flex-col md:flex-row md:items-center justify-between gap-4">
-                                <div className="space-y-1">
-                                    <p className="text-[12px] font-semibold text-muted-foreground">Recipient Grouping</p>
-                                    <p className="text-xs font-semibold text-foreground">
-                                        To: {selectedContacts.filter(c => c.groups.length > 0).length} group contacts, {selectedContacts.filter(c => c.groups.length === 0).length} manual numbers
-                                    </p>
-                                </div>
-                                <div className="flex items-center gap-3">
-                                    <div className="space-y-1">
-                                        <Label htmlFor="sender-id" className="text-[12px]  text-muted-foreground">Sender ID</Label>
-                                        <Input
-                                            id="sender-id"
-                                            value={senderId}
-                                            onChange={(e) => setSenderId(e.target.value)}
-                                            className="h-8 text-xs bg-card w-28 text-center "
-                                        />
-                                    </div>
-                                    <div className="space-y-1">
-                                        <Label htmlFor="batch-size" className="text-[12px]  text-muted-foreground">Batch Size</Label>
-                                        <Input
-                                            id="batch-size"
-                                            value={batchSize}
-                                            onChange={(e) => setBatchSize(e.target.value)}
-                                            className="h-8 text-xs bg-card w-20 text-center font-semibold font-mono"
-                                        />
-                                    </div>
-
-                                </div>
-                            </div>
-
+                        <CardContent className="p-5 space-y-2">
                             {/* SMS Textarea Input */}
                             <div className="space-y-2">
-                                <Label htmlFor="sms-compose-text" className="text-xs font-semibold">Message Text</Label>
+                                <div className="flex items-center justify-between gap-3">
+                                    <Label htmlFor="sms-compose-text" className="text-xs font-semibold">Message Text</Label>
+                                    <div className="flex items-center gap-2">
+                                        <Switch
+                                            id="advanced-config"
+                                            checked={showAdvancedConfig}
+                                            onCheckedChange={setShowAdvancedConfig}
+                                            className="h-6 w-9"
+                                        />
+                                    </div>
+                                </div>
+                                {showAdvancedConfig ? (
+                                    <div className="p-3 bg-muted/15 border border-border/30 rounded flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                        <div className="space-y-1">
+                                            <p className="text-[12px] font-semibold text-muted-foreground">Recipient Grouping</p>
+                                            <p className="text-xs font-semibold text-foreground">
+                                                To: {selectedContacts.filter(c => c.groups.length > 0).length} group contacts, {selectedContacts.filter(c => c.groups.length === 0).length} manual numbers
+                                            </p>
+                                        </div>
+                                        <div className="flex items-center gap-3">
+                                            <div className="space-y-1">
+                                                <Label htmlFor="sender-id" className="text-[12px]  text-muted-foreground">Sender ID</Label>
+                                                <Input
+                                                    id="sender-id"
+                                                    value={senderId}
+                                                    onChange={(e) => setSenderId(e.target.value)}
+                                                    className="h-8 text-xs bg-card w-28 text-center "
+                                                />
+                                            </div>
+                                            <div className="space-y-1">
+                                                <Label htmlFor="batch-size" className="text-[12px]  text-muted-foreground">Batch Size</Label>
+                                                <Input
+                                                    id="batch-size"
+                                                    value={batchSize}
+                                                    onChange={(e) => setBatchSize(e.target.value)}
+                                                    className="h-8 text-xs bg-card w-20 text-center font-semibold font-mono"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                ) : null}
                                 <div className="relative border border-border rounded overflow-hidden bg-card focus-within:ring-1 focus-within:ring-primary">
                                     <textarea
                                         id="sms-compose-text"
-                                        rows={6}
+                                        rows={8}
                                         value={messageText}
                                         onChange={(e) => setMessageText(e.target.value)}
-                                        className="w-full p-3 text-xs bg-transparent focus:outline-none resize-none leading-normal"
+                                        className="w-full p-4 text-xs bg-transparent focus:outline-none resize-none leading-normal"
                                         placeholder="Compose your SMS broadcast text here..."
                                     />
                                     {/* Textarea info footer */}
@@ -745,10 +836,10 @@ export default function ComposeIndex() {
 
                     {/* PANEL TYPE: GROUPS */}
                     {panelType === "groups" && (
-                        <div className="space-y-4">
+                        <div className="space-y-6 ">
                             <CsvImport onImportComplete={handleCsvImportComplete} />
 
-                            <div className="rounded-lg border border-border/60 bg-muted/10 p-3">
+                            {/* <div className="rounded-lg border border-border/60 bg-muted/10 p-3">
                                 <p className="text-[11px] font-semibold text-foreground">Or import from an existing group</p>
                                 {groups.length === 0 && (
                                     <p className="mt-2 text-xs text-muted-foreground">
@@ -775,7 +866,7 @@ export default function ComposeIndex() {
                                         </button>
                                     ))}
                                 </div>
-                            </div>
+                            </div> */}
                         </div>
                     )}
 
@@ -919,39 +1010,27 @@ export default function ComposeIndex() {
             {isSending && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
                     <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px]" />
-                    <Card className="w-full max-w-sm border border-border/50 bg-card rounded shadow-2xl relative z-10 overflow-hidden text-center p-6 space-y-4">
-                        <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
+                    <Card className="w-full max-w-sm border border-border/30 bg-card rounded-none shadow-2xl relative z-10 overflow-hidden text-center p-6 space-y-4">
+                        <div className="w-12 h-12 flex items-center justify-center mx-auto">
                             {sendProgress < 100 ? (
-                                <Loader2 className="w-6 h-6 text-primary animate-spin" />
+                                <Slab color={["#32cd32", "#327fcd", "#cd32cd", "#cd8032"]} style={{ fontSize: "20px" }} />
                             ) : (
-                                <Check className="w-6 h-6 text-emerald-500 " />
+                                <img src="/bg/done.png" className="w-10 h-10 text-emerald-500 " />
+                                
                             )}
                         </div>
 
                         <div className="space-y-1">
                             <h3 className="text-sm  text-foreground">
-                                {sendProgress < 100 ? "Sending Broadcast" : "Broadcast Complete!"}
+                                {sendProgress < 100 ? "Sending" : "Completed!"}
+
                             </h3>
                             <p className="text-[10px] text-muted-foreground">{sendStage}</p>
                         </div>
 
-                        {/* Progress bar */}
-                        <div className="space-y-1">
-                            <div className="flex justify-between text-[9px]  text-muted-foreground">
-                                <span>Progress</span>
-                                <span className="font-mono">{sendProgress}%</span>
-                            </div>
-                            <div className="h-2 bg-muted rounded-full overflow-hidden">
-                                <div
-                                    className="h-full bg-primary transition-all duration-300"
-                                    style={{ width: `${sendProgress}%` }}
-                                />
-                            </div>
-                        </div>
-
-                        <div className="text-[9px] text-muted-foreground leading-normal bg-muted/20 p-2 rounded border border-border/50 max-w-[280px] mx-auto">
+                        {/* <div className="text-[9px] text-muted-foreground leading-normal bg-muted/20 p-2 rounded border border-border/50 max-w-[280px] mx-auto">
                             Broadcasting message content using Sender ID <b>{senderId}</b>. Dispatched to <b>{selectedContacts.length}</b> devices.
-                        </div>
+                        </div> */}
                     </Card>
                 </div>
             )}

@@ -57,7 +57,7 @@ export default function ForgotPassword() {
         <Link to="/login" className="mt-8 text-[13px] text-slate-900 hover:underline font-medium">Back to login</Link>
       </div>
       <div className="absolute bottom-6 flex flex-wrap items-center justify-center gap-6 text-[10px] text-slate-500 font-bold w-full px-4">
-        <span>ForeForm © {new Date().getFullYear()}</span>
+        <span>LUCOSMS © {new Date().getFullYear()}</span>
       </div>
     </div>
   );

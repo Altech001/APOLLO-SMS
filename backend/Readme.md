@@ -69,7 +69,7 @@ See [Architecture](#architecture) below for folder layout and design rationale.
 | `SMS_API_KEY` | Provider API key for SMS      | `your-key-here`         |
 | `REDIS_ADDR`  | Optional Redis host:port for cache/queue hints | `redis.example.com:6379` |
 | `MARZPAY_BASIC_AUTH` | MarzPay Basic auth token or `username:password` | `base64-token` |
-| `PUBLIC_BASE_URL` | Public backend URL used for MarzPay callbacks | `https://api.example.com` |
+| `PUBLIC_URL` | Public backend URL used for emails, uploads, and MarzPay callbacks. `PUBLIC_BASE_URL` is still supported. | `https://api.example.com` |
 
 ## Endpoints
 

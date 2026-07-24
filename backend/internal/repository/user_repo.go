@@ -1,6 +1,8 @@
 package repository
 
 import (
+	"strings"
+
 	"backend/internal/models"
 
 	"gorm.io/gorm"
@@ -30,6 +32,16 @@ func (r *UserRepository) FindByID(id uint) (*models.User, error) {
 func (r *UserRepository) FindByEmail(email string) (*models.User, error) {
 	var user models.User
 	err := r.db.Where("email = ?", email).First(&user).Error
+	if err != nil {
+		return nil, err
+	}
+	return &user, nil
+}
+
+// FindByEmailInsensitive returns a user by email address using case-insensitive matching.
+func (r *UserRepository) FindByEmailInsensitive(email string) (*models.User, error) {
+	var user models.User
+	err := r.db.Where("LOWER(email) = LOWER(?)", strings.TrimSpace(email)).First(&user).Error
 	if err != nil {
 		return nil, err
 	}
@@ -70,6 +82,19 @@ func (r *UserRepository) Update(user *models.User) error {
 func (r *UserRepository) FindAll() ([]models.User, error) {
 	var users []models.User
 	err := r.db.Find(&users).Error
+	return users, err
+}
+
+// SearchCreditRecipients returns matching users without exposing every account by default.
+func (r *UserRepository) SearchCreditRecipients(query string, excludeUserID uint, limit int) ([]models.User, error) {
+	var users []models.User
+	normalized := "%" + strings.ToLower(strings.TrimSpace(query)) + "%"
+
+	err := r.db.
+		Where("id <> ? AND (LOWER(name) LIKE ? OR LOWER(email) LIKE ?)", excludeUserID, normalized, normalized).
+		Order("name asc").
+		Limit(limit).
+		Find(&users).Error
 	return users, err
 }
 

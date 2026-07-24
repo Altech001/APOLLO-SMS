@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"strconv"
+	"strings"
 
 	"backend/internal/models"
 	"backend/internal/services"
@@ -64,8 +65,9 @@ func (h *SMSTopupHandler) ShareCredits(c *fiber.Ctx) error {
 	if err := c.BodyParser(&req); err != nil {
 		return response.Error(c, fiber.StatusBadRequest, "Invalid request body")
 	}
-	if req.RecipientID == 0 {
-		return response.Error(c, fiber.StatusBadRequest, "recipient_id is required")
+	req.RecipientEmail = strings.TrimSpace(req.RecipientEmail)
+	if req.RecipientID == 0 && req.RecipientEmail == "" {
+		return response.Error(c, fiber.StatusBadRequest, "recipient_id or recipient_email is required")
 	}
 
 	res, err := h.service.PerformTopup(currentUserID, &req)

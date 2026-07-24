@@ -22,11 +22,12 @@ type SMSTopup struct {
 
 // SMSTopupRequest is the payload for adding SMS credits to a user or transferring credits between users.
 type SMSTopupRequest struct {
-	Amount      int    `json:"amount"` // Backward-compatible alias for amount_ugx.
-	AmountUGX   int    `json:"amount_ugx"`
-	Description string `json:"description" validate:"required"`
-	Reference   string `json:"reference"`
-	RecipientID uint   `json:"recipient_id,omitempty"`
+	Amount         int    `json:"amount"` // Backward-compatible alias for amount_ugx.
+	AmountUGX      int    `json:"amount_ugx"`
+	Description    string `json:"description" validate:"required"`
+	Reference      string `json:"reference"`
+	RecipientID    uint   `json:"recipient_id,omitempty"`
+	RecipientEmail string `json:"recipient_email,omitempty"`
 }
 
 // SMSTopupResponse formats a topup transaction for HTTP responses.

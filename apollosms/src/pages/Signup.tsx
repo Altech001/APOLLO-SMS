@@ -110,7 +110,7 @@ export default function Signup() {
                     <div className="mx-auto w-12 h-12 flex items-center justify-center mb-3">
                         <img src="/logo.png" alt="Logo" className="w-10 h-10 object-contain" />
                     </div>
-                    <h2 className="text-[22px] font-bold text-slate-800 mb-1">ForeForm</h2>
+                    <h2 className="text-[22px] font-bold text-slate-800 mb-1">LUCOSMS</h2>
                     <p className="text-[13px] text-slate-500">Elevate your customer experience with AI agents</p>
                 </div>
 
@@ -330,7 +330,7 @@ export default function Signup() {
 
             {/* Absolute Bottom Footer */}
             <div className="absolute bottom-6 flex flex-wrap items-center justify-center gap-6 text-[10px] text-slate-500 font-bold w-full px-4">
-                <span>ForeForm © {new Date().getFullYear()}</span>
+                <span>LUCOSMS © {new Date().getFullYear()}</span>
             </div>
         </div>
     );

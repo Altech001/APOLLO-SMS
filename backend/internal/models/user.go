@@ -17,7 +17,7 @@ type User struct {
 	ProfileImage                string         `json:"profile_image"`
 	IsVerified                  bool           `json:"is_verified" gorm:"default:false"`
 	VerificationToken           string         `json:"-" gorm:"index"`
-	VerificationExpiresAt      *time.Time     `json:"-"`
+	VerificationExpiresAt       *time.Time     `json:"-"`
 	PasswordResetToken          string         `json:"-" gorm:"index"`
 	PasswordResetTokenExpiresAt *time.Time     `json:"-"`
 	CreatedAt                   time.Time      `json:"created_at"`
@@ -91,6 +91,14 @@ type UserResponse struct {
 	CreatedAt    time.Time `json:"created_at"`
 }
 
+// CreditRecipientResponse exposes only the fields needed to select a transfer recipient.
+type CreditRecipientResponse struct {
+	ID           uint   `json:"id"`
+	Name         string `json:"name"`
+	Email        string `json:"email"`
+	ProfileImage string `json:"profile_image"`
+}
+
 // ToResponse formats a User model into UserResponse.
 func (u *User) ToResponse() UserResponse {
 	return UserResponse{
@@ -102,6 +110,16 @@ func (u *User) ToResponse() UserResponse {
 		ProfileImage: u.ProfileImage,
 		IsVerified:   u.IsVerified,
 		CreatedAt:    u.CreatedAt,
+	}
+}
+
+// ToCreditRecipientResponse formats a User for non-admin recipient lookup.
+func (u *User) ToCreditRecipientResponse() CreditRecipientResponse {
+	return CreditRecipientResponse{
+		ID:           u.ID,
+		Name:         u.Name,
+		Email:        u.Email,
+		ProfileImage: u.ProfileImage,
 	}
 }
 

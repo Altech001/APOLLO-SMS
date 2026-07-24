@@ -4,6 +4,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/joho/godotenv"
 )
@@ -37,8 +38,10 @@ func Load() *Config {
 	if err := godotenv.Load(); err != nil {
 		log.Println("⚠️  No .env file found, using environment variables")
 	}
+	port := getEnv("PORT", "8000")
+	publicBaseURL := getEnvAny([]string{"PUBLIC_URL", "PUBLIC_BASE_URL"}, "")
 	return &Config{
-		Port:              getEnv("PORT", "8000"),
+		Port:              port,
 		DatabaseURL:       getEnv("DATABASE_URL", "postgres://postgres:postgres@localhost:5432/lucosms?sslmode=disable"),
 		JWTSecret:         getEnv("JWT_SECRET", "super-secret-change-me"),
 		Environment:       getEnv("ENVIRONMENT", "development"),
@@ -57,13 +60,34 @@ func Load() *Config {
 		RedisDB:           getEnvInt("REDIS_DB", 0),
 		MarzPayBaseURL:    getEnv("MARZPAY_BASE_URL", "https://wallet.wearemarz.com/api/v1"),
 		MarzPayBasicAuth:  getEnv("MARZPAY_BASIC_AUTH", ""),
-		PublicBaseURL:     getEnv("PUBLIC_BASE_URL", ""),
+		PublicBaseURL:     strings.TrimRight(publicBaseURL, "/"),
 	}
+}
+
+// PublicURL builds an absolute URL using PUBLIC_URL/PUBLIC_BASE_URL when configured.
+func (c *Config) PublicURL(path string) string {
+	baseURL := c.PublicBaseURL
+	if baseURL == "" {
+		baseURL = "http://localhost:" + c.Port
+	}
+	if path == "" {
+		return baseURL
+	}
+	return strings.TrimRight(baseURL, "/") + "/" + strings.TrimLeft(path, "/")
 }
 
 func getEnv(key, fallback string) string {
 	if val, ok := os.LookupEnv(key); ok {
 		return val
+	}
+	return fallback
+}
+
+func getEnvAny(keys []string, fallback string) string {
+	for _, key := range keys {
+		if val, ok := os.LookupEnv(key); ok && strings.TrimSpace(val) != "" {
+			return val
+		}
 	}
 	return fallback
 }

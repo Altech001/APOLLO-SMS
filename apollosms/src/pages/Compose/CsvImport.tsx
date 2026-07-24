@@ -95,7 +95,7 @@ export default function CsvImport({ onImportComplete }: CsvImportProps) {
     };
 
     return (
-        <div className="space-y-4">
+        <div className="space-y-6 items-center">
             <style>{`
                 @keyframes csvImportSpin {
                     to { transform: rotate(360deg); }
@@ -193,10 +193,10 @@ export default function CsvImport({ onImportComplete }: CsvImportProps) {
 
             {hasFile && (
                 <div
-                    className="mx-auto flex max-w-xs items-center gap-3 rounded-xl border bg-card/70 p-3"
+                    className="mx-auto flex max-w-md items-center gap-3 rounded border bg-card/70 p-3 mt-3"
                     style={{ borderColor: ACCENT_BORDER, backgroundColor: ACCENT_SOFT }}
                 >
-                    <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-lg" style={{ backgroundColor: "rgba(154,255,61,0.18)" }}>
+                    <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded" style={{ backgroundColor: "rgba(154,255,61,0.18)" }}>
                         <FileText className="h-5 w-5" style={{ color: ACCENT }} />
                         <span
                             className="absolute -bottom-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full border-2"

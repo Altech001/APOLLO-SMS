@@ -86,6 +86,21 @@ func (h *UserHandler) ListUsers(c *fiber.Ctx) error {
 	return response.Success(c, users)
 }
 
+// SearchCreditRecipients lets authenticated users find transfer recipients without exposing balances.
+func (h *UserHandler) SearchCreditRecipients(c *fiber.Ctx) error {
+	currentUserID := getUserID(c)
+	if currentUserID == 0 {
+		return response.Error(c, fiber.StatusUnauthorized, "Unauthorized")
+	}
+
+	users, err := h.service.SearchCreditRecipients(c.Query("q"), currentUserID)
+	if err != nil {
+		return response.Error(c, fiber.StatusInternalServerError, err.Error())
+	}
+
+	return response.Success(c, users)
+}
+
 // GetUser godoc
 // @Summary      Get User details
 // @Description  Retrieve details of a specific user by ID

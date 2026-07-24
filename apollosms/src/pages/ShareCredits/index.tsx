@@ -1,11 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useState } from "react";
 import { Loader2, Search, SendHorizonal, Users2 } from "lucide-react";
 import { toast } from "sonner";
 
-import { renultApi, type UserResponse } from "@/api/apollosms";
+import { renultApi, type CreditRecipientResponse } from "@/api/apollosms";
 import AppHeader from "@/components/Header/AppHeader";
 import SEO from "@/components/SEO";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -13,80 +12,48 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 
 export default function ShareCreditsPage() {
-  const [allUsers, setAllUsers] = useState<UserResponse[]>([]);
-  const [query, setQuery] = useState("");
-  const [debouncedQuery, setDebouncedQuery] = useState("");
-  const [selectedUser, setSelectedUser] = useState<UserResponse | null>(null);
+  const [recipientEmail, setRecipientEmail] = useState("");
+  const [recipientMatch, setRecipientMatch] = useState<CreditRecipientResponse | null>(null);
+  const [searchMessage, setSearchMessage] = useState("Make sure the recipient is already registered with this email.");
   const [credits, setCredits] = useState("100");
-  const [isLoadingUsers, setIsLoadingUsers] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
   const [isSharing, setIsSharing] = useState(false);
 
-  useEffect(() => {
-    let mounted = true;
-    const loadUsers = async () => {
-      setIsLoadingUsers(true);
-      try {
-        const users = await renultApi.users.list();
-        if (mounted) setAllUsers(users || []);
-      } catch (error) {
-        if (mounted) {
-          toast.error(error instanceof Error ? error.message : "Unable to load users right now");
-          setAllUsers([]);
-        }
-      } finally {
-        if (mounted) setIsLoadingUsers(false);
-      }
-    };
+  const normalizedRecipientEmail = recipientEmail.trim();
+  const hasValidRecipientEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedRecipientEmail);
 
-    loadUsers();
-    return () => {
-      mounted = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      setDebouncedQuery(query.trim());
-    }, 320);
-
-    return () => window.clearTimeout(timer);
-  }, [query]);
-
-  const matchedUsers = useMemo(() => {
-    if (!debouncedQuery) return [];
-    const normalized = debouncedQuery.toLowerCase();
-    return allUsers
-      .filter((user) => {
-        const haystack = [
-          user.full_name || user.name || "",
-          user.email || "",
-          user.phone_number || "",
-        ]
-          .join(" ")
-          .toLowerCase();
-        return haystack.includes(normalized);
-      })
-      .slice(0, 6);
-  }, [allUsers, debouncedQuery]);
-
-  useEffect(() => {
-    if (!debouncedQuery) {
-      setSelectedUser(null);
+  const handleSearch = async () => {
+    if (!hasValidRecipientEmail) {
+      toast.error("Please enter the recipient's email address");
       return;
     }
 
-    if (matchedUsers.length > 0 && (!selectedUser || !matchedUsers.some((user) => user.id === selectedUser.id))) {
-      setSelectedUser(matchedUsers[0]);
-    }
+    setIsSearching(true);
+    setRecipientMatch(null);
+    setSearchMessage("Searching for this recipient...");
+    try {
+      const users = await renultApi.users.searchCreditRecipients(normalizedRecipientEmail);
+      const exactMatch = (users || []).find(
+        (user: CreditRecipientResponse) => user.email.toLowerCase() === normalizedRecipientEmail.toLowerCase()
+      );
 
-    if (matchedUsers.length === 0) {
-      setSelectedUser(null);
+      if (exactMatch) {
+        setRecipientMatch(exactMatch);
+        setSearchMessage(`${exactMatch.full_name || exactMatch.name || exactMatch.email} found. You can share credits now.`);
+      } else {
+        setSearchMessage("No registered user was found with this email.");
+      }
+    } catch (error) {
+      setSearchMessage("Search is unavailable right now, but sharing will still check the email before sending.");
+      toast.error(error instanceof Error ? error.message : "Unable to search users right now");
+    } finally {
+      setIsSearching(false);
     }
-  }, [debouncedQuery, matchedUsers, selectedUser]);
+  };
 
   const handleShare = async () => {
-    if (!selectedUser) {
-      toast.error("Please pick a user first");
+    if (!hasValidRecipientEmail) {
+      toast.error("Please enter the recipient's email address");
       return;
     }
 
@@ -99,16 +66,16 @@ export default function ShareCreditsPage() {
     setIsSharing(true);
     try {
       await renultApi.topups.share({
-        recipient_id: selectedUser.id,
+        recipient_email: normalizedRecipientEmail,
         amount: parsedCredits,
         description: `Shared ${parsedCredits} SMS credits`,
       });
 
-      toast.success(`${parsedCredits} SMS credits shared to ${selectedUser.email || selectedUser.name}. Your balance is now updated.`);
+      toast.success(`${parsedCredits} SMS credits shared to ${normalizedRecipientEmail}. Your balance is now updated.`);
       setCredits("100");
-      setQuery("");
-      setDebouncedQuery("");
-      setSelectedUser(null);
+      setRecipientEmail("");
+      setRecipientMatch(null);
+      setSearchMessage("Make sure the recipient is already registered with this email.");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Unable to share credits right now");
     } finally {
@@ -125,7 +92,7 @@ export default function ShareCreditsPage() {
         <div className="flex flex-col gap-2">
           <h1 className="text-lg font-semibold text-foreground">Share SMS Credits</h1>
           <p className="text-sm text-muted-foreground">
-            Find a user by email or phone number, then send them SMS credits instantly.
+            Enter a registered user's email, then send them SMS credits instantly.
           </p>
         </div>
 
@@ -134,71 +101,49 @@ export default function ShareCreditsPage() {
             <CardHeader className="border-b border-border/30">
               <CardTitle className="flex items-center gap-2 text-base">
                 <Search className="h-4 w-4 text-primary" />
-                Find a user
+                Recipient
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4 p-5">
               <div className="space-y-2">
-                <Label htmlFor="user-search">Email or phone number</Label>
-                <Input
-                  id="user-search"
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                  placeholder="Search by email or phone"
-                  className="h-10"
-                />
+                <Label htmlFor="recipient-email">Recipient email</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="recipient-email"
+                    type="email"
+                    value={recipientEmail}
+                    onChange={(event) => {
+                      setRecipientEmail(event.target.value);
+                      setRecipientMatch(null);
+                      setSearchMessage("Make sure the recipient is already registered with this email.");
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        handleSearch();
+                      }
+                    }}
+                    placeholder="user@example.com"
+                    className="h-10"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleSearch}
+                    disabled={!recipientEmail.trim() || isSearching}
+                    className="h-10 shrink-0 gap-2"
+                  >
+                    {isSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                    Search
+                  </Button>
+                </div>
                 <p className="text-xs text-muted-foreground">
-                  Search is debounced so it stays fast while you type.
+                  The backend checks this email privately and never shows the recipient's SMS balance.
                 </p>
               </div>
 
               <div className="rounded border border-primary  p-3 text-sm text-primary">
-                {isLoadingUsers ? (
-                  <div className="flex items-center gap-2">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Loading users...
-                  </div>
-                ) : !debouncedQuery ? (
-                  "Type at least one character to begin searching."
-                ) : matchedUsers.length === 0 ? (
-                  "No matching users were found."
-                ) : (
-                  `${matchedUsers.length} match${matchedUsers.length > 1 ? "es" : ""} found.`
-                )}
-              </div>
-
-              <div className="space-y-2">
-                {matchedUsers.length > 0 ? (
-                  matchedUsers.map((user) => (
-                    <button
-                      key={user.id}
-                      type="button"
-                      onClick={() => setSelectedUser(user)}
-                      className={`flex w-full items-center justify-between rounded-md border px-3 py-3 text-left transition ${
-                        selectedUser?.id === user.id
-                          ? "border-primary bg-primary/10"
-                          : "border-border/40 bg-background hover:border-primary/50"
-                      }`}
-                    >
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-medium text-foreground">
-                          {user.full_name || user.name || "Unnamed user"}
-                        </p>
-                        <p className="truncate text-xs text-muted-foreground">{user.email}</p>
-                        {user.phone_number ? (
-                          <p className="truncate text-xs text-muted-foreground">{user.phone_number}</p>
-                        ) : null}
-                      </div>
-                      <Badge variant="secondary" className="shrink-0 rounded-full">
-                        {user.sms_balance ?? 0} SMS
-                      </Badge>
-                    </button>
-                  ))
-                ) : debouncedQuery ? (
-                  <div className="rounded-md border border-dashed border-border/40 p-6 text-center text-sm text-muted-foreground">
-                    Search for a registered user to continue.
-                  </div>
-                ) : null}
+                {searchMessage}
               </div>
             </CardContent>
           </Card>
@@ -217,10 +162,10 @@ export default function ShareCreditsPage() {
                 </div>
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-foreground">
-                    {selectedUser ? selectedUser.full_name || selectedUser.name : "No user selected"}
+                    {recipientMatch ? recipientMatch.full_name || recipientMatch.name || recipientMatch.email : recipientEmail.trim() || "No recipient entered"}
                   </p>
                   <p className="truncate text-xs text-muted-foreground">
-                    {selectedUser ? selectedUser.email : "Select a user from the search results"}
+                    {recipientMatch?.email || "Credits will be transferred after the backend confirms the email."}
                   </p>
                 </div>
               </div>
@@ -241,7 +186,7 @@ export default function ShareCreditsPage() {
 
               <Separator />
 
-              <Button onClick={handleShare} disabled={!selectedUser || isSharing} className="w-full gap-2">
+              <Button onClick={handleShare} disabled={!recipientEmail.trim() || isSharing} className="w-full gap-2">
                 {isSharing ? <Loader2 className="h-4 w-4 animate-spin" /> : <SendHorizonal className="h-4 w-4" />}
                 Share credits
               </Button>

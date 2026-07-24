@@ -107,7 +107,7 @@ func (s *AuthService) Register(req *models.RegisterRequest, ipAddress, userAgent
 	}()
 
 	// Send verification email
-	verifyURL := fmt.Sprintf("http://localhost:%s/api/v1/auth/verify-email?token=%s", s.cfg.Port, token)
+	verifyURL := s.cfg.PublicURL(fmt.Sprintf("/api/v1/auth/verify-email?token=%s", token))
 	emailBody, err := email.GetVerificationTemplate(user.Name, verifyURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to render verification email: %w", err)
@@ -345,7 +345,7 @@ func (s *AuthService) ForgotPassword(req *models.ForgotPasswordRequest, ipAddres
 	}()
 
 	// Send password reset email
-	resetURL := fmt.Sprintf("http://localhost:%s/api/v1/auth/reset-password?token=%s", s.cfg.Port, token)
+	resetURL := s.cfg.PublicURL(fmt.Sprintf("/api/v1/auth/reset-password?token=%s", token))
 	emailBody, err := email.GetPasswordResetTemplate(user.Name, resetURL)
 	if err != nil {
 		return fmt.Errorf("failed to render reset email: %w", err)
@@ -468,7 +468,7 @@ func (s *AuthService) ResendVerification(req *models.ResendVerificationRequest, 
 	}()
 
 	// Send verification email
-	verifyURL := fmt.Sprintf("http://localhost:%s/api/v1/auth/verify-email?token=%s", s.cfg.Port, token)
+	verifyURL := s.cfg.PublicURL(fmt.Sprintf("/api/v1/auth/verify-email?token=%s", token))
 	emailBody, err := email.GetVerificationTemplate(user.Name, verifyURL)
 	if err != nil {
 		return fmt.Errorf("failed to render verification email: %w", err)

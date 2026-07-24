@@ -61,6 +61,14 @@ export interface UserResponse {
   auth_provider: string;
 }
 
+export interface CreditRecipientResponse {
+  id: ID;
+  name: string;
+  email: string;
+  profile_image?: string;
+  full_name?: string;
+}
+
 export interface AuthResponse {
   access_token: string;
   token?: string;
@@ -144,6 +152,8 @@ export interface SMSTopupRequest {
   amount_ugx?: number;
   description: string;
   reference?: string;
+  recipient_id?: ID;
+  recipient_email?: string;
 }
 
 export interface SMSTopupResponse {
@@ -952,6 +962,11 @@ export const apollosmsApi = {
   },
   users: {
     list: () => apiRequest<UserResponse[]>("/users"),
+    searchCreditRecipients: async (query: string) =>
+      (await apiRequest<CreditRecipientResponse[]>("/users/share/recipients", { query: { q: query } })).map((user) => ({
+        ...user,
+        full_name: user.full_name || user.name || "",
+      })),
     get: (id: ID) => apiRequest<UserResponse>(`/users/${id}`),
     create: (payload: CreateUserRequest) =>
       apiRequest<UserResponse>("/users", { method: "POST", body: JSON.stringify(payload) }),
@@ -972,7 +987,7 @@ export const apollosmsApi = {
   topups: {
     perform: (userId: ID, payload: SMSTopupRequest) =>
       apiRequest<SMSTopupResponse>(`/users/${userId}/topup`, { method: "POST", body: JSON.stringify(payload) }),
-    share: (payload: SMSTopupRequest & { recipient_id: ID; amount: number; description: string }) =>
+    share: (payload: SMSTopupRequest & { recipient_id?: ID; recipient_email?: string; amount: number; description: string }) =>
       apiRequest<SMSTopupResponse>("/users/share", { method: "POST", body: JSON.stringify(payload) }),
     forUser: (userId: ID) => apiRequest<SMSTopupResponse[]>(`/users/${userId}/topups`),
     all: () => apiRequest<SMSTopupResponse[]>("/users/topups"),
@@ -1202,7 +1217,7 @@ export const renultApi: any = {
   topups: {
     perform: (userId: ID, payload: { amount?: number; amount_ugx?: number; description: string; reference?: string }) =>
       apollosmsApi.topups.perform(userId, payload),
-    share: (payload: { recipient_id: ID; amount: number; description: string }) =>
+    share: (payload: { recipient_id?: ID; recipient_email?: string; amount: number; description: string }) =>
       apollosmsApi.topups.share(payload),
     list: async (query?: { kind?: string }) => {
       const smsTopups = query?.kind === "airtime"

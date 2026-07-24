@@ -3,6 +3,7 @@ package services
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"backend/internal/models"
 	"backend/internal/repository"
@@ -45,6 +46,25 @@ func (s *UserService) GetUserByID(id uint) (*models.UserResponse, error) {
 
 	res := user.ToResponse()
 	return &res, nil
+}
+
+// SearchCreditRecipients finds possible transfer recipients without returning balances or roles.
+func (s *UserService) SearchCreditRecipients(query string, currentUserID uint) ([]models.CreditRecipientResponse, error) {
+	query = strings.TrimSpace(query)
+	if len(query) < 2 {
+		return []models.CreditRecipientResponse{}, nil
+	}
+
+	users, err := s.userRepo.SearchCreditRecipients(query, currentUserID, 8)
+	if err != nil {
+		return nil, fmt.Errorf("failed to search recipients: %w", err)
+	}
+
+	res := make([]models.CreditRecipientResponse, 0, len(users))
+	for _, user := range users {
+		res = append(res, user.ToCreditRecipientResponse())
+	}
+	return res, nil
 }
 
 // UpdateProfile updates the authenticated user's editable profile fields.

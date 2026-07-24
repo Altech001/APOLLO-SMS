@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"backend/internal/models"
@@ -50,7 +51,8 @@ func (s *SMSTopupService) PerformTopup(userID uint, req *models.SMSTopupRequest)
 	var res models.SMSTopupResponse
 	var updatedUser models.User
 
-	if req.RecipientID > 0 {
+	recipientEmailInput := strings.TrimSpace(req.RecipientEmail)
+	if req.RecipientID > 0 || recipientEmailInput != "" {
 		if req.Amount <= 0 {
 			return nil, errors.New("amount must be greater than zero")
 		}
@@ -64,13 +66,21 @@ func (s *SMSTopupService) PerformTopup(userID uint, req *models.SMSTopupRequest)
 			if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&sender, userID).Error; err != nil {
 				return errors.New("user not found")
 			}
-			if err := s.validateTransferRequest(sender, models.User{ID: req.RecipientID}, credits); err != nil {
-				return err
-			}
 
 			var recipient models.User
-			if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&recipient, req.RecipientID).Error; err != nil {
-				return errors.New("recipient user not found")
+			recipientQuery := tx.Clauses(clause.Locking{Strength: "UPDATE"})
+			if req.RecipientID > 0 {
+				if err := recipientQuery.First(&recipient, req.RecipientID).Error; err != nil {
+					return errors.New("recipient user not found")
+				}
+			} else {
+				if err := recipientQuery.Where("LOWER(email) = LOWER(?)", recipientEmailInput).First(&recipient).Error; err != nil {
+					return errors.New("recipient user not found")
+				}
+			}
+
+			if err := s.validateTransferRequest(sender, recipient, credits); err != nil {
+				return err
 			}
 
 			recipientEmail = recipient.Email

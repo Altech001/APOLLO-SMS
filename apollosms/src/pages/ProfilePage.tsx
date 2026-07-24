@@ -377,7 +377,7 @@ function IntegrationCard({
                                     <AlertDialogHeader>
                                         <AlertDialogTitle className="text-xl font-light">Disconnect {title}?</AlertDialogTitle>
                                         <AlertDialogDescription className="text-slate-500">
-                                            This will revoke ForeForm's access to your {title} account
+                                            This will revoke LUCOSMS's access to your {title} account
                                             {info?.connected_email ? ` (${info.connected_email})` : ""}.
                                             You can reconnect at any time.
                                         </AlertDialogDescription>

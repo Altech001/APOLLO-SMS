@@ -26,12 +26,11 @@ REDIS_USERNAME=default
 REDIS_PASSWORD=TqmrsSgB4JwFrRxHPYJMriQUGwtAENjL
 REDIS_DB=0
 
-# ── Public URL used for payment callbacks ──
-PUBLIC_BASE_URL=https://your-app.com
+# ── Public backend URL used for emails, uploads, and payment callbacks ──
+PUBLIC_URL=https://your-app.com
 
 # ── MarzPay ──
 MARZPAY_BASE_URL=https://wallet.wearemarz.com/api/v1
 MARZPAY_BASIC_AUTH=bWFyel9BcXFTQmprQXhGUFhQakJCOlJnc0UwQTBvQkFpQUlpd21qNmFwTVhDaUhuYzJYY2Ru
-
 
 
