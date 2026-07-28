@@ -220,26 +220,35 @@ export interface GatewaySendSMSResponse {
 
 export interface SMSConfigResponse {
   id: ID;
-  active_provider: "local" | "julysms" | "africastalking" | string;
+  active_provider: "local" | "julysms" | "africastalking" | "fuxx" | string;
   cost_per_segment: number;
   queue_batch_size: number;
   updated_at: string;
   julysms_client_id: string;
   julysms_client_secret: string;
+  julysms_client_secret_configured?: boolean;
   julysms_sender_id: string;
   at_username: string;
   at_api_key: string;
+  at_api_key_configured?: boolean;
   at_sender_id: string;
+  fuxx_base_url: string;
+  fuxx_username: string;
+  fuxx_password: string;
+  fuxx_password_configured?: boolean;
 }
 
 export interface SmsProviderSettingsResponse {
-  active_provider: "local" | "julysms" | "africastalking" | string;
+  active_provider: "local" | "julysms" | "africastalking" | "fuxx" | string;
   africastalking_username: string;
   africastalking_sender_id: string;
   africastalking_api_key_configured: boolean;
   julysms_client_id: string;
   julysms_sender_id: string;
   julysms_client_secret_configured: boolean;
+  fuxx_base_url: string;
+  fuxx_username: string;
+  fuxx_password_configured: boolean;
   cost_per_sms: number;
   batch_size: number;
   updated_at: string;
@@ -249,12 +258,16 @@ export interface SMSConfigRequest {
   active_provider: string;
   cost_per_segment: number;
   queue_batch_size: number;
+  update_scope?: "all" | "general" | "julysms" | "africastalking" | "fuxx";
   julysms_client_id?: string;
   julysms_client_secret?: string;
   julysms_sender_id?: string;
   at_username?: string;
   at_api_key?: string;
   at_sender_id?: string;
+  fuxx_base_url?: string;
+  fuxx_username?: string;
+  fuxx_password?: string;
 }
 
 export interface SMSPricingRange {
@@ -594,16 +607,19 @@ function normalizeNotification(notification: any): NotificationResponse {
 
 function normalizeSmsConfig(config: SMSConfigResponse): SmsProviderSettingsResponse {
   return {
-    active_provider: config.active_provider,
+    active_provider: config.active_provider || "local",
     africastalking_username: config.at_username || "",
     africastalking_sender_id: config.at_sender_id || "",
-    africastalking_api_key_configured: Boolean(config.at_api_key && config.at_api_key.includes("*")),
+    africastalking_api_key_configured: Boolean(config.at_api_key_configured || (config.at_api_key && config.at_api_key.includes("*"))),
     julysms_client_id: config.julysms_client_id || "",
     julysms_sender_id: config.julysms_sender_id || "",
-    julysms_client_secret_configured: Boolean(config.julysms_client_secret && config.julysms_client_secret.includes("*")),
-    cost_per_sms: config.cost_per_segment,
-    batch_size: config.queue_batch_size,
-    updated_at: config.updated_at,
+    julysms_client_secret_configured: Boolean(config.julysms_client_secret_configured || (config.julysms_client_secret && config.julysms_client_secret.includes("*"))),
+    fuxx_base_url: config.fuxx_base_url || "",
+    fuxx_username: config.fuxx_username || "",
+    fuxx_password_configured: Boolean(config.fuxx_password_configured || (config.fuxx_password && config.fuxx_password.includes("*"))),
+    cost_per_sms: Number(config.cost_per_segment || 31),
+    batch_size: Number(config.queue_batch_size || 100),
+    updated_at: config.updated_at || "",
   };
 }
 
@@ -663,6 +679,17 @@ function clearAuth() {
   localStorage.removeItem(SESSION_USER_ID_KEY);
   clearUserDataCache();
   dispatchAuthChange(null);
+}
+
+async function logoutAuth() {
+  const hasToken = Boolean(getStoredToken());
+  try {
+    if (hasToken) {
+      await apiRequest<ApiMessage>("/auth/logout", { method: "POST" });
+    }
+  } finally {
+    clearAuth();
+  }
 }
 
 function buildUrl(path: string, query?: RequestOptions["query"]) {
@@ -889,6 +916,7 @@ export const apollosmsApi = {
     storedUser: getStoredUser,
     save: saveAuth,
     clear: clearAuth,
+    logout: logoutAuth,
     clearUserDataCache,
     me: async () => {
       if (!getStoredToken()) throw new ApiError("No signed in user is stored locally", 401);
@@ -1112,6 +1140,7 @@ export const apollosmsApi = {
   apiSettings: {
     smsProviders: async () => normalizeSmsConfig(await apiRequest<SMSConfigResponse>("/sms-config")),
     updateSmsProviders: async (payload: Partial<{
+      update_scope: "all" | "general" | "julysms" | "africastalking" | "fuxx";
       active_provider: string;
       africastalking_username: string;
       africastalking_api_key: string;
@@ -1119,11 +1148,15 @@ export const apollosmsApi = {
       julysms_client_id: string;
       julysms_client_secret: string;
       julysms_sender_id: string;
+      fuxx_base_url: string;
+      fuxx_username: string;
+      fuxx_password: string;
       cost_per_sms: number;
       batch_size: number;
     }>) => normalizeSmsConfig(await apiRequest<SMSConfigResponse>("/sms-config", {
       method: "PUT",
       body: JSON.stringify({
+        update_scope: payload.update_scope,
         active_provider: payload.active_provider,
         cost_per_segment: payload.cost_per_sms,
         queue_batch_size: payload.batch_size,
@@ -1133,6 +1166,9 @@ export const apollosmsApi = {
         at_username: payload.africastalking_username,
         at_api_key: payload.africastalking_api_key,
         at_sender_id: payload.africastalking_sender_id,
+        fuxx_base_url: payload.fuxx_base_url,
+        fuxx_username: payload.fuxx_username,
+        fuxx_password: payload.fuxx_password,
       }),
     })),
   },
@@ -1377,7 +1413,7 @@ export const renultApi: any = {
 export const base44 = {
   auth: {
     me: renultApi.auth.me,
-    logout: async () => clearAuth(),
+    logout: renultApi.auth.logout,
   },
   entities: {
     Form: localForms,

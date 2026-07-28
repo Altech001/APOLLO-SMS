@@ -209,26 +209,26 @@ export default function SideBar({ isOpen, onClose }: SideBarProps) {
                 key={item.label}
                 onClick={() => handleNavigate(item.path)}
                 className={`
-          flex items-center rounded text-sm font-medium text-foreground 
+          flex items-center rounded text-sm font-normal text-foreground 
           transition-all duration-150 ease-in-out group
           ${isCollapsed ? "justify-center w-10 h-10 mx-auto" : "w-full justify-between px-4 py-2.5"}
           ${active
-                        ? "bg-primary/10 text-primary font-semibold border-l-4 border-primary rounded-none"
+                        ? "bg-primary/10 text-primary  border-l-4 border-primary rounded-none"
                         : "text-muted-foreground text-base hover:bg-muted/60"
                     }
         `}
             >
                 {isCollapsed ? (
-                    <span className={`shrink-0 ${active ? "text-primary" : item.iconColor || "text-foreground/70"}`}>
+                    <span className={`shrink-0 font-normal ${active ? "text-primary" : item.iconColor || "text-foreground/70"}`}>
                         {item.icon}
                     </span>
                 ) : (
                     <>
                         <div className="flex items-center gap-4 overflow-hidden">
-                            <span className={`shrink-0 ${active ? "text-primary" : item.iconColor || "text-foreground/80"}`}>
+                            <span className={`shrink-0 ${active ? "text-primary font-normal" : item.iconColor || "text-foreground/80 font-normal"}`}>
                                 {item.icon}
                             </span>
-                            <span className={`${active ? "truncate text-primary" : "truncate text-foreground/80 font-medium"}`}>{item.label}</span>
+                            <span className={`${active ? "truncate text-primary" : "truncate text-foreground/80"}`}>{item.label}</span>
                         </div>
                         {item.hasSubmenu && (
                             <MoreVerticalIcon className="w-4 h-4 text-muted-foreground group-hover:text-foreground shrink-0 transition-colors" />

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
     Select,
     SelectContent,
@@ -24,12 +25,12 @@ import {
     Search,
     Share2,
     Trash2,
-    X,
-    Loader2
+    X
 } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 interface SMSTemplate {
     id: string;
@@ -42,6 +43,9 @@ interface SMSTemplate {
 }
 
 const SUGGESTED_VARIABLES = ["code", "name", "promo_code", "expiry_date", "date_time", "doctor", "balance", "threshold", "currency", "link"];
+const templatesQueryKey = ["apollosms", "sms-templates"] as const;
+const TEMPLATE_CACHE_TIME = 30 * 60 * 1000;
+const TEMPLATE_STALE_TIME = 5 * 60 * 1000;
 
 const toTemplate = (template: TemplateResponse): SMSTemplate => ({
     id: template.id,
@@ -53,8 +57,36 @@ const toTemplate = (template: TemplateResponse): SMSTemplate => ({
     usageCount: template.usageCount ?? template.usage_count ?? 0,
 });
 
+function TemplateGridSkeleton() {
+    return (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {Array.from({ length: 6 }).map((_, index) => (
+                <Card key={index} className="bg-card border border-border/40 rounded shadow-sm">
+                    <CardHeader className="pb-3">
+                        <div className="flex justify-between items-start gap-2">
+                            <Skeleton className="h-5 w-24 rounded-full" />
+                            <Skeleton className="h-4 w-16" />
+                        </div>
+                        <Skeleton className="h-5 w-2/3 mt-3" />
+                    </CardHeader>
+                    <CardContent className="pb-4 space-y-2">
+                        <Skeleton className="h-3 w-full" />
+                        <Skeleton className="h-3 w-11/12" />
+                        <Skeleton className="h-3 w-3/5" />
+                    </CardContent>
+                    <div className="px-6 py-3 border-t border-border/10 flex items-center justify-between">
+                        <Skeleton className="h-4 w-28" />
+                        <Skeleton className="h-5 w-14" />
+                    </div>
+                </Card>
+            ))}
+        </div>
+    );
+}
+
 export default function TemplatesIndex() {
     const navigate = useNavigate();
+    const queryClient = useQueryClient();
     const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem("sidebar-collapsed") === "true");
 
     useEffect(() => {
@@ -65,9 +97,6 @@ export default function TemplatesIndex() {
         return () => window.removeEventListener("sidebar-collapse-change", handler);
     }, []);
 
-    const [templates, setTemplates] = useState<SMSTemplate[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
-    const [loadError, setLoadError] = useState("");
     const [searchQuery, setSearchQuery] = useState("");
     const [filterCategory, setFilterCategory] = useState<string>("all");
 
@@ -82,26 +111,33 @@ export default function TemplatesIndex() {
     const [formContent, setFormContent] = useState("");
     const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+    const {
+        data: templates = [],
+        error: loadError,
+        isLoading,
+        isFetching,
+    } = useQuery({
+        queryKey: templatesQueryKey,
+        queryFn: async () => (await renultApi.templates.list()).map(toTemplate),
+        gcTime: TEMPLATE_CACHE_TIME,
+        staleTime: TEMPLATE_STALE_TIME,
+        placeholderData: (previousData) => previousData,
+        refetchOnMount: true,
+        refetchInterval: TEMPLATE_STALE_TIME,
+        refetchOnReconnect: "always",
+        refetchOnWindowFocus: true,
+        retry: 1,
+    });
+
     useEffect(() => {
-        let mounted = true;
-        setIsLoading(true);
-        setLoadError("");
-        renultApi.templates.list()
-            .then((data) => {
-                if (!mounted) return;
-                setTemplates(data.map(toTemplate));
-            })
-            .catch((error) => {
-                if (!mounted) return;
-                setTemplates([]);
-                setLoadError(error instanceof Error ? error.message : "Unable to load templates");
-                toast.error("Unable to load templates from the API.");
-            })
-            .finally(() => {
-                if (mounted) setIsLoading(false);
-            });
-        return () => { mounted = false; };
-    }, []);
+        if (loadError && templates.length === 0) {
+            toast.error("Unable to load templates from the API.");
+        }
+    }, [loadError, templates.length]);
+
+    const updateTemplatesCache = (updater: (current: SMSTemplate[]) => SMSTemplate[]) => {
+        queryClient.setQueryData<SMSTemplate[]>(templatesQueryKey, (current = []) => updater(current));
+    };
 
     // Open panel helper
     const openViewPanel = (template: SMSTemplate) => {
@@ -198,7 +234,7 @@ export default function TemplatesIndex() {
                     content: formContent.trim(),
                     variables: detectedVars,
                 });
-                setTemplates([toTemplate(created), ...templates]);
+                updateTemplatesCache((current) => [toTemplate(created), ...current]);
                 toast.success("Template created successfully");
             } else if (panelMode === "edit" && activeTemplate) {
                 const updated = await renultApi.templates.update(activeTemplate.id, {
@@ -207,7 +243,9 @@ export default function TemplatesIndex() {
                     content: formContent.trim(),
                     variables: detectedVars,
                 });
-                setTemplates(templates.map((t) => t.id === activeTemplate.id ? toTemplate(updated) : t));
+                const nextTemplate = toTemplate(updated);
+                updateTemplatesCache((current) => current.map((t) => t.id === activeTemplate.id ? nextTemplate : t));
+                setActiveTemplate(nextTemplate);
                 toast.success("Template updated successfully");
             }
             closePanel();
@@ -221,7 +259,7 @@ export default function TemplatesIndex() {
         if (confirm("Are you sure you want to delete this template?")) {
             try {
                 await renultApi.templates.delete(id);
-                setTemplates(templates.filter((t) => t.id !== id));
+                updateTemplatesCache((current) => current.filter((t) => t.id !== id));
                 toast.success("Template deleted successfully");
                 closePanel();
             } catch (error) {
@@ -271,6 +309,9 @@ export default function TemplatesIndex() {
                         
                         <p className="text-xs text-muted-foreground mt-1">
                             Create, edit, and organize reusable content snippets with dynamic placeholders.
+                            {isFetching && templates.length > 0 ? (
+                                <span className="ml-2 text-primary">Refreshing cache...</span>
+                            ) : null}
                         </p>
                     </div>
                     <Button onClick={openCreatePanel} size="sm" className="gap-1.5 h-9 font-semibold text-xs shrink-0">
@@ -316,16 +357,13 @@ export default function TemplatesIndex() {
 
                 {/* Grid List */}
                 {isLoading ? (
-                    <div className="text-center py-20 bg-card border border-border/30 rounded-lg">
-                        <Loader2 className="w-8 h-8 mx-auto text-primary/70 mb-3 animate-spin" />
-                        <h3 className="text-sm  text-foreground">Loading templates</h3>
-                    </div>
+                    <TemplateGridSkeleton />
                 ) : filteredTemplates.length === 0 ? (
-                    <div className="text-center py-20 bg-card border border-border/30 rounded-lg">
+                    <div className="text-center py-20 bg-card border border-border/30 rounded">
                         <FileText className="w-10 h-10 mx-auto text-muted-foreground/50 mb-3" />
                         <h3 className="text-sm  text-foreground">{loadError ? "Unable to load templates" : "No templates found"}</h3>
                         <p className="text-xs text-muted-foreground mt-1 max-w-xs mx-auto">
-                            {loadError || "Create a new template or adjust your search filters to get started."}
+                            {loadError instanceof Error ? loadError.message : "Create a new template or adjust your search filters to get started."}
                         </p>
                     </div>
                 ) : (

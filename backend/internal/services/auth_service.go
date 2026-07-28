@@ -209,6 +209,8 @@ func (s *AuthService) Login(req *models.LoginRequest, ipAddress, userAgent strin
 	tokenID := uuid.New().String()
 	sessionExpiresAt := time.Now().Add(72 * time.Hour)
 
+	_ = s.securityRepo.RevokeMatchingDeviceSessions(user.ID, ipAddress, userAgent)
+
 	// Create User Session record
 	session := &models.UserSession{
 		UserID:       user.ID,
@@ -255,6 +257,43 @@ func (s *AuthService) Login(req *models.LoginRequest, ipAddress, userAgent strin
 	}
 
 	return user, tokenString, nil
+}
+
+// Logout revokes the current JWT-backed session.
+func (s *AuthService) Logout(userID uint, tokenID string, ipAddress, userAgent string) error {
+	if userID == 0 || tokenID == "" {
+		return errors.New("invalid session")
+	}
+
+	if err := s.securityRepo.RevokeSessionByTokenID(userID, tokenID); err != nil {
+		return fmt.Errorf("failed to revoke session: %w", err)
+	}
+
+	if s.redisService != nil && s.redisService.IsActive() {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		_ = s.redisService.Delete(ctx, fmt.Sprintf("session:%s", tokenID))
+	}
+
+	go func() {
+		details, _ := s.ipgeoClient.GetDetails(ipAddress)
+		logEntry := &models.UserSecurityLog{
+			UserID:    userID,
+			Action:    "Logout",
+			IPAddress: ipAddress,
+			UserAgent: userAgent,
+			Device:    ipgeo.ParseUserAgent(userAgent),
+		}
+		if details != nil {
+			logEntry.Location = fmt.Sprintf("%s, %s, %s %s", details.City, details.StateProv, details.CountryName, details.CountryEmoji)
+			logEntry.ISP = details.ISP
+			logEntry.ConnectionTy = details.ConnectionTy
+			logEntry.CountryFlag = details.CountryFlag
+		}
+		_ = s.securityRepo.CreateSecurityLog(logEntry)
+	}()
+
+	return nil
 }
 
 func (s *AuthService) cacheUserIndex(user *models.User) {

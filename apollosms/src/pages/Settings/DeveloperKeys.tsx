@@ -4,6 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -40,15 +41,15 @@ import {
   ExternalLink,
   Eye,
   Key,
-  Loader2,
   MoreVertical,
   Plus,
   Trash2,
   X,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import SettingsLayout from "./SettingsLayout";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 interface DeveloperKey {
   id: string;
@@ -82,10 +83,13 @@ const toDeveloperKey = (key: ApiDeveloperKey): DeveloperKey => ({
   billingTier: "API gateway",
 });
 
+const developerKeysQueryKey = ["apollosms", "developer-keys"] as const;
+const DEVELOPER_KEYS_CACHE_TIME = 30 * 60 * 1000;
+const DEVELOPER_KEYS_STALE_TIME = 5 * 60 * 1000;
+
 export default function DeveloperKeysPage() {
+  const queryClient = useQueryClient();
   // Developer keys state
-  const [keys, setKeys] = useState<DeveloperKey[]>([]);
-  const [isLoadingKeys, setIsLoadingKeys] = useState(true);
   const [isSavingKey, setIsSavingKey] = useState(false);
   const [groupBy, setGroupBy] = useState<"key" | "project">("key");
   const [filterProject, setFilterProject] = useState<string>("all");
@@ -107,22 +111,26 @@ export default function DeveloperKeysPage() {
 
   const projects = [DEFAULT_PROJECT];
 
-  const loadKeys = async (showToast = false) => {
-    setIsLoadingKeys(true);
-    try {
-      const data = await renultApi.developerKeys.list();
-      setKeys(data.map(toDeveloperKey));
-      if (showToast) toast.success("API keys refreshed");
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to load API keys");
-    } finally {
-      setIsLoadingKeys(false);
-    }
-  };
+  const {
+    data: keys = [],
+    isLoading: isLoadingKeys,
+    isFetching: isFetchingKeys,
+  } = useQuery({
+    queryKey: developerKeysQueryKey,
+    queryFn: async () => (await renultApi.developerKeys.list()).map(toDeveloperKey),
+    gcTime: DEVELOPER_KEYS_CACHE_TIME,
+    staleTime: DEVELOPER_KEYS_STALE_TIME,
+    placeholderData: (previousData) => previousData,
+    refetchOnMount: true,
+    refetchInterval: DEVELOPER_KEYS_STALE_TIME,
+    refetchOnReconnect: "always",
+    refetchOnWindowFocus: true,
+    retry: 1,
+  });
 
-  useEffect(() => {
-    loadKeys();
-  }, []);
+  const updateKeysCache = (updater: (current: DeveloperKey[]) => DeveloperKey[]) => {
+    queryClient.setQueryData<DeveloperKey[]>(developerKeysQueryKey, (current = []) => updater(current));
+  };
 
   // Create key handler
   const handleCreateKey = async () => {
@@ -152,7 +160,7 @@ export default function DeveloperKeysPage() {
         createdAt: created.created_at ? new Date(created.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "-",
         billingTier: "API gateway",
       };
-      setKeys((prev) => [visibleKey, ...prev]);
+      updateKeysCache((current) => [visibleKey, ...current]);
       setCreatedKeyVal(created.raw_key);
       setIsCreateOpen(false);
       setIsCreatedSuccessOpen(true);
@@ -178,7 +186,7 @@ export default function DeveloperKeysPage() {
     setIsSavingKey(true);
     try {
       await renultApi.developerKeys.revoke(activeKey.id);
-      setKeys((prev) => prev.filter(k => k.id !== activeKey.id));
+      updateKeysCache((current) => current.filter(k => k.id !== activeKey.id));
       setIsDeleteConfirmOpen(false);
       setActiveKey(null);
       toast.success("API key revoked successfully");
@@ -207,7 +215,7 @@ export default function DeveloperKeysPage() {
   };
 
   // Filtered keys list
-  const filteredKeys = keys.filter(k => filterProject === "all" || k.projectId === filterProject);
+  const filteredKeys = useMemo(() => keys.filter(k => filterProject === "all" || k.projectId === filterProject), [keys, filterProject]);
 
   // Quickstart content states
   const [quickstartTab, setQuickstartTab] = useState<"curl" | "python" | "node">("curl");
@@ -231,6 +239,9 @@ export default function DeveloperKeysPage() {
                 <BookOpen className="w-4 h-4" />
                 API quickstart
               </Button>
+              {isFetchingKeys && keys.length > 0 ? (
+                <span className="ml-3 text-xs font-medium text-primary">Refreshing cache...</span>
+              ) : null}
 
             </div>
             <div className="flex items-center gap-3">
@@ -292,9 +303,22 @@ export default function DeveloperKeysPage() {
           {/* API Keys Table */}
           <div className="relative bg-card overflow-hidden">
             {isLoadingKeys ? (
-              <div className="py-16 text-center text-muted-foreground">
-                <Loader2 className="w-8 h-8 mx-auto mb-3 text-primary animate-spin" />
-                <p className="text-sm font-medium">Loading API keys...</p>
+              <div className="divide-y divide-border/50">
+                {Array.from({ length: 4 }).map((_, index) => (
+                  <div key={index} className="grid grid-cols-[30%_15%_30%_15%_10%] items-center gap-4 px-4 py-4">
+                    <div className="space-y-2">
+                      <Skeleton className="h-4 w-32" />
+                      <Skeleton className="h-5 w-40 rounded" />
+                    </div>
+                    <Skeleton className="h-6 w-16 rounded-full" />
+                    <div className="space-y-2">
+                      <Skeleton className="h-4 w-36" />
+                      <Skeleton className="h-3 w-28" />
+                    </div>
+                    <Skeleton className="h-4 w-20" />
+                    <Skeleton className="h-8 w-20 ml-auto" />
+                  </div>
+                ))}
               </div>
             ) : filteredKeys.length === 0 ? (
               <div className="py-16 text-center text-muted-foreground">

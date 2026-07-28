@@ -11,6 +11,7 @@ const (
 	SMSProviderLocal          = "local"
 	SMSProviderJulySMS        = "julysms"
 	SMSProviderAfricasTalking = "africastalking"
+	SMSProviderFuxx           = "fuxx"
 )
 
 // SMSConfig stores the platform-wide SMS gateway configuration.
@@ -22,7 +23,7 @@ type SMSConfig struct {
 	DeletedAt gorm.DeletedAt `json:"-" gorm:"index"`
 
 	// ── General ──
-	ActiveProvider string `json:"active_provider" gorm:"not null;default:'local'"` // local | julysms | africastalking
+	ActiveProvider string `json:"active_provider" gorm:"not null;default:'local'"` // local | julysms | africastalking | fuxx
 	CostPerSegment int    `json:"cost_per_segment" gorm:"not null;default:31"`     // UGX charged per 160-char segment
 	QueueBatchSize int    `json:"queue_batch_size" gorm:"not null;default:100"`    // max recipients per gateway call
 
@@ -35,6 +36,11 @@ type SMSConfig struct {
 	ATUsername string `json:"at_username"`
 	ATAPIKey   string `json:"at_api_key"`
 	ATSenderID string `json:"at_sender_id"`
+
+	// ── FUXX Cloud Gateway ──
+	FuxxBaseURL  string `json:"fuxx_base_url"`
+	FuxxUsername string `json:"fuxx_username"`
+	FuxxPassword string `json:"fuxx_password"`
 }
 
 // SMSPricingRange defines how many UGX one SMS credit costs for a topup amount band.
@@ -52,9 +58,10 @@ type SMSPricingRange struct {
 
 // SMSConfigRequest is the admin payload for saving SMS configuration.
 type SMSConfigRequest struct {
-	ActiveProvider string `json:"active_provider" validate:"required,oneof=local julysms africastalking"`
+	ActiveProvider string `json:"active_provider" validate:"required,oneof=local julysms africastalking fuxx"`
 	CostPerSegment int    `json:"cost_per_segment" validate:"required,gt=0"`
 	QueueBatchSize int    `json:"queue_batch_size" validate:"required,gt=0"`
+	UpdateScope    string `json:"update_scope"` // all | general | julysms | africastalking | fuxx
 
 	// JulySMS fields (required when provider is julysms)
 	JulySMSClientID     string `json:"julysms_client_id"`
@@ -65,6 +72,11 @@ type SMSConfigRequest struct {
 	ATUsername string `json:"at_username"`
 	ATAPIKey   string `json:"at_api_key"`
 	ATSenderID string `json:"at_sender_id"`
+
+	// FUXX fields (required when provider is fuxx)
+	FuxxBaseURL  string `json:"fuxx_base_url"`
+	FuxxUsername string `json:"fuxx_username"`
+	FuxxPassword string `json:"fuxx_password"`
 }
 
 // SMSConfigResponse is the API response for the current SMS config.
@@ -77,14 +89,22 @@ type SMSConfigResponse struct {
 	UpdatedAt      time.Time `json:"updated_at"`
 
 	// JulySMS (secrets masked)
-	JulySMSClientID     string `json:"julysms_client_id"`
-	JulySMSClientSecret string `json:"julysms_client_secret"`
-	JulySMSSenderID     string `json:"julysms_sender_id"`
+	JulySMSClientID               string `json:"julysms_client_id"`
+	JulySMSClientSecret           string `json:"julysms_client_secret"`
+	JulySMSClientSecretConfigured bool   `json:"julysms_client_secret_configured"`
+	JulySMSSenderID               string `json:"julysms_sender_id"`
 
 	// Africa's Talking (secrets masked)
-	ATUsername string `json:"at_username"`
-	ATAPIKey   string `json:"at_api_key"`
-	ATSenderID string `json:"at_sender_id"`
+	ATUsername         string `json:"at_username"`
+	ATAPIKey           string `json:"at_api_key"`
+	ATAPIKeyConfigured bool   `json:"at_api_key_configured"`
+	ATSenderID         string `json:"at_sender_id"`
+
+	// FUXX (password masked)
+	FuxxBaseURL            string `json:"fuxx_base_url"`
+	FuxxUsername           string `json:"fuxx_username"`
+	FuxxPassword           string `json:"fuxx_password"`
+	FuxxPasswordConfigured bool   `json:"fuxx_password_configured"`
 }
 
 // SMSPricingRangeRequest is the admin payload for one SMS pricing band.
@@ -131,6 +151,9 @@ type SMSUsageSummary struct {
 
 // maskSecret returns a masked version of a secret string (shows last 4 chars).
 func maskSecret(s string) string {
+	if s == "" {
+		return ""
+	}
 	if len(s) <= 4 {
 		return "****"
 	}
@@ -146,13 +169,20 @@ func (c *SMSConfig) ToResponse() SMSConfigResponse {
 		QueueBatchSize: c.QueueBatchSize,
 		UpdatedAt:      c.UpdatedAt,
 
-		JulySMSClientID:     c.JulySMSClientID,
-		JulySMSClientSecret: maskSecret(c.JulySMSClientSecret),
-		JulySMSSenderID:     c.JulySMSSenderID,
+		JulySMSClientID:               c.JulySMSClientID,
+		JulySMSClientSecret:           maskSecret(c.JulySMSClientSecret),
+		JulySMSClientSecretConfigured: c.JulySMSClientSecret != "",
+		JulySMSSenderID:               c.JulySMSSenderID,
 
-		ATUsername: c.ATUsername,
-		ATAPIKey:   maskSecret(c.ATAPIKey),
-		ATSenderID: c.ATSenderID,
+		ATUsername:         c.ATUsername,
+		ATAPIKey:           maskSecret(c.ATAPIKey),
+		ATAPIKeyConfigured: c.ATAPIKey != "",
+		ATSenderID:         c.ATSenderID,
+
+		FuxxBaseURL:            c.FuxxBaseURL,
+		FuxxUsername:           c.FuxxUsername,
+		FuxxPassword:           maskSecret(c.FuxxPassword),
+		FuxxPasswordConfigured: c.FuxxPassword != "",
 	}
 }
 

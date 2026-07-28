@@ -4,6 +4,7 @@ import (
 	"backend/internal/config"
 	"backend/internal/models"
 	"log"
+	"strings"
 
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/driver/postgres"
@@ -14,7 +15,7 @@ import (
 // Connect establishes a connection to PostgreSQL using GORM.
 func Connect(cfg *config.Config) (*gorm.DB, error) {
 	db, err := gorm.Open(postgres.Open(cfg.DatabaseURL), &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Info),
+		Logger: logger.Default.LogMode(gormLogLevel(cfg.GormLogLevel)),
 	})
 	if err != nil {
 		return nil, err
@@ -31,6 +32,19 @@ func Connect(cfg *config.Config) (*gorm.DB, error) {
 
 	log.Println("✅ Database connected successfully")
 	return db, nil
+}
+
+func gormLogLevel(level string) logger.LogLevel {
+	switch strings.ToLower(strings.TrimSpace(level)) {
+	case "silent", "off", "none":
+		return logger.Silent
+	case "warn", "warning":
+		return logger.Warn
+	case "info":
+		return logger.Info
+	default:
+		return logger.Error
+	}
 }
 
 // Migrate runs auto-migrations for all models.

@@ -61,8 +61,11 @@ func Setup(app *fiber.App, db *gorm.DB, cfg *config.Config) {
 	developerKeyService := services.NewDeveloperKeyService(db, developerKeyRepo, userRepo, smsConfigRepo, notifService, redisService)
 	paymentService := services.NewPaymentService(db, paymentRepo, notifService, smsConfigService, redisService, cfg)
 
-	// Start Postgres SKIP LOCKED background SMS worker
-	developerKeyService.StartQueueWorker(smsConfigService)
+	if cfg.SMSQueueWorker {
+		developerKeyService.StartQueueWorker(smsConfigService, cfg.SMSQueuePollDelay)
+	} else {
+		log.Println("SMS queue worker disabled")
+	}
 
 	// ── Handlers ──
 	healthHandler := handlers.NewHealthHandler()
@@ -87,6 +90,7 @@ func Setup(app *fiber.App, db *gorm.DB, cfg *config.Config) {
 	auth.Post("/register", authHandler.Register)
 	auth.Get("/verify-email", authHandler.VerifyEmail)
 	auth.Post("/login", authHandler.Login)
+	auth.Post("/logout", middleware.AuthRequired(cfg, db), authHandler.Logout)
 	auth.Post("/forgot-password", authHandler.ForgotPassword)
 	auth.Get("/reset-password", authHandler.GetResetPassword) // Serves form to browser
 	auth.Post("/reset-password", authHandler.ResetPassword)   // Handles form submit / API json

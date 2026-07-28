@@ -2,6 +2,7 @@ package repository
 
 import (
 	"backend/internal/models"
+	"time"
 
 	"gorm.io/gorm"
 )
@@ -24,7 +25,7 @@ func (r *SecurityRepository) CreateSession(session *models.UserSession) error {
 // FindSessionByTokenID finds an active session by token UUID.
 func (r *SecurityRepository) FindSessionByTokenID(tokenID string) (*models.UserSession, error) {
 	var session models.UserSession
-	err := r.db.Where("token_id = ? AND is_active = ?", tokenID, true).First(&session).Error
+	err := r.db.Where("token_id = ? AND is_active = ? AND expires_at > ?", tokenID, true, time.Now()).First(&session).Error
 	if err != nil {
 		return nil, err
 	}
@@ -34,7 +35,7 @@ func (r *SecurityRepository) FindSessionByTokenID(tokenID string) (*models.UserS
 // FindActiveSessionsByUserID returns all active sessions for a user.
 func (r *SecurityRepository) FindActiveSessionsByUserID(userID uint) ([]models.UserSession, error) {
 	var sessions []models.UserSession
-	err := r.db.Where("user_id = ? AND is_active = ?", userID, true).Order("created_at DESC").Find(&sessions).Error
+	err := r.db.Where("user_id = ? AND is_active = ? AND expires_at > ?", userID, true, time.Now()).Order("created_at DESC").Find(&sessions).Error
 	return sessions, err
 }
 
@@ -42,6 +43,20 @@ func (r *SecurityRepository) FindActiveSessionsByUserID(userID uint) ([]models.U
 func (r *SecurityRepository) RevokeSession(id uint, userID uint) error {
 	return r.db.Model(&models.UserSession{}).
 		Where("id = ? AND user_id = ?", id, userID).
+		Update("is_active", false).Error
+}
+
+// RevokeSessionByTokenID marks the current token-backed session inactive.
+func (r *SecurityRepository) RevokeSessionByTokenID(userID uint, tokenID string) error {
+	return r.db.Model(&models.UserSession{}).
+		Where("user_id = ? AND token_id = ? AND is_active = ?", userID, tokenID, true).
+		Update("is_active", false).Error
+}
+
+// RevokeMatchingDeviceSessions marks old sessions from the same browser/network inactive.
+func (r *SecurityRepository) RevokeMatchingDeviceSessions(userID uint, ipAddress, userAgent string) error {
+	return r.db.Model(&models.UserSession{}).
+		Where("user_id = ? AND ip_address = ? AND user_agent = ? AND is_active = ?", userID, ipAddress, userAgent, true).
 		Update("is_active", false).Error
 }
 

@@ -2,6 +2,7 @@
 import { renultApi, SecurityLogResponse, SessionResponse } from "@/api/apollosms";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
     Table,
     TableBody,
@@ -29,9 +30,10 @@ import {
     Trash2,
     Unlock
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 import SettingsLayout from "./SettingsLayout";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 /* ─── Types ─── */
 type LogAction =
@@ -313,44 +315,70 @@ const statusBadge: Record<
 
 /* ─── Component ─── */
 type TabId = "logs" | "sessions";
+type SecurityDataCache = {
+    logs: SecurityLog[];
+    sessions: ActiveSession[];
+};
+
+const securityDataQueryKey = ["security", "logs-sessions"] as const;
+const SECURITY_CACHE_TIME = 30 * 60 * 1000;
+const SECURITY_STALE_TIME = 5 * 60 * 1000;
 
 export default function SecurityLogsPage() {
+    const queryClient = useQueryClient();
     const [activeTab, setActiveTab] = useState<TabId>("logs");
-    const [logs, setLogs] = useState<SecurityLog[]>([]);
-    const [sessions, setSessions] = useState<ActiveSession[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
-
-    const activeSessionCount = sessions.filter((session) => !session.isCurrent).length;
-
-    const loadSecurityData = async (showToast = false) => {
-        setIsLoading(true);
-        try {
+    const {
+        data: securityData = { logs: [], sessions: [] },
+        isLoading,
+        isFetching,
+        refetch,
+    } = useQuery<SecurityDataCache>({
+        queryKey: securityDataQueryKey,
+        queryFn: async () => {
             const [logsData, sessionsData] = await Promise.all([
                 renultApi.security.logs(),
                 renultApi.security.sessions(),
             ]);
-            setLogs(logsData.map(toSecurityLog).slice(0, 10));
-            setSessions(sessionsData.map(toActiveSession));
-            if (showToast) toast.success("Security data refreshed");
-        } catch (error) {
-            toast.error(error instanceof Error ? error.message : "Failed to load security data");
-        } finally {
-            setIsLoading(false);
-        }
+            return {
+                logs: logsData.map(toSecurityLog).slice(0, 10),
+                sessions: sessionsData.map(toActiveSession),
+            };
+        },
+        gcTime: SECURITY_CACHE_TIME,
+        staleTime: SECURITY_STALE_TIME,
+        placeholderData: (previousData) => previousData,
+        refetchOnMount: true,
+        refetchInterval: SECURITY_STALE_TIME,
+        refetchOnReconnect: "always",
+        refetchOnWindowFocus: true,
+        retry: 1,
+    });
+
+    const logs = securityData.logs;
+    const sessions = securityData.sessions;
+
+    const activeSessionCount = sessions.filter((session) => !session.isCurrent).length;
+
+    const updateSecurityCache = (updater: (current: SecurityDataCache) => SecurityDataCache) => {
+        queryClient.setQueryData<SecurityDataCache>(securityDataQueryKey, (current = { logs: [], sessions: [] }) => updater(current));
     };
 
-    useEffect(() => {
-        loadSecurityData();
-    }, []);
-
-    const handleRefresh = () => {
-        loadSecurityData(true);
+    const handleRefresh = async () => {
+        const result = await refetch();
+        if (result.error) {
+            toast.error(result.error instanceof Error ? result.error.message : "Failed to load security data");
+        } else {
+            toast.success("Security data refreshed");
+        }
     };
 
     const handleRevokeSession = async (sessionId: string) => {
         try {
             await renultApi.security.revokeSession(sessionId);
-            setSessions((prev) => prev.filter((s) => s.id !== sessionId));
+            updateSecurityCache((current) => ({
+                ...current,
+                sessions: current.sessions.filter((s) => s.id !== sessionId),
+            }));
             toast.success("Session revoked successfully");
         } catch (error) {
             toast.error(error instanceof Error ? error.message : "Failed to revoke session");
@@ -360,7 +388,10 @@ export default function SecurityLogsPage() {
     const handleRevokeAllOther = async () => {
         try {
             await renultApi.security.revokeOtherSessions();
-            setSessions((prev) => prev.filter((s) => s.isCurrent));
+            updateSecurityCache((current) => ({
+                ...current,
+                sessions: current.sessions.filter((s) => s.isCurrent),
+            }));
             toast.success("All other sessions revoked");
         } catch (error) {
             toast.error(error instanceof Error ? error.message : "Failed to revoke sessions");
@@ -380,15 +411,18 @@ export default function SecurityLogsPage() {
                             <p className="text-xs text-muted-foreground mt-1">
                                 Review login activity, monitor active sessions, and keep your
                                 account secure.
+                                {isFetching && !isLoading ? (
+                                    <span className="ml-2 text-primary">Refreshing cache...</span>
+                                ) : null}
                             </p>
                         </div>
                         <Button
                             variant="outline"
                             onClick={handleRefresh}
-                            disabled={isLoading}
+                            disabled={isFetching}
                             className="h-9 text-xs font-semibold rounded px-4 gap-2 border-border"
                         >
-                            {isLoading ? (
+                            {isFetching ? (
                                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
                             ) : (
                                 <RefreshCcw className="w-3.5 h-3.5" />
@@ -435,11 +469,19 @@ export default function SecurityLogsPage() {
 
                     {/* Content */}
                     {isLoading ? (
-                        <div className="flex items-center justify-center py-20">
-                            <Loader2 className="w-6 h-6 animate-spin text-primary" />
-                            <span className="ml-3 text-sm text-muted-foreground">
-                                Loading security data...
-                            </span>
+                        <div className="space-y-3">
+                            {Array.from({ length: 5 }).map((_, index) => (
+                                <div key={index} className="grid grid-cols-[35%_15%_15%_20%_15%] gap-4 rounded bg-card p-4">
+                                    <div className="flex items-center gap-3">
+                                        <Skeleton className="h-8 w-8 rounded" />
+                                        <Skeleton className="h-4 w-32" />
+                                    </div>
+                                    <Skeleton className="h-4 w-24" />
+                                    <Skeleton className="h-5 w-16 rounded-full" />
+                                    <Skeleton className="h-4 w-28" />
+                                    <Skeleton className="h-4 w-20 ml-auto" />
+                                </div>
+                            ))}
                         </div>
                     ) : activeTab === "logs" ? (
                         /* ─── SECURITY LOGS TAB ─── */

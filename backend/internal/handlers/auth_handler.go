@@ -128,6 +128,29 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 	})
 }
 
+// Logout godoc
+// @Summary      Logout User
+// @Description  Revoke the current active session
+// @Tags         Auth
+// @Security     BearerAuth
+// @Produce      json
+// @Success      200  {object}  response.SuccessResponse
+// @Failure      401  {object}  response.ErrorResponse
+// @Router       /auth/logout [post]
+func (h *AuthHandler) Logout(c *fiber.Ctx) error {
+	userID := getUserID(c)
+	sessionID := getSessionID(c)
+	if userID == 0 || sessionID == "" {
+		return response.Error(c, fiber.StatusUnauthorized, "Unauthorized")
+	}
+
+	if err := h.service.Logout(userID, sessionID, c.IP(), c.Get("User-Agent")); err != nil {
+		return response.Error(c, fiber.StatusInternalServerError, err.Error())
+	}
+
+	return response.Success(c, fiber.Map{"message": "Logged out successfully"})
+}
+
 // ForgotPassword godoc
 // @Summary      Forgot Password
 // @Description  Request a password reset link to be sent via email
@@ -311,4 +334,3 @@ func (h *AuthHandler) ChangePassword(c *fiber.Ctx) error {
 
 	return response.Success(c, fiber.Map{"message": "Password updated successfully"})
 }
-

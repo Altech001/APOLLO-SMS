@@ -65,10 +65,24 @@ func defaultPricingRanges() []models.SMSPricingRange {
 
 // maskSecret returns a masked version of a secret string (shows last 4 chars).
 func maskSecret(s string) string {
+	if s == "" {
+		return ""
+	}
 	if len(s) <= 4 {
 		return "****"
 	}
 	return "****" + s[len(s)-4:]
+}
+
+func decryptConfiguredSecret(cipherText string, secretKey string) (string, bool) {
+	if cipherText == "" {
+		return "", false
+	}
+	plainText, err := crypto.Decrypt(cipherText, secretKey)
+	if err != nil || plainText == "" {
+		return "", false
+	}
+	return plainText, true
 }
 
 // ── Admin Configuration ─────────────────────────────────────────────────────
@@ -86,22 +100,28 @@ func (s *SMSConfigService) GetConfig() (*models.SMSConfigResponse, error) {
 		return defaultResp, nil
 	}
 
-	// Decrypt secrets for display masking
-	decryptedJuly, _ := crypto.Decrypt(cfg.JulySMSClientSecret, s.cfg.JWTSecret)
-	decryptedAT, _ := crypto.Decrypt(cfg.ATAPIKey, s.cfg.JWTSecret)
+	decryptedJuly, julyConfigured := decryptConfiguredSecret(cfg.JulySMSClientSecret, s.cfg.JWTSecret)
+	decryptedAT, atConfigured := decryptConfiguredSecret(cfg.ATAPIKey, s.cfg.JWTSecret)
+	decryptedFuxx, fuxxConfigured := decryptConfiguredSecret(cfg.FuxxPassword, s.cfg.JWTSecret)
 
 	resp := models.SMSConfigResponse{
-		ID:                  cfg.ID,
-		ActiveProvider:      cfg.ActiveProvider,
-		CostPerSegment:      cfg.CostPerSegment,
-		QueueBatchSize:      cfg.QueueBatchSize,
-		UpdatedAt:           cfg.UpdatedAt,
-		JulySMSClientID:     cfg.JulySMSClientID,
-		JulySMSClientSecret: maskSecret(decryptedJuly),
-		JulySMSSenderID:     cfg.JulySMSSenderID,
-		ATUsername:          cfg.ATUsername,
-		ATAPIKey:            maskSecret(decryptedAT),
-		ATSenderID:          cfg.ATSenderID,
+		ID:                            cfg.ID,
+		ActiveProvider:                cfg.ActiveProvider,
+		CostPerSegment:                cfg.CostPerSegment,
+		QueueBatchSize:                cfg.QueueBatchSize,
+		UpdatedAt:                     cfg.UpdatedAt,
+		JulySMSClientID:               cfg.JulySMSClientID,
+		JulySMSClientSecret:           maskSecret(decryptedJuly),
+		JulySMSClientSecretConfigured: julyConfigured,
+		JulySMSSenderID:               cfg.JulySMSSenderID,
+		ATUsername:                    cfg.ATUsername,
+		ATAPIKey:                      maskSecret(decryptedAT),
+		ATAPIKeyConfigured:            atConfigured,
+		ATSenderID:                    cfg.ATSenderID,
+		FuxxBaseURL:                   cfg.FuxxBaseURL,
+		FuxxUsername:                  cfg.FuxxUsername,
+		FuxxPassword:                  maskSecret(decryptedFuxx),
+		FuxxPasswordConfigured:        fuxxConfigured,
 	}
 
 	return &resp, nil
@@ -120,99 +140,129 @@ func (s *SMSConfigService) GetPublicPricing() (*models.SMSPublicPricingResponse,
 
 // SaveConfig validates, encrypts, and persists the SMS provider configuration.
 func (s *SMSConfigService) SaveConfig(req *models.SMSConfigRequest, adminUserID uint) (*models.SMSConfigResponse, error) {
-	// Validate provider-specific required fields
 	switch req.ActiveProvider {
-	case models.SMSProviderJulySMS:
-		if req.JulySMSClientID == "" || req.JulySMSClientSecret == "" {
-			return nil, errors.New("JulySMS requires both Client ID and Client Secret")
-		}
-	case models.SMSProviderAfricasTalking:
-		if req.ATUsername == "" || req.ATAPIKey == "" {
-			return nil, errors.New("Africa's Talking requires both Username and API Key")
-		}
-	case models.SMSProviderLocal:
-		// No external credentials needed
+	case models.SMSProviderLocal, models.SMSProviderJulySMS, models.SMSProviderAfricasTalking, models.SMSProviderFuxx:
 	default:
 		return nil, fmt.Errorf("unsupported SMS provider: %s", req.ActiveProvider)
 	}
 
-	// Load existing config to preserve secrets that weren't re-submitted (masked on frontend)
-	existing, _ := s.repo.Get()
-
-	cfg := &models.SMSConfig{
-		ActiveProvider:      req.ActiveProvider,
-		CostPerSegment:      req.CostPerSegment,
-		QueueBatchSize:      req.QueueBatchSize,
-		JulySMSClientID:     req.JulySMSClientID,
-		JulySMSClientSecret: req.JulySMSClientSecret,
-		JulySMSSenderID:     req.JulySMSSenderID,
-		ATUsername:          req.ATUsername,
-		ATAPIKey:            req.ATAPIKey,
-		ATSenderID:          req.ATSenderID,
+	scope := strings.TrimSpace(req.UpdateScope)
+	if scope == "" {
+		scope = "all"
+	}
+	switch scope {
+	case "all", "general", models.SMSProviderJulySMS, models.SMSProviderAfricasTalking, models.SMSProviderFuxx:
+	default:
+		return nil, fmt.Errorf("unsupported SMS config update scope: %s", scope)
 	}
 
-	// If the secret fields come back as masked (****), keep the existing values.
-	// Otherwise, encrypt the new secret key.
+	// Load existing config first so scoped admin updates cannot wipe the other provider.
+	existing, _ := s.repo.Get()
+	cfg := &models.SMSConfig{
+		ActiveProvider: models.SMSProviderLocal,
+		CostPerSegment: 31,
+		QueueBatchSize: 100,
+	}
 	if existing != nil {
-		if strings.HasPrefix(cfg.JulySMSClientSecret, "****") {
-			cfg.JulySMSClientSecret = existing.JulySMSClientSecret
-		} else {
-			encrypted, err := crypto.Encrypt(cfg.JulySMSClientSecret, s.cfg.JWTSecret)
+		cfg = existing
+	}
+
+	cfg.ActiveProvider = req.ActiveProvider
+	cfg.CostPerSegment = req.CostPerSegment
+	cfg.QueueBatchSize = req.QueueBatchSize
+
+	if scope == "all" || scope == models.SMSProviderJulySMS {
+		cfg.JulySMSClientID = req.JulySMSClientID
+		cfg.JulySMSSenderID = req.JulySMSSenderID
+		if req.JulySMSClientSecret != "" && !strings.HasPrefix(req.JulySMSClientSecret, "****") {
+			encrypted, err := crypto.Encrypt(req.JulySMSClientSecret, s.cfg.JWTSecret)
 			if err != nil {
 				return nil, fmt.Errorf("failed to encrypt JulySMS client secret: %w", err)
 			}
 			cfg.JulySMSClientSecret = encrypted
 		}
+	}
 
-		if strings.HasPrefix(cfg.ATAPIKey, "****") {
-			cfg.ATAPIKey = existing.ATAPIKey
-		} else {
-			encrypted, err := crypto.Encrypt(cfg.ATAPIKey, s.cfg.JWTSecret)
+	if scope == "all" || scope == models.SMSProviderAfricasTalking {
+		cfg.ATUsername = req.ATUsername
+		cfg.ATSenderID = req.ATSenderID
+		if req.ATAPIKey != "" && !strings.HasPrefix(req.ATAPIKey, "****") {
+			encrypted, err := crypto.Encrypt(req.ATAPIKey, s.cfg.JWTSecret)
 			if err != nil {
 				return nil, fmt.Errorf("failed to encrypt Africa's Talking API key: %w", err)
 			}
 			cfg.ATAPIKey = encrypted
 		}
-	} else {
-		// New config creation, encrypt both
-		encryptedJuly, err := crypto.Encrypt(cfg.JulySMSClientSecret, s.cfg.JWTSecret)
-		if err != nil {
-			return nil, fmt.Errorf("failed to encrypt JulySMS client secret: %w", err)
-		}
-		cfg.JulySMSClientSecret = encryptedJuly
+	}
 
-		encryptedAT, err := crypto.Encrypt(cfg.ATAPIKey, s.cfg.JWTSecret)
-		if err != nil {
-			return nil, fmt.Errorf("failed to encrypt Africa's Talking API key: %w", err)
+	if scope == "all" || scope == models.SMSProviderFuxx {
+		cfg.FuxxBaseURL = strings.TrimSpace(req.FuxxBaseURL)
+		cfg.FuxxUsername = strings.TrimSpace(req.FuxxUsername)
+		if req.FuxxPassword != "" && !strings.HasPrefix(req.FuxxPassword, "****") {
+			encrypted, err := crypto.Encrypt(req.FuxxPassword, s.cfg.JWTSecret)
+			if err != nil {
+				return nil, fmt.Errorf("failed to encrypt FUXX password: %w", err)
+			}
+			cfg.FuxxPassword = encrypted
 		}
-		cfg.ATAPIKey = encryptedAT
+	}
+
+	if cfg.CostPerSegment <= 0 {
+		return nil, errors.New("cost_per_segment must be greater than zero")
+	}
+	if cfg.QueueBatchSize <= 0 {
+		return nil, errors.New("queue_batch_size must be greater than zero")
+	}
+
+	decryptedJuly, julyConfigured := decryptConfiguredSecret(cfg.JulySMSClientSecret, s.cfg.JWTSecret)
+	decryptedAT, atConfigured := decryptConfiguredSecret(cfg.ATAPIKey, s.cfg.JWTSecret)
+	decryptedFuxx, fuxxConfigured := decryptConfiguredSecret(cfg.FuxxPassword, s.cfg.JWTSecret)
+
+	switch cfg.ActiveProvider {
+	case models.SMSProviderJulySMS:
+		if cfg.JulySMSClientID == "" || !julyConfigured {
+			return nil, errors.New("JulySMS requires both Client ID and Client Secret")
+		}
+	case models.SMSProviderAfricasTalking:
+		if cfg.ATUsername == "" || !atConfigured {
+			return nil, errors.New("Africa's Talking requires both Username and API Key")
+		}
+	case models.SMSProviderFuxx:
+		if cfg.FuxxBaseURL == "" || cfg.FuxxUsername == "" || !fuxxConfigured {
+			return nil, errors.New("FUXX requires URL, Username, and Password")
+		}
 	}
 
 	if err := s.repo.Upsert(cfg); err != nil {
 		return nil, fmt.Errorf("failed to save SMS config: %w", err)
 	}
 
-	// Notify admin about config change
-	s.notifService.Notify(adminUserID, "SMS Config Updated",
-		fmt.Sprintf("SMS provider configuration updated. Active provider: %s", req.ActiveProvider),
-		"info")
-
-	// Return clean response with masked details
-	decryptedJuly, _ := crypto.Decrypt(cfg.JulySMSClientSecret, s.cfg.JWTSecret)
-	decryptedAT, _ := crypto.Decrypt(cfg.ATAPIKey, s.cfg.JWTSecret)
+	if s.notifService != nil && adminUserID > 0 {
+		message := fmt.Sprintf("SMS provider configuration updated. Active provider: %s", cfg.ActiveProvider)
+		if scope != "all" {
+			message = fmt.Sprintf("SMS %s settings updated. Active provider: %s", scope, cfg.ActiveProvider)
+		}
+		s.notifService.Notify(adminUserID, "SMS Config Updated", message, "info")
+	}
 
 	resp := models.SMSConfigResponse{
-		ID:                  cfg.ID,
-		ActiveProvider:      cfg.ActiveProvider,
-		CostPerSegment:      cfg.CostPerSegment,
-		QueueBatchSize:      cfg.QueueBatchSize,
-		UpdatedAt:           cfg.UpdatedAt,
-		JulySMSClientID:     cfg.JulySMSClientID,
-		JulySMSClientSecret: maskSecret(decryptedJuly),
-		JulySMSSenderID:     cfg.JulySMSSenderID,
-		ATUsername:          cfg.ATUsername,
-		ATAPIKey:            maskSecret(decryptedAT),
-		ATSenderID:          cfg.ATSenderID,
+		ID:                            cfg.ID,
+		ActiveProvider:                cfg.ActiveProvider,
+		CostPerSegment:                cfg.CostPerSegment,
+		QueueBatchSize:                cfg.QueueBatchSize,
+		UpdatedAt:                     cfg.UpdatedAt,
+		JulySMSClientID:               cfg.JulySMSClientID,
+		JulySMSClientSecret:           maskSecret(decryptedJuly),
+		JulySMSClientSecretConfigured: julyConfigured,
+		JulySMSSenderID:               cfg.JulySMSSenderID,
+		ATUsername:                    cfg.ATUsername,
+		ATAPIKey:                      maskSecret(decryptedAT),
+		ATAPIKeyConfigured:            atConfigured,
+		ATSenderID:                    cfg.ATSenderID,
+		FuxxBaseURL:                   cfg.FuxxBaseURL,
+		FuxxUsername:                  cfg.FuxxUsername,
+		FuxxPassword:                  maskSecret(decryptedFuxx),
+		FuxxPasswordConfigured:        fuxxConfigured,
 	}
 
 	return &resp, nil
@@ -318,6 +368,8 @@ func (s *SMSConfigService) SendSMS(req *models.SendSMSRequest) (*models.SendSMSR
 		return s.sendViaJulySMS(cfg, req)
 	case models.SMSProviderAfricasTalking:
 		return s.sendViaAfricasTalking(cfg, req)
+	case models.SMSProviderFuxx:
+		return s.sendViaFuxx(cfg, req)
 	case models.SMSProviderLocal:
 		return s.sendViaLocal(req)
 	default:
@@ -358,6 +410,8 @@ func FormatPhoneNumber(phone string, provider string) string {
 		if strings.HasPrefix(phone, "+") {
 			return phone[1:] // strip plus
 		}
+		return phone
+	} else if provider == "fuxx" {
 		return phone
 	}
 	return phone
@@ -595,6 +649,106 @@ func (s *SMSConfigService) sendViaAfricasTalking(cfg *models.SMSConfig, req *mod
 		Provider:    models.SMSProviderAfricasTalking,
 		Recipients:  len(recipients),
 		Message:     "SMS dispatched via Africa's Talking",
+		RawResponse: rawResp,
+	}, nil
+}
+
+// ── FUXX Cloud Gateway Implementation ──────────────────────────────────────
+
+func fuxxMessageURL(baseURL string) (string, error) {
+	trimmed := strings.TrimRight(strings.TrimSpace(baseURL), "/")
+	if trimmed == "" {
+		return "", errors.New("FUXX URL is required")
+	}
+
+	parsed, err := url.Parse(trimmed)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return "", errors.New("FUXX URL must be a valid absolute URL")
+	}
+
+	if strings.HasSuffix(parsed.Path, "/3rdparty/v1/message") {
+		return parsed.String(), nil
+	}
+	if strings.HasSuffix(parsed.Path, "/3rdparty/v1") {
+		parsed.Path = strings.TrimRight(parsed.Path, "/") + "/message"
+		return parsed.String(), nil
+	}
+
+	parsed.Path = "/3rdparty/v1/message"
+	parsed.RawQuery = ""
+	parsed.Fragment = ""
+	return parsed.String(), nil
+}
+
+func (s *SMSConfigService) sendViaFuxx(cfg *models.SMSConfig, req *models.SendSMSRequest) (*models.SendSMSResponse, error) {
+	if cfg.FuxxBaseURL == "" || cfg.FuxxUsername == "" || cfg.FuxxPassword == "" {
+		return nil, errors.New("FUXX credentials not configured")
+	}
+
+	password, err := crypto.Decrypt(cfg.FuxxPassword, s.cfg.JWTSecret)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decrypt FUXX password: %w", err)
+	}
+
+	var recipients []string
+	if len(req.Phones) > 0 {
+		for _, p := range req.Phones {
+			recipients = append(recipients, FormatPhoneNumber(p, models.SMSProviderFuxx))
+		}
+	} else if req.Phone != "" {
+		recipients = []string{FormatPhoneNumber(req.Phone, models.SMSProviderFuxx)}
+	} else {
+		return nil, errors.New("at least one phone number is required")
+	}
+
+	endpoint, err := fuxxMessageURL(cfg.FuxxBaseURL)
+	if err != nil {
+		return nil, err
+	}
+
+	body := map[string]interface{}{
+		"phoneNumbers": recipients,
+		"textMessage": map[string]string{
+			"text": req.Message,
+		},
+	}
+	jsonBody, err := json.Marshal(body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal FUXX request: %w", err)
+	}
+
+	httpReq, err := http.NewRequest(http.MethodPost, endpoint, bytes.NewReader(jsonBody))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create FUXX request: %w", err)
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("Accept", "application/json")
+	httpReq.SetBasicAuth(cfg.FuxxUsername, password)
+
+	resp, err := s.httpClient.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("FUXX request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read FUXX response: %w", err)
+	}
+
+	var rawResp interface{}
+	if err := json.Unmarshal(respBody, &rawResp); err != nil {
+		rawResp = string(respBody)
+	}
+
+	if resp.StatusCode >= 400 {
+		return nil, fmt.Errorf("FUXX returned status %d: %s", resp.StatusCode, string(respBody))
+	}
+
+	return &models.SendSMSResponse{
+		Provider:    models.SMSProviderFuxx,
+		Recipients:  len(recipients),
+		Message:     "SMS dispatched via FUXX",
 		RawResponse: rawResp,
 	}, nil
 }

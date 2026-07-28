@@ -70,6 +70,10 @@ See [Architecture](#architecture) below for folder layout and design rationale.
 | `REDIS_ADDR`  | Optional Redis host:port for cache/queue hints | `redis.example.com:6379` |
 | `MARZPAY_BASIC_AUTH` | MarzPay Basic auth token or `username:password` | `base64-token` |
 | `PUBLIC_URL` | Public backend URL used for emails, uploads, and MarzPay callbacks. `PUBLIC_BASE_URL` is still supported. | `https://api.example.com` |
+| `GORM_LOG_LEVEL` | GORM SQL logging level: `error`, `warn`, `info`, or `silent`. Defaults to errors only. | `error` |
+| `AUTO_MIGRATE` | Run GORM AutoMigrate at startup. Keep enabled for a fresh local DB. | `true` |
+| `SMS_QUEUE_WORKER_ENABLED` | Start the background SMS queue worker. Defaults to `false` locally and `true` when `ENVIRONMENT=production`. | `false` |
+| `SMS_QUEUE_POLL_SECONDS` | Queue worker Postgres polling delay when the worker is enabled. | `5` |
 
 ## Endpoints
 

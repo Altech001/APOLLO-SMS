@@ -21,6 +21,13 @@ func NewSMSConfigHandler(service *services.SMSConfigService, queueService *servi
 	return &SMSConfigHandler{service: service, queueService: queueService}
 }
 
+func requireAdmin(c *fiber.Ctx) error {
+	if role, ok := c.Locals("role").(string); ok && role == "admin" {
+		return nil
+	}
+	return response.Error(c, fiber.StatusForbidden, "Admin access required")
+}
+
 // GetConfig godoc
 // @Summary      Get SMS Provider Configuration
 // @Description  Retrieve current SMS gateway settings (Admin only). Secrets are masked.
@@ -32,6 +39,10 @@ func NewSMSConfigHandler(service *services.SMSConfigService, queueService *servi
 // @Failure      403  {object}  response.ErrorResponse
 // @Router       /sms-config [get]
 func (h *SMSConfigHandler) GetConfig(c *fiber.Ctx) error {
+	if err := requireAdmin(c); err != nil {
+		return err
+	}
+
 	cfg, err := h.service.GetConfig()
 	if err != nil {
 		return response.Error(c, fiber.StatusInternalServerError, err.Error())
@@ -53,6 +64,10 @@ func (h *SMSConfigHandler) GetConfig(c *fiber.Ctx) error {
 // @Failure      403   {object}  response.ErrorResponse
 // @Router       /sms-config [put]
 func (h *SMSConfigHandler) SaveConfig(c *fiber.Ctx) error {
+	if err := requireAdmin(c); err != nil {
+		return err
+	}
+
 	var req models.SMSConfigRequest
 	if err := c.BodyParser(&req); err != nil {
 		return response.Error(c, fiber.StatusBadRequest, "Invalid request body")

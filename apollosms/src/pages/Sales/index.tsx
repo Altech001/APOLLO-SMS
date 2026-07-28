@@ -22,6 +22,7 @@ import {
     SheetHeader,
     SheetTitle
 } from "@/components/ui/sheet";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import {
@@ -42,9 +43,10 @@ import {
     Trash2
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 // Interfaces
 interface SmsRecord {
@@ -133,8 +135,142 @@ const toQueuedRecord = (message: SmsMessageResponse): QueuedSms => ({
     segments: message.segments ?? 1,
 });
 
+type SmsLogsCache = {
+    history: SmsRecord[];
+    queue: QueuedSms[];
+};
+
+const SMS_LOGS_CACHE_TIME = 30 * 60 * 1000;
+const SMS_LOGS_STALE_TIME = 2 * 60 * 1000;
+const PDF_EXPORT_LIMIT = 10000;
+
+const escapeHtml = (value: string | number | null | undefined) =>
+    String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+
+const reportDate = (value: string) => {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value || "-";
+    return new Intl.DateTimeFormat(undefined, {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+    }).format(date);
+};
+
+const buildSmsLogsReportHtml = (records: SmsRecord[], generatedBy?: string) => {
+    const generatedAt = new Intl.DateTimeFormat(undefined, {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+    }).format(new Date());
+    const siteUrl = window.location.origin;
+    const logoUrl = new URL("/logo.png", window.location.origin).toString();
+    const delivered = records.filter((record) => record.status === "Delivered" || record.status === "Sent").length;
+    const failed = records.filter((record) => record.status === "Failed").length;
+    const segments = records.reduce((sum, record) => sum + (record.segments || 0), 0);
+
+    return `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Luco-SMS Sent Messages Report</title>
+  <style>
+    @page { size: A4; margin: 14mm; }
+    * { box-sizing: border-box; }
+    body { margin: 0; color: #111827; font-family: Inter, Arial, sans-serif; font-size: 11px; line-height: 1.45; }
+    .header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-bottom: 14px; border-bottom: 2px solid #111827; }
+    .brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+    .logo { width: 42px; height: 42px; object-fit: contain; border-radius: 8px; border: 1px solid #e5e7eb; }
+    h1 { margin: 0; font-size: 18px; letter-spacing: 0; }
+    .muted { color: #6b7280; }
+    .refs { text-align: right; font-size: 10px; }
+    .summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 16px 0; }
+    .metric { border: 1px solid #e5e7eb; border-radius: 6px; padding: 9px; }
+    .metric span { display: block; color: #6b7280; font-size: 9px; text-transform: uppercase; font-weight: 700; }
+    .metric strong { display: block; margin-top: 3px; font-size: 15px; }
+    table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+    th { background: #f3f4f6; border: 1px solid #d1d5db; padding: 7px 6px; text-align: left; font-size: 9px; text-transform: uppercase; }
+    td { border: 1px solid #e5e7eb; padding: 6px; vertical-align: top; word-wrap: break-word; }
+    tr { break-inside: avoid; }
+    .num { width: 34px; text-align: center; }
+    .phone { width: 98px; }
+    .status { width: 70px; font-weight: 700; }
+    .date { width: 112px; }
+    .units { width: 48px; text-align: center; }
+    .message { white-space: pre-wrap; }
+    .footer { margin-top: 14px; padding-top: 8px; border-top: 1px solid #e5e7eb; font-size: 10px; color: #6b7280; display: flex; justify-content: space-between; gap: 12px; }
+    @media print { .no-print { display: none; } body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="brand">
+      <img class="logo" src="${logoUrl}" alt="Luco-SMS logo" />
+      <div>
+        <h1>Luco-SMS Sent Messages Report</h1>
+        <div class="muted">All sent-message records exported from the database</div>
+      </div>
+    </div>
+    <div class="refs">
+      <div><strong>Site:</strong> ${escapeHtml(siteUrl)}</div>
+      <div><strong>API:</strong> ${escapeHtml(renultApi.baseUrl)}</div>
+      <div><strong>Generated:</strong> ${escapeHtml(generatedAt)}</div>
+      <div><strong>By:</strong> ${escapeHtml(generatedBy || "Current user")}</div>
+    </div>
+  </div>
+
+  <div class="summary">
+    <div class="metric"><span>Total messages</span><strong>${records.length.toLocaleString()}</strong></div>
+    <div class="metric"><span>Delivered / sent</span><strong>${delivered.toLocaleString()}</strong></div>
+    <div class="metric"><span>Failed</span><strong>${failed.toLocaleString()}</strong></div>
+    <div class="metric"><span>SMS units</span><strong>${segments.toLocaleString()}</strong></div>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th class="num">#</th>
+        <th class="phone">Phone</th>
+        <th>Message</th>
+        <th class="status">Status</th>
+        <th class="units">Units</th>
+        <th class="date">Sent at</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${records.map((record, index) => `
+        <tr>
+          <td class="num">${index + 1}</td>
+          <td class="phone">${escapeHtml(record.phone)}</td>
+          <td class="message">${escapeHtml(record.message)}</td>
+          <td class="status">${escapeHtml(record.status)}</td>
+          <td class="units">${escapeHtml(record.segments)}</td>
+          <td class="date">${escapeHtml(reportDate(record.sentAt))}</td>
+        </tr>
+      `).join("")}
+    </tbody>
+  </table>
+
+  <div class="footer">
+    <span>Luco-SMS | ${escapeHtml(siteUrl)}</span>
+    <span>Reference export from database records</span>
+  </div>
+</body>
+</html>`;
+};
+
 export default function SalesIndex() {
     const navigate = useNavigate();
+    const queryClient = useQueryClient();
     const { user } = useAuth();
     const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem("sidebar-collapsed") === "true");
 
@@ -148,11 +284,6 @@ export default function SalesIndex() {
 
     // Main UI Tabs: "history" | "queue"
     const [activeTab, setActiveTab] = useState<"history" | "queue">("history");
-
-    const [history, setHistory] = useState<SmsRecord[]>([]);
-    const [queue, setQueue] = useState<QueuedSms[]>([]);
-    const [loadError, setLoadError] = useState("");
-    const [isLoadingLogs, setIsLoadingLogs] = useState(true);
 
     // Search and Filters
     const [searchQuery, setSearchQuery] = useState("");
@@ -176,48 +307,120 @@ export default function SalesIndex() {
     const [isRescheduleOpen, setIsRescheduleOpen] = useState(false);
     const [rescheduleId, setRescheduleId] = useState<string | null>(null);
     const [newScheduleTime, setNewScheduleTime] = useState("");
+    const [isPrintingLogs, setIsPrintingLogs] = useState(false);
 
-    const [isRefreshing, setIsRefreshing] = useState(false);
-    const loadLogs = useCallback(async (showToast = false) => {
-        setLoadError("");
-        setIsLoadingLogs(true);
-        setIsRefreshing(true);
-        try {
+    const smsLogsQueryKey = useMemo(() => ["sms", "logs", user?.id || "anonymous"] as const, [user?.id]);
+    const {
+        data: smsLogs = { history: [], queue: [] },
+        error: logsError,
+        isLoading: isLoadingLogs,
+        isFetching: isFetchingLogs,
+        refetch: refetchLogs,
+    } = useQuery<SmsLogsCache>({
+        queryKey: smsLogsQueryKey,
+        queryFn: async () => {
             const [historyData, queueData] = await Promise.all([
                 renultApi.sms.history({ limit: 200 }),
                 renultApi.sms.queue({ limit: 200 }),
             ]);
-            setHistory(historyData.map(toHistoryRecord));
-            setQueue(queueData.map(toQueuedRecord));
-            if (showToast) toast.success("SMS history and outbox data synchronized successfully.");
-        } catch (error) {
-            setHistory([]);
-            setQueue([]);
-            const message = error instanceof Error ? error.message : "Unable to load SMS data";
-            setLoadError(message);
-            if (showToast) toast.error(message);
-        } finally {
-            setIsLoadingLogs(false);
-            setIsRefreshing(false);
-        }
-    }, []);
+            return {
+                history: historyData.map(toHistoryRecord),
+                queue: queueData.map(toQueuedRecord),
+            };
+        },
+        enabled: Boolean(user?.id),
+        gcTime: SMS_LOGS_CACHE_TIME,
+        staleTime: SMS_LOGS_STALE_TIME,
+        placeholderData: (previousData) => previousData,
+        refetchOnMount: true,
+        refetchInterval: SMS_LOGS_STALE_TIME,
+        refetchOnReconnect: "always",
+        refetchOnWindowFocus: true,
+        retry: 1,
+    });
+
+    const history = smsLogs.history;
+    const queue = smsLogs.queue;
+    const loadError = logsError instanceof Error ? logsError.message : "";
+    const isRefreshing = isFetchingLogs && !isLoadingLogs;
+
+    const updateSmsLogsCache = (updater: (current: SmsLogsCache) => SmsLogsCache) => {
+        queryClient.setQueryData<SmsLogsCache>(smsLogsQueryKey, (current = { history: [], queue: [] }) => updater(current));
+    };
+
+    const setHistory = (updater: SmsRecord[] | ((current: SmsRecord[]) => SmsRecord[])) => {
+        updateSmsLogsCache((current) => ({
+            ...current,
+            history: typeof updater === "function" ? updater(current.history) : updater,
+        }));
+    };
+
+    const setQueue = (updater: QueuedSms[] | ((current: QueuedSms[]) => QueuedSms[])) => {
+        updateSmsLogsCache((current) => ({
+            ...current,
+            queue: typeof updater === "function" ? updater(current.queue) : updater,
+        }));
+    };
 
     useEffect(() => {
-        if (!user?.id) return;
-        loadLogs();
-    }, [user?.id, loadLogs]);
-
-    useEffect(() => {
-        const reloadOnLogin = () => loadLogs();
-        window.addEventListener("apollosms-login", reloadOnLogin);
-        window.addEventListener("apollosms-user-cache-cleared", reloadOnLogin);
+        const invalidateLogs = () => queryClient.invalidateQueries({ queryKey: smsLogsQueryKey });
+        window.addEventListener("apollosms-login", invalidateLogs);
+        window.addEventListener("apollosms-user-cache-cleared", invalidateLogs);
         return () => {
-            window.removeEventListener("apollosms-login", reloadOnLogin);
-            window.removeEventListener("apollosms-user-cache-cleared", reloadOnLogin);
+            window.removeEventListener("apollosms-login", invalidateLogs);
+            window.removeEventListener("apollosms-user-cache-cleared", invalidateLogs);
         };
-    }, [loadLogs]);
+    }, [queryClient, smsLogsQueryKey]);
 
-    const handleRefresh = () => loadLogs(true);
+    const handleRefresh = async () => {
+        const result = await refetchLogs();
+        if (result.error) {
+            toast.error(result.error instanceof Error ? result.error.message : "Unable to load SMS data");
+        } else {
+            toast.success("SMS history and outbox data synchronized successfully.");
+        }
+    };
+
+    const handleDownloadLogs = async () => {
+        const printWindow = window.open("", "_blank", "width=1100,height=800");
+        if (!printWindow) {
+            toast.error("Allow popups to print the PDF report.");
+            return;
+        }
+
+        setIsPrintingLogs(true);
+        printWindow.document.write(`<!doctype html><html><head><title>Preparing SMS report...</title></head><body style="font-family: Arial, sans-serif; padding: 24px;">Preparing SMS report...</body></html>`);
+        printWindow.document.close();
+
+        try {
+            const records = (await renultApi.sms.history({ limit: PDF_EXPORT_LIMIT })).map(toHistoryRecord);
+            if (records.length === 0) {
+                printWindow.close();
+                toast.info("No sent messages available to export.");
+                return;
+            }
+
+            printWindow.document.open();
+            printWindow.document.write(buildSmsLogsReportHtml(records, user?.full_name || user?.name || user?.email));
+            printWindow.document.close();
+            printWindow.focus();
+            let printed = false;
+            const printReport = () => {
+                if (printed) return;
+                printed = true;
+                printWindow.print();
+            };
+            printWindow.onload = () => {
+                printReport();
+            };
+            setTimeout(printReport, 500);
+        } catch (error) {
+            printWindow.close();
+            toast.error(error instanceof Error ? error.message : "Unable to generate SMS PDF report");
+        } finally {
+            setIsPrintingLogs(false);
+        }
+    };
 
     // Calculate dates for matching
     const todayStr = getRelativeDateTimeString(0, 0, 0).slice(0, 10);
@@ -445,7 +648,12 @@ export default function SalesIndex() {
                     </div>
 
                     <div className="flex items-center gap-2">
-                        <Button className="text-xs h-9 rounded flex items-center gap-1.5">
+                        <Button
+                            onClick={handleDownloadLogs}
+                            disabled={isPrintingLogs}
+                            className="text-xs h-9 rounded flex items-center gap-1.5"
+                        >
+                            {isPrintingLogs ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
                             Download Logs
                         </Button>
                         <Button
@@ -535,14 +743,18 @@ export default function SalesIndex() {
                                     </TableHeader>
                                     <TableBody>
                                         {isLoadingLogs ? (
-                                            <TableRow>
-                                                <TableCell colSpan={8} className="h-44 text-center">
-                                                    <div className="flex flex-col items-center justify-center text-muted-foreground">
-                                                        <Loader2 className="w-8 h-8 mb-2 animate-spin text-primary/70" />
-                                                        <span className="text-sm  text-foreground">Loading SMS records</span>
-                                                    </div>
-                                                </TableCell>
-                                            </TableRow>
+                                            Array.from({ length: 6 }).map((_, index) => (
+                                                <TableRow key={index}>
+                                                    <TableCell><Skeleton className="h-4 w-5" /></TableCell>
+                                                    <TableCell><Skeleton className="h-4 w-28" /></TableCell>
+                                                    <TableCell><Skeleton className="h-5 w-16 rounded-full" /></TableCell>
+                                                    <TableCell><Skeleton className="h-4 w-full max-w-[260px]" /></TableCell>
+                                                    <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                                                    <TableCell><Skeleton className="h-4 w-10 mx-auto" /></TableCell>
+                                                    <TableCell><Skeleton className="h-5 w-16 mx-auto rounded-full" /></TableCell>
+                                                    <TableCell><Skeleton className="h-7 w-24 ml-auto" /></TableCell>
+                                                </TableRow>
+                                            ))
                                         ) : paginatedRecords.length === 0 ? (
                                             <TableRow>
                                                 <TableCell colSpan={8} className="h-44 text-center">

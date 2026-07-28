@@ -316,8 +316,8 @@ export default function AppHeader({ onCreateForm }: AppHeaderProps) {
                 <DropdownMenuSeparator className="bg-border/30 -mx-1 my-1.5" />
 
                 <DropdownMenuItem
-                  onClick={() => {
-                    logout();
+                  onClick={async () => {
+                    await logout();
                     navigate("/login", { replace: true });
                   }}
                   className="rounded-lg px-2 py-2.5 cursor-pointer focus:bg-muted/60 transition-all gap-3"

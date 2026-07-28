@@ -8,7 +8,7 @@ interface AuthContextValue {
   isLoading: boolean;
   login: (tokenUser: { access_token: string; user: UserResponse }) => void;
   refreshUser: () => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -64,8 +64,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       window.dispatchEvent(new CustomEvent("apollosms-login", { detail: { userId: auth.user.id } }));
     },
     refreshUser,
-    logout: () => {
-      apollosmsApi.auth.clear();
+    logout: async () => {
+      await apollosmsApi.auth.logout();
       setUser(null);
     },
   }), [user, isLoading]);

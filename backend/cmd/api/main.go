@@ -42,9 +42,12 @@ func main() {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
 
-	// Run migrations
-	if err := database.Migrate(db); err != nil {
-		log.Fatalf("Failed to run migrations: %v", err)
+	if cfg.AutoMigrate {
+		if err := database.Migrate(db); err != nil {
+			log.Fatalf("Failed to run migrations: %v", err)
+		}
+	} else {
+		log.Println("Database auto-migrations disabled")
 	}
 
 	// Create Fiber app

@@ -452,20 +452,27 @@ func (s *DeveloperKeyService) GetUserSMSDashboard(userID uint, rangeName string)
 // ── Background Queue Worker ──────────────────────────────────────────────────
 
 // StartQueueWorker spins up a background worker goroutine to process pending jobs in batches.
-func (s *DeveloperKeyService) StartQueueWorker(smsConfigService *SMSConfigService) {
+func (s *DeveloperKeyService) StartQueueWorker(smsConfigService *SMSConfigService, pollDelay time.Duration) {
+	if pollDelay <= 0 {
+		pollDelay = 5 * time.Second
+	}
 	go func() {
-		fmt.Println("⚙️  Starting SMS queue worker...")
+		fmt.Printf("Starting SMS queue worker; polling every %s\n", pollDelay)
 		for {
-			// Query the active batch size from config
 			batchSize := 100
-			if cfg, err := s.configRepo.Get(); err == nil && cfg.QueueBatchSize > 0 {
-				batchSize = cfg.QueueBatchSize
+			provider := models.SMSProviderLocal
+			if cfg, err := s.configRepo.Get(); err == nil {
+				if cfg.QueueBatchSize > 0 {
+					batchSize = cfg.QueueBatchSize
+				}
+				if cfg.ActiveProvider != "" {
+					provider = cfg.ActiveProvider
+				}
 			}
 
 			jobs, err := s.getNextJobsForProcessing(batchSize)
 			if err != nil || len(jobs) == 0 {
-				// No jobs available or db error, wait and try again
-				time.Sleep(1 * time.Second)
+				time.Sleep(pollDelay)
 				continue
 			}
 
@@ -494,10 +501,6 @@ func (s *DeveloperKeyService) StartQueueWorker(smsConfigService *SMSConfigServic
 					Message: key.Message,
 				}
 
-				provider := models.SMSProviderLocal
-				if cfg, err := s.configRepo.Get(); err == nil && cfg.ActiveProvider != "" {
-					provider = cfg.ActiveProvider
-				}
 				_ = s.repo.UpdateMessagesStatusByJobIDs(jobIDs, models.SMSMessageStatusProcessing, "", "", "")
 
 				sendResp, sendErr := smsConfigService.SendSMS(sendReq)

@@ -1,25 +1,31 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { base44, SmsMessageResponse } from "@/api/apollosms";
+import { apollosmsApi, base44, SmsMessageResponse } from "@/api/apollosms";
 import AppHeader from "@/components/Header/AppHeader";
 import SEO from "@/components/SEO";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowUp,
   ArrowUpRight,
   BarChart3,
   Boxes,
   BrushIcon,
+  CalendarDays,
+  CheckCircle2,
+  Database,
   ExternalLink,
   Inbox,
   MessageSquare,
+  RadioTower,
   RotateCw,
+  Server,
   Settings
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
@@ -54,6 +60,48 @@ const toDashboardMessage = (message: SmsMessageResponse) => ({
   sentTime: message.sentAt || message.sent_at || "",
   status: message.status,
 });
+
+const todayLabel = new Intl.DateTimeFormat(undefined, {
+  day: "numeric",
+  month: "long",
+  year: "numeric",
+}).format(new Date());
+
+const userInitials = (name?: string | null, email?: string | null) => {
+  const source = (name || email || "A").trim();
+  const words = source.split(/\s+/).filter(Boolean);
+  if (words.length >= 2) return `${words[0][0]}${words[1][0]}`.toUpperCase();
+  return source.slice(0, 2).toUpperCase();
+};
+
+const dicebearBotttsAvatar = (name?: string | null, email?: string | null) => {
+  const seed = (name || email || "User").trim() || "User";
+  return `https://api.dicebear.com/10.x/bottts/png?seed=${encodeURIComponent(seed)}`;
+};
+
+function StatusPill({
+  icon: Icon,
+  label,
+  ok = true,
+}: {
+  icon: typeof CheckCircle2;
+  label: string;
+  ok?: boolean;
+}) {
+  return (
+    <span
+      className={cn(
+        "inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full border px-2.5 text-[11px] font-semibold leading-none",
+        ok
+          ? "border-emerald-500/25 bg-emerald-500/12 text-emerald-600"
+          : "border-rose-500/25 bg-rose-500/10 text-rose-600"
+      )}
+    >
+      <Icon className="h-3.5 w-3.5" />
+      {label}
+    </span>
+  );
+}
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -90,6 +138,19 @@ export default function Dashboard() {
 
   const { data: forms = [], isLoading } = useDashboardForms(dashboardUserId);
   const { data: smsDashboard, isLoading: isSmsLoading, error: smsError } = useDashboardSmsDashboard(dashboardUserId, dateRange);
+  const { isSuccess: isApiRunning } = useQuery({
+    queryKey: ["dashboard", "system", "health"],
+    queryFn: apollosmsApi.health.check,
+    staleTime: 60 * 1000,
+    retry: 1,
+  });
+  const { isSuccess: isSmsGatewayOn } = useQuery({
+    queryKey: ["dashboard", "system", "sms-pricing"],
+    queryFn: apollosmsApi.smsPricing.get,
+    enabled: Boolean(dashboardUserId),
+    staleTime: 2 * 60 * 1000,
+    retry: 1,
+  });
 
   const recentSentMessages = useMemo(
     () => (smsDashboard?.recent || []).map(toDashboardMessage).slice(0, 5),
@@ -218,8 +279,27 @@ export default function Dashboard() {
       <main className="max-w-screen mx-auto px-4 sm:px-6 py-4">
         {/* form */}
         <div className="mb-4">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-bold">Dashboard</h2>
+          <div className="flex flex-col gap-3 mb-4 xl:flex-row xl:items-center xl:justify-between">
+            <div className="flex min-w-0 items-center gap-3">
+              <Avatar className="h-10 w-10 border border-primary/40 bg-card ring-2 ring-primary/15">
+                <AvatarImage
+                  src={dicebearBotttsAvatar(user?.full_name || user?.name, user?.email)}
+                  alt={user?.full_name || user?.name || "User"}
+                />
+                <AvatarFallback className="bg-primary/10 text-xs font-black text-primary">
+                  {userInitials(user?.full_name || user?.name, user?.email)}
+                </AvatarFallback>
+              </Avatar>
+              <div className="min-w-0">
+                {/* <h2 className="truncate text-sm font-black text-foreground">Dashboard</h2> */}
+                <div className="mt-1 flex max-w-full items-center gap-1.5 overflow-x-auto pb-1">
+                  <StatusPill icon={CalendarDays} label={todayLabel} />
+                  <StatusPill icon={CheckCircle2} label={isApiRunning ? "API Running" : "API Offline"} ok={isApiRunning} />
+                  <StatusPill icon={RadioTower} label={isSmsGatewayOn ? "SMS Gateway On" : "SMS Gateway Off"} ok={isSmsGatewayOn} />
+                  <StatusPill icon={Server} label={`Nodes ${isApiRunning ? 1 : 0}`} ok={isApiRunning} />
+                </div>
+              </div>
+            </div>
             <div className="flex items-center gap-2">
               <Select value={dateRange} onValueChange={setDateRange}>
                 <SelectTrigger className="w-[130px] h-9 text-xs bg-background">

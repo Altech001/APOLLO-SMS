@@ -5,6 +5,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/joho/godotenv"
 )
@@ -31,6 +32,10 @@ type Config struct {
 	MarzPayBaseURL    string
 	MarzPayBasicAuth  string
 	PublicBaseURL     string
+	AutoMigrate       bool
+	GormLogLevel      string
+	SMSQueueWorker    bool
+	SMSQueuePollDelay time.Duration
 }
 
 // Load reads configuration from .env file and environment variables.
@@ -39,12 +44,13 @@ func Load() *Config {
 		log.Println("⚠️  No .env file found, using environment variables")
 	}
 	port := getEnv("PORT", "8000")
+	environment := getEnv("ENVIRONMENT", "development")
 	publicBaseURL := getEnvAny([]string{"PUBLIC_URL", "PUBLIC_BASE_URL"}, "")
 	return &Config{
 		Port:              port,
 		DatabaseURL:       getEnv("DATABASE_URL", "postgres://postgres:postgres@localhost:5432/lucosms?sslmode=disable"),
 		JWTSecret:         getEnv("JWT_SECRET", "super-secret-change-me"),
-		Environment:       getEnv("ENVIRONMENT", "development"),
+		Environment:       environment,
 		ResendAPIKey:      getEnv("RESEND_API_KEY", ""),
 		ResendFromEmail:   getEnv("RESEND_FROM_EMAIL", "Beta <beta@info.pitbox.fun>"),
 		IPGeoAPIKey:       getEnv("IPGEO_API_KEY", "cac1d67f47e94328bae8f50764d4342e"),
@@ -61,6 +67,10 @@ func Load() *Config {
 		MarzPayBaseURL:    getEnv("MARZPAY_BASE_URL", "https://wallet.wearemarz.com/api/v1"),
 		MarzPayBasicAuth:  getEnv("MARZPAY_BASIC_AUTH", ""),
 		PublicBaseURL:     strings.TrimRight(publicBaseURL, "/"),
+		AutoMigrate:       getEnvBool("AUTO_MIGRATE", true),
+		GormLogLevel:      getEnv("GORM_LOG_LEVEL", "error"),
+		SMSQueueWorker:    getEnvBool("SMS_QUEUE_WORKER_ENABLED", strings.EqualFold(environment, "production")),
+		SMSQueuePollDelay: time.Duration(getEnvInt("SMS_QUEUE_POLL_SECONDS", 5)) * time.Second,
 	}
 }
 
@@ -102,4 +112,19 @@ func getEnvInt(key string, fallback int) int {
 		return fallback
 	}
 	return parsed
+}
+
+func getEnvBool(key string, fallback bool) bool {
+	val := strings.TrimSpace(strings.ToLower(getEnv(key, "")))
+	if val == "" {
+		return fallback
+	}
+	switch val {
+	case "1", "true", "yes", "y", "on":
+		return true
+	case "0", "false", "no", "n", "off":
+		return false
+	default:
+		return fallback
+	}
 }

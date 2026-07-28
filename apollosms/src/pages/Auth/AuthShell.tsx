@@ -49,17 +49,17 @@ export default function AuthShell({ title, subtitle, seoTitle, path, children, f
       <SEO title={seoTitle} path={path} />
 
       {/* Left branding panel */}
-      <div className="hidden lg:flex lg:w-1/2 relative flex-col justify-between overflow-hidden bg-[#1b1b1b] p-12 text-white">
+      <div className="hidden lg:flex lg:w-1/2 relative flex-col justify-between overflow-hidden bg-[#303030] p-10 text-white">
         <img
-          src="/bg/bg1.png"
+          src="/bg/bg2.png"
           alt=""
-          className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none"
+          className="absolute inset-0 w-screen h-full object-cover pointer-events-none select-none blur-[2px]"
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-[#1b1b1b]/70 to-[#1b1b1b]/35" />
+        {/* <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-[#1b1b1b]/70 to-[#1b1b1b]/35" /> */}
 
         <div className="relative z-10">
           <Link to="/" className="inline-flex items-center ">
-            <img src="/bg/logo.png" alt="Renult" className="h-16 w-auto object-contain" />
+            <img src="/bg/logo.png" alt="Renult" className="h-16 w-auto object-cover" />
           </Link>
         </div>
 

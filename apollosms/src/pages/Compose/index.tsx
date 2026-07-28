@@ -525,16 +525,7 @@ export default function ComposeIndex() {
                                 </CardDescription>
                             </div>
                             <div className="flex items-center gap-1.5">
-                                <Button
-                                    variant="outline"
-                                    size="icon"
-                                    onClick={() => groups[0] && handleImportFromGroup(groups[0].id)}
-                                    disabled={groups.length === 0 || isLoadingData}
-                                    title="Import first group"
-                                    className="h-9 w-9 rounded-full border-border/80"
-                                >
-                                    <RefreshCw className="w-3.5 h-3.5 text-primary" />
-                                </Button>
+                                
                                 <Button
                                     onClick={() => openPanel("numbers")}
                                     size="sm"

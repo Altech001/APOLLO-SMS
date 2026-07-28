@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"strings"
+	"time"
 
 	"backend/internal/config"
 	"backend/internal/models"
@@ -64,7 +65,7 @@ func AuthRequired(cfg *config.Config, db *gorm.DB) fiber.Handler {
 		}
 
 		var session models.UserSession
-		if err := db.Where("token_id = ? AND is_active = ?", sid, true).First(&session).Error; err != nil {
+		if err := db.Where("token_id = ? AND is_active = ? AND expires_at > ?", sid, true, time.Now()).First(&session).Error; err != nil {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 				"success": false,
 				"error":   "Your session has been revoked or expired",

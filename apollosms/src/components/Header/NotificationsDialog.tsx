@@ -9,7 +9,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Bell, CheckCheck, Loader2, Trash2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 
@@ -26,7 +26,16 @@ export default function NotificationsDialog() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
 
-  const loadNotifications = async () => {
+  const loadUnreadCount = useCallback(async () => {
+    try {
+      const data = await renultApi.notifications.unreadCount();
+      setUnreadCount(data.count);
+    } catch {
+      setUnreadCount(0);
+    }
+  }, []);
+
+  const loadNotifications = useCallback(async () => {
     setIsLoading(true);
     try {
       const data = await renultApi.notifications.list({ limit: 8 });
@@ -37,13 +46,17 @@ export default function NotificationsDialog() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    loadNotifications();
-    const timer = window.setInterval(loadNotifications, 60000);
-    return () => window.clearInterval(timer);
-  }, []);
+    loadUnreadCount();
+  }, [loadUnreadCount]);
+
+  useEffect(() => {
+    if (open) {
+      loadNotifications();
+    }
+  }, [loadNotifications, open]);
 
   const markAllRead = async () => {
     try {

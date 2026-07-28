@@ -15,9 +15,9 @@ const smsDashboardStaleTime: Record<DashboardDateRange, number> = {
 
 const dashboardQueryOptions = {
   gcTime: 60 * MINUTE,
-  refetchOnMount: false,
-  refetchOnWindowFocus: false,
-  refetchOnReconnect: false,
+  refetchOnMount: true,
+  refetchOnWindowFocus: true,
+  refetchOnReconnect: "always",
   retry: 1,
 } as const;
 
@@ -36,6 +36,8 @@ export function useDashboardForms(userId: ID | null | undefined) {
     queryFn: () => base44.entities.Form.list(),
     enabled: Boolean(userId),
     staleTime: 20 * MINUTE,
+    refetchInterval: 20 * MINUTE,
+    placeholderData: (previousData) => previousData,
     ...dashboardQueryOptions,
   });
 }
@@ -46,6 +48,7 @@ export function useDashboardSmsDashboard(userId: ID | null | undefined, range: D
     queryFn: () => renultApi.sms.dashboard({ range }),
     enabled: Boolean(userId),
     staleTime: smsDashboardStaleTime[range],
+    refetchInterval: smsDashboardStaleTime[range],
     placeholderData: (previousData) => previousData,
     ...dashboardQueryOptions,
   });
