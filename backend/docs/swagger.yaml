@@ -1,0 +1,1644 @@
+basePath: /api/v1
+definitions:
+  models.ChangePasswordRequest:
+    properties:
+      confirm_new_password:
+        minLength: 6
+        type: string
+      current_password:
+        type: string
+      new_password:
+        minLength: 6
+        type: string
+    required:
+    - confirm_new_password
+    - current_password
+    - new_password
+    type: object
+  models.CreateDeveloperKeyRequest:
+    properties:
+      name:
+        minLength: 2
+        type: string
+    required:
+    - name
+    type: object
+  models.CreateDeveloperKeyResponse:
+    properties:
+      created_at:
+        type: string
+      id:
+        type: integer
+      masked_key:
+        type: string
+      name:
+        type: string
+      raw_key:
+        description: Shown only once
+        type: string
+    type: object
+  models.CreateSMSTemplateRequest:
+    properties:
+      body:
+        minLength: 1
+        type: string
+      category:
+        type: string
+      name:
+        minLength: 2
+        type: string
+    required:
+    - body
+    - category
+    - name
+    type: object
+  models.CreateUserRequest:
+    properties:
+      email:
+        type: string
+      name:
+        minLength: 2
+        type: string
+      password:
+        minLength: 6
+        type: string
+      role:
+        enum:
+        - admin
+        - user
+        type: string
+      sms_balance:
+        type: integer
+    required:
+    - email
+    - name
+    - password
+    - role
+    type: object
+  models.DeveloperKey:
+    properties:
+      created_at:
+        type: string
+      id:
+        type: integer
+      is_active:
+        type: boolean
+      last_used_at:
+        type: string
+      masked_key:
+        description: e.g., "luco_live_****1234"
+        type: string
+      name:
+        type: string
+      updated_at:
+        type: string
+      user_id:
+        type: integer
+    type: object
+  models.ForgotPasswordRequest:
+    properties:
+      email:
+        type: string
+    required:
+    - email
+    type: object
+  models.GatewaySendSMSRequest:
+    properties:
+      message:
+        type: string
+      phone:
+        type: string
+      phones:
+        items:
+          type: string
+        type: array
+    required:
+    - message
+    type: object
+  models.GatewaySendSMSResponse:
+    properties:
+      job_group_id:
+        description: For checking status later
+        type: string
+      message:
+        type: string
+      success:
+        type: boolean
+    type: object
+  models.LoginRequest:
+    properties:
+      email:
+        type: string
+      password:
+        type: string
+    required:
+    - email
+    - password
+    type: object
+  models.LoginResponse:
+    properties:
+      token:
+        type: string
+      user:
+        $ref: '#/definitions/models.UserResponse'
+    type: object
+  models.NotificationResponse:
+    properties:
+      created_at:
+        type: string
+      id:
+        type: integer
+      is_read:
+        type: boolean
+      message:
+        type: string
+      title:
+        type: string
+      type:
+        type: string
+      user_id:
+        type: integer
+    type: object
+  models.RegisterRequest:
+    properties:
+      email:
+        type: string
+      name:
+        minLength: 2
+        type: string
+      password:
+        minLength: 6
+        type: string
+    required:
+    - email
+    - name
+    - password
+    type: object
+  models.ResendVerificationRequest:
+    properties:
+      email:
+        type: string
+    required:
+    - email
+    type: object
+  models.ResetPasswordRequest:
+    properties:
+      new_password:
+        minLength: 6
+        type: string
+      token:
+        type: string
+    required:
+    - new_password
+    - token
+    type: object
+  models.SMSBalanceResponse:
+    properties:
+      balance: {}
+      provider:
+        type: string
+    type: object
+  models.SMSConfigRequest:
+    properties:
+      active_provider:
+        enum:
+        - local
+        - julysms
+        - africastalking
+        type: string
+      at_api_key:
+        type: string
+      at_sender_id:
+        type: string
+      at_username:
+        description: Africa's Talking fields (required when provider is africastalking)
+        type: string
+      cost_per_segment:
+        type: integer
+      julysms_client_id:
+        description: JulySMS fields (required when provider is julysms)
+        type: string
+      julysms_client_secret:
+        type: string
+      julysms_sender_id:
+        type: string
+      queue_batch_size:
+        type: integer
+    required:
+    - active_provider
+    - cost_per_segment
+    - queue_batch_size
+    type: object
+  models.SMSConfigResponse:
+    properties:
+      active_provider:
+        type: string
+      at_api_key:
+        type: string
+      at_sender_id:
+        type: string
+      at_username:
+        description: Africa's Talking (secrets masked)
+        type: string
+      cost_per_segment:
+        type: integer
+      id:
+        type: integer
+      julysms_client_id:
+        description: JulySMS (secrets masked)
+        type: string
+      julysms_client_secret:
+        type: string
+      julysms_sender_id:
+        type: string
+      queue_batch_size:
+        type: integer
+      updated_at:
+        type: string
+    type: object
+  models.SMSDeliveryLog:
+    properties:
+      created_at:
+        type: string
+      delivered_at:
+        type: string
+      id:
+        type: integer
+      message_id:
+        type: string
+      phone:
+        type: string
+      provider:
+        type: string
+      raw_payload:
+        type: string
+      sent_at:
+        type: string
+      status:
+        description: delivered | failed
+        type: string
+    type: object
+  models.SMSJob:
+    properties:
+      attempts:
+        type: integer
+      created_at:
+        type: string
+      error_message:
+        type: string
+      id:
+        type: integer
+      message:
+        type: string
+      phone:
+        type: string
+      status:
+        description: pending | processing | completed | failed
+        type: string
+      updated_at:
+        type: string
+      user_id:
+        type: integer
+    type: object
+  models.SMSTemplateResponse:
+    properties:
+      body:
+        type: string
+      category:
+        type: string
+      created_at:
+        type: string
+      id:
+        type: integer
+      name:
+        type: string
+      updated_at:
+        type: string
+      user_id:
+        type: integer
+    type: object
+  models.SMSTopupRequest:
+    properties:
+      amount:
+        type: integer
+      description:
+        type: string
+      reference:
+        type: string
+    required:
+    - amount
+    - description
+    type: object
+  models.SMSTopupResponse:
+    properties:
+      amount:
+        type: integer
+      created_at:
+        type: string
+      description:
+        type: string
+      id:
+        type: integer
+      reference:
+        type: string
+      user_id:
+        type: integer
+    type: object
+  models.SecurityLogResponse:
+    properties:
+      action:
+        type: string
+      connection_type:
+        type: string
+      country_flag:
+        type: string
+      created_at:
+        type: string
+      device:
+        type: string
+      id:
+        type: integer
+      ip_address:
+        type: string
+      isp:
+        type: string
+      location:
+        type: string
+    type: object
+  models.SendSMSRequest:
+    properties:
+      message:
+        type: string
+      phone:
+        type: string
+      phones:
+        items:
+          type: string
+        type: array
+    required:
+    - message
+    type: object
+  models.SendSMSResponse:
+    properties:
+      message:
+        type: string
+      provider:
+        type: string
+      raw_response: {}
+      recipients:
+        type: integer
+    type: object
+  models.SessionResponse:
+    properties:
+      connection_type:
+        type: string
+      country_flag:
+        type: string
+      created_at:
+        type: string
+      device:
+        type: string
+      expires_at:
+        type: string
+      id:
+        type: integer
+      ip_address:
+        type: string
+      is_current:
+        type: boolean
+      isp:
+        type: string
+      location:
+        type: string
+    type: object
+  models.UpdateSMSTemplateRequest:
+    properties:
+      body:
+        minLength: 1
+        type: string
+      category:
+        type: string
+      name:
+        minLength: 2
+        type: string
+    required:
+    - body
+    - category
+    - name
+    type: object
+  models.UpdateUserRequest:
+    properties:
+      email:
+        type: string
+      name:
+        minLength: 2
+        type: string
+      password:
+        description: optional in update
+        type: string
+      role:
+        enum:
+        - admin
+        - user
+        type: string
+      sms_balance:
+        type: integer
+    required:
+    - email
+    - name
+    - role
+    type: object
+  models.UserResponse:
+    properties:
+      created_at:
+        type: string
+      email:
+        type: string
+      id:
+        type: integer
+      is_verified:
+        type: boolean
+      name:
+        type: string
+      profile_image:
+        type: string
+      role:
+        type: string
+      sms_balance:
+        type: integer
+    type: object
+  response.ErrorResponse:
+    properties:
+      error:
+        type: string
+      success:
+        type: boolean
+    type: object
+  response.SuccessResponse:
+    properties:
+      data: {}
+      success:
+        type: boolean
+    type: object
+host: localhost:8000
+info:
+  contact:
+    email: support@lucosms.com
+    name: API Support
+  description: Backend service for SMS delivery and customer management.
+  license:
+    name: Private
+    url: https://lucosms.com
+  termsOfService: http://swagger.io/terms/
+  title: Luco SMS API
+  version: "1.0"
+paths:
+  /auth/change-password:
+    post:
+      consumes:
+      - application/json
+      description: Change password of the logged-in user
+      parameters:
+      - description: Password details
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/models.ChangePasswordRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Change Password
+      tags:
+      - Auth
+  /auth/forgot-password:
+    post:
+      consumes:
+      - application/json
+      description: Request a password reset link to be sent via email
+      parameters:
+      - description: User email
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/models.ForgotPasswordRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      summary: Forgot Password
+      tags:
+      - Auth
+  /auth/login:
+    post:
+      consumes:
+      - application/json
+      description: Authenticate user and return JWT access token
+      parameters:
+      - description: Credentials
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/models.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.LoginResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      summary: Login User
+      tags:
+      - Auth
+  /auth/register:
+    post:
+      consumes:
+      - application/json
+      description: Register a new user and trigger verification email
+      parameters:
+      - description: User details
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/models.RegisterRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.UserResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      summary: Register User
+      tags:
+      - Auth
+  /auth/resend-verification:
+    post:
+      consumes:
+      - application/json
+      description: Resend email verification link for an unverified account
+      parameters:
+      - description: User email
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/models.ResendVerificationRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      summary: Resend Verification
+      tags:
+      - Auth
+  /auth/reset-password:
+    post:
+      consumes:
+      - application/json
+      - application/x-www-form-urlencoded
+      description: Submit password reset token and new password (supports JSON and
+        form submits)
+      parameters:
+      - description: Reset parameters
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/models.ResetPasswordRequest'
+      produces:
+      - text/html
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      summary: Reset Password
+      tags:
+      - Auth
+  /auth/verify-email:
+    get:
+      consumes:
+      - application/json
+      description: Verifies user email via token (returns HTML for browsers, JSON
+        for APIs)
+      parameters:
+      - description: Verification Token
+        in: query
+        name: token
+        required: true
+        type: string
+      produces:
+      - text/html
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      summary: Verify Email
+      tags:
+      - Auth
+  /developer-keys:
+    get:
+      description: List all registered developer API keys of the authenticated user
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.DeveloperKey'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List Developer API Keys
+      tags:
+      - Developer Keys
+    post:
+      consumes:
+      - application/json
+      description: Generate a new secure API key (shown only once)
+      parameters:
+      - description: Key details
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/models.CreateDeveloperKeyRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.CreateDeveloperKeyResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create Developer API Key
+      tags:
+      - Developer Keys
+  /developer-keys/{id}:
+    delete:
+      description: Delete/Revoke a developer API key by ID
+      parameters:
+      - description: Key ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Revoke Developer API Key
+      tags:
+      - Developer Keys
+  /gateway/send:
+    post:
+      consumes:
+      - application/json
+      description: 'Send single or bulk SMS via developer API key header (Authorization:
+        Bearer <Key> or X-API-Key)'
+      parameters:
+      - description: SMS payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/models.GatewaySendSMSRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.GatewaySendSMSResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      summary: Gateway Send SMS
+      tags:
+      - Developer Gateway
+  /health:
+    get:
+      consumes:
+      - application/json
+      description: Returns service health status
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Health check
+      tags:
+      - Health
+  /notifications:
+    get:
+      description: Get all notifications for the authenticated user
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.NotificationResponse'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List Notifications
+      tags:
+      - Notifications
+  /notifications/{id}/read:
+    put:
+      description: Mark a single notification as read
+      parameters:
+      - description: Notification ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Mark Notification as Read
+      tags:
+      - Notifications
+  /notifications/read-all:
+    put:
+      description: Mark all unread notifications as read for the authenticated user
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.SuccessResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Mark All Notifications as Read
+      tags:
+      - Notifications
+  /notifications/unread:
+    get:
+      description: Get only unread notifications for the authenticated user
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.NotificationResponse'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List Unread Notifications
+      tags:
+      - Notifications
+  /notifications/unread/count:
+    get:
+      description: Get the count of unread notifications (for badge display)
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.SuccessResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Count Unread Notifications
+      tags:
+      - Notifications
+  /security/logs:
+    get:
+      description: Get security event logs for the authenticated user
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.SecurityLogResponse'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get Security Logs
+      tags:
+      - Security
+  /security/sessions:
+    delete:
+      description: Revoke (log out) all other active sessions except the current one
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.SuccessResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Revoke Other Sessions
+      tags:
+      - Security
+    get:
+      description: Get list of all active sessions for the authenticated user
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.SessionResponse'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get Active Sessions
+      tags:
+      - Security
+  /security/sessions/{id}:
+    delete:
+      description: Revoke (log out) a specific active session by ID
+      parameters:
+      - description: Session ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Revoke Session
+      tags:
+      - Security
+  /sms-config:
+    get:
+      description: Retrieve current SMS gateway settings (Admin only). Secrets are
+        masked.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SMSConfigResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get SMS Provider Configuration
+      tags:
+      - SMS Config
+    put:
+      consumes:
+      - application/json
+      description: Create or update SMS gateway settings (Admin only)
+      parameters:
+      - description: SMS config parameters
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/models.SMSConfigRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SMSConfigResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Save SMS Provider Configuration
+      tags:
+      - SMS Config
+  /sms-config/balance:
+    get:
+      description: Query the JulySMS gateway for current SMS credit balance (Admin
+        only)
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SMSBalanceResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Check JulySMS Balance
+      tags:
+      - SMS Config
+  /sms-config/delivery-logs:
+    get:
+      description: Retrieve recent SMS delivery status logs (Admin only)
+      parameters:
+      - description: Max logs to return (default 100)
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.SMSDeliveryLog'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get SMS Delivery Logs
+      tags:
+      - SMS Config
+  /sms-config/failed-jobs:
+    get:
+      description: Retrieve failed background queue SMS messages (Admin only)
+      parameters:
+      - description: Max jobs to return (default 100)
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.SMSJob'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get Failed SMS Jobs
+      tags:
+      - SMS Config
+  /sms-config/send:
+    post:
+      consumes:
+      - application/json
+      description: Send an SMS through the active SMS provider (Admin only)
+      parameters:
+      - description: SMS parameters
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/models.SendSMSRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SendSMSResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Send SMS
+      tags:
+      - SMS Config
+  /sms-config/webhooks/julysms:
+    post:
+      consumes:
+      - application/json
+      description: Receives delivery status updates from JulySMS. Verifies HMAC-SHA256
+        signature.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.SuccessResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      summary: JulySMS Delivery Webhook
+      tags:
+      - SMS Config
+  /sms-templates:
+    get:
+      description: Retrieve all SMS templates belonging to the authenticated user
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.SMSTemplateResponse'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List My SMS Templates
+      tags:
+      - SMS Templates
+    post:
+      consumes:
+      - application/json
+      description: Create a new reusable SMS template with dynamic placeholders like
+        {code}, {name}
+      parameters:
+      - description: Template details
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/models.CreateSMSTemplateRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.SMSTemplateResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create SMS Template
+      tags:
+      - SMS Templates
+  /sms-templates/{id}:
+    delete:
+      description: Soft-delete an SMS template
+      parameters:
+      - description: Template ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.SuccessResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete SMS Template
+      tags:
+      - SMS Templates
+    get:
+      description: Retrieve a specific SMS template by ID
+      parameters:
+      - description: Template ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SMSTemplateResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get SMS Template
+      tags:
+      - SMS Templates
+    put:
+      consumes:
+      - application/json
+      description: Update an existing SMS template (name, category, body content)
+      parameters:
+      - description: Template ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Updated template fields
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/models.UpdateSMSTemplateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SMSTemplateResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update SMS Template
+      tags:
+      - SMS Templates
+  /users:
+    get:
+      description: List all registered users in the system (Admin only)
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.UserResponse'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List Users
+      tags:
+      - Users
+    post:
+      consumes:
+      - application/json
+      description: Create a new user directly in the database (Admin only)
+      parameters:
+      - description: User parameters
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/models.CreateUserRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.UserResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create User
+      tags:
+      - Users
+  /users/{id}:
+    delete:
+      description: Soft delete a user from the system (Admin only)
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.SuccessResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete User
+      tags:
+      - Users
+    get:
+      description: Retrieve details of a specific user by ID
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.UserResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get User details
+      tags:
+      - Users
+    put:
+      consumes:
+      - application/json
+      description: Update details of a user including Role and SMS balance (Admin
+        only)
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: User update fields
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/models.UpdateUserRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.UserResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update User details
+      tags:
+      - Users
+  /users/{id}/profile-image:
+    post:
+      consumes:
+      - multipart/form-data
+      description: Upload a profile image for a specific user (allows user to upload
+        their own or admin to upload)
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Profile Image file
+        in: formData
+        name: file
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.UserResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Upload Profile Image
+      tags:
+      - Users
+  /users/{id}/topup:
+    post:
+      consumes:
+      - application/json
+      description: Add SMS credits to a user (Admin only)
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Topup parameters
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/models.SMSTopupRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SMSTopupResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Top-up User SMS Balance
+      tags:
+      - SMS Topup
+  /users/{id}/topups:
+    get:
+      description: Get SMS credit top-up logs for a specific user (Admin only)
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.SMSTopupResponse'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get User Topup History
+      tags:
+      - SMS Topup
+  /users/me/topups:
+    get:
+      description: Get SMS credit top-up logs for the logged-in user
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.SMSTopupResponse'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get My Topup History
+      tags:
+      - SMS Topup
+  /users/topups:
+    get:
+      description: List all topup transactions in the system (Admin only)
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.SMSTopupResponse'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List All Topup Logs
+      tags:
+      - SMS Topup
+securityDefinitions:
+  BearerAuth:
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

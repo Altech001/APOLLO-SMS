@@ -32,10 +32,10 @@ go.work.sum
 .DS_Store
 Thumbs.db
 
-# Swagger generated
-docs/docs.go
-docs/swagger.json
-docs/swagger.yaml
+# # Swagger generated
+# docs/docs.go
+# docs/swagger.json
+# docs/swagger.yaml
 
 # Temporary
 tmp/
