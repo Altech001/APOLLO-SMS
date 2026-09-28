@@ -17,11 +17,12 @@ type AIChatHandler struct {
 	images        *services.AIImageService
 	conversations *services.AIConversationService
 	stock         *services.StockImageService
+	billing       *services.BillingService
 }
 
 // NewAIChatHandler creates a new AIChatHandler.
-func NewAIChatHandler(chat *services.AIChatService, batch *services.BatchSendService, images *services.AIImageService, conversations *services.AIConversationService, stock *services.StockImageService) *AIChatHandler {
-	return &AIChatHandler{chat: chat, batch: batch, images: images, conversations: conversations, stock: stock}
+func NewAIChatHandler(chat *services.AIChatService, batch *services.BatchSendService, images *services.AIImageService, conversations *services.AIConversationService, stock *services.StockImageService, billing *services.BillingService) *AIChatHandler {
+	return &AIChatHandler{chat: chat, batch: batch, images: images, conversations: conversations, stock: stock, billing: billing}
 }
 
 // Chat godoc
@@ -94,6 +95,10 @@ func (h *AIChatHandler) GenerateImage(c *fiber.Ctx) error {
 	var req services.AIImageRequest
 	if err := c.BodyParser(&req); err != nil {
 		return response.Error(c, fiber.StatusBadRequest, "Invalid request body")
+	}
+
+	if h.billing != nil && !h.billing.HasPaidFeatures(getUserID(c)) {
+		return response.Error(c, fiber.StatusPaymentRequired, services.ErrPaidPlanRequired.Error())
 	}
 
 	res, err := h.images.Generate(getUserID(c), &req)

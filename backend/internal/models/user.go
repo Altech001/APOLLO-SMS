@@ -53,6 +53,27 @@ type UpdateUserRequest struct {
 	SMSBalance int    `json:"sms_balance"`
 }
 
+// AdminVerifyUserRequest lets an admin manually verify or unverify an account.
+type AdminVerifyUserRequest struct {
+	Verified bool `json:"verified"`
+}
+
+// Balance kinds and directions for admin adjustments.
+const (
+	BalanceKindSMS      = "sms"
+	BalanceKindWhatsApp = "whatsapp"
+	BalanceCredit       = "credit"
+	BalanceDebit        = "debit"
+)
+
+// AdminAdjustBalanceRequest credits or debits a user's SMS or WhatsApp balance.
+type AdminAdjustBalanceRequest struct {
+	Kind   string `json:"kind"`   // sms or whatsapp
+	Action string `json:"action"` // credit or debit
+	Amount int    `json:"amount"`
+	Reason string `json:"reason"`
+}
+
 // LoginRequest is the payload for logging in.
 type LoginRequest struct {
 	Email    string `json:"email" validate:"required,email"`

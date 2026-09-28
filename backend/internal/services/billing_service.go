@@ -15,6 +15,9 @@ import (
 // ErrWhatsAppPaymentRequired is returned when a user has no free allowance or credits left for WhatsApp.
 var ErrWhatsAppPaymentRequired = errors.New("payment required")
 
+// ErrPaidPlanRequired is returned when a free-plan user calls a paid-only feature.
+var ErrPaidPlanRequired = errors.New("this feature is available on paid plans. Upgrade your plan to use it")
+
 // minCollectionUGX is the smallest amount MarzPay accepts for a collection.
 const minCollectionUGX = 500
 
@@ -247,6 +250,17 @@ func (s *BillingService) activePlan(tx *gorm.DB, userID uint) (models.BillingPla
 	return s.freePlan(tx), nil
 }
 
+// HasPaidFeatures reports whether a user may use paid-only features (AI images, WhatsApp templates).
+// Admins always can.
+func (s *BillingService) HasPaidFeatures(userID uint) bool {
+	var user models.User
+	if err := s.db.Select("id", "role").First(&user, userID).Error; err == nil && user.Role == "admin" {
+		return true
+	}
+	plan, sub := s.activePlan(s.db, userID)
+	return sub != nil && plan.Code != models.PlanCodeFree
+}
+
 // lockDailyUsage returns today's usage row for a user, creating it if needed, locked for update.
 func (s *BillingService) lockDailyUsage(tx *gorm.DB, userID uint) (*models.DailyUsage, error) {
 	day := today()
@@ -377,6 +391,8 @@ func (s *BillingService) Summary(userID uint) (*models.BillingSummary, error) {
 		SMSPriceUGX:           smsPrice,
 		WhatsAppPriceUGX:      plan.WhatsAppPriceUGX,
 	}
+	paid := s.HasPaidFeatures(userID)
+	summary.Features = models.BillingFeatures{AIImages: paid, WhatsAppTemplates: paid}
 	if plan.WhatsAppPriceUGX > 0 {
 		summary.MinWhatsAppCreditOrder = (minCollectionUGX + plan.WhatsAppPriceUGX - 1) / plan.WhatsAppPriceUGX
 	}

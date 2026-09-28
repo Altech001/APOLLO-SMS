@@ -685,6 +685,52 @@ func (s *SMSConfigService) CheckJulySMSBalance() (*models.SMSBalanceResponse, er
 	}, nil
 }
 
+// CheckAfricasTalkingBalance reads the Africa's Talking account balance, e.g. "UGX 15000.0000".
+func (s *SMSConfigService) CheckAfricasTalkingBalance() (*models.SMSBalanceResponse, error) {
+	cfg, err := s.repo.Get()
+	if err != nil {
+		return nil, errors.New("SMS provider not configured")
+	}
+	if cfg.ATUsername == "" || cfg.ATAPIKey == "" {
+		return nil, errors.New("Africa's Talking credentials not configured")
+	}
+	apiKey, err := crypto.Decrypt(cfg.ATAPIKey, s.cfg.JWTSecret)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decrypt Africa's Talking API key: %w", err)
+	}
+
+	base := "https://api.africastalking.com"
+	if cfg.ATUsername == "sandbox" {
+		base = "https://api.sandbox.africastalking.com"
+	}
+	httpReq, err := http.NewRequest(http.MethodGet, base+"/version1/user?username="+url.QueryEscape(cfg.ATUsername), nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create balance request: %w", err)
+	}
+	httpReq.Header.Set("apiKey", apiKey)
+	httpReq.Header.Set("Accept", "application/json")
+
+	resp, err := s.httpClient.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("Africa's Talking balance request failed: %w", err)
+	}
+	defer resp.Body.Close()
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read balance response: %w", err)
+	}
+	if resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("Africa's Talking balance request failed (%d): %s", resp.StatusCode, strings.TrimSpace(string(respBody)))
+	}
+
+	var rawResp interface{}
+	json.Unmarshal(respBody, &rawResp)
+	return &models.SMSBalanceResponse{
+		Provider: models.SMSProviderAfricasTalking,
+		Balance:  rawResp,
+	}, nil
+}
+
 // VerifyJulySMSWebhook validates the HMAC-SHA256 signature on a JulySMS delivery webhook.
 func (s *SMSConfigService) VerifyJulySMSWebhook(signature string, rawBody []byte) (bool, error) {
 	cfg, err := s.repo.Get()

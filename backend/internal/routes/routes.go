@@ -73,6 +73,9 @@ func Setup(app *fiber.App, db *gorm.DB, cfg *config.Config) {
 	aiImageService := services.NewAIImageService(cfg, storageProvider)
 	aiConversationService := services.NewAIConversationService(db, aiTemplateService)
 	stockImageService := services.NewStockImageService(cfg)
+	adminService := services.NewAdminService(db, smsConfigService, whatsAppService, emailSender)
+	paymentService.SetTopupHook(adminService.NotifyTopup)
+	adminService.StartBalanceMonitor(15 * time.Minute)
 
 	if cfg.SMSQueueWorker {
 		developerKeyService.StartQueueWorker(smsConfigService, cfg.SMSQueuePollDelay)
@@ -86,7 +89,7 @@ func Setup(app *fiber.App, db *gorm.DB, cfg *config.Config) {
 	securityHandler := handlers.NewSecurityHandler(securityService)
 	userHandler := handlers.NewUserHandler(userService)
 	topupHandler := handlers.NewSMSTopupHandler(topupService)
-	templateHandler := handlers.NewSMSTemplateHandler(templateService)
+	templateHandler := handlers.NewSMSTemplateHandler(templateService, billingService)
 	notifHandler := handlers.NewNotificationHandler(notifService)
 	smsConfigHandler := handlers.NewSMSConfigHandler(smsConfigService, developerKeyService)
 	developerKeyHandler := handlers.NewDeveloperKeyHandler(developerKeyService)
@@ -95,7 +98,8 @@ func Setup(app *fiber.App, db *gorm.DB, cfg *config.Config) {
 	billingHandler := handlers.NewBillingHandler(billingService, paymentService)
 	aiTemplateHandler := handlers.NewAITemplateHandler(aiTemplateService)
 	contactHandler := handlers.NewContactHandler(contactService)
-	aiChatHandler := handlers.NewAIChatHandler(aiChatService, batchSendService, aiImageService, aiConversationService, stockImageService)
+	adminHandler := handlers.NewAdminHandler(adminService)
+	aiChatHandler := handlers.NewAIChatHandler(aiChatService, batchSendService, aiImageService, aiConversationService, stockImageService, billingService)
 
 	// ── API Router ──
 	api := app.Group("/api/v1")
@@ -141,6 +145,16 @@ func Setup(app *fiber.App, db *gorm.DB, cfg *config.Config) {
 	users.Post("/share", middleware.AuthRequired(cfg, db), topupHandler.ShareCredits)
 	users.Post("/:id/topup", middleware.RoleRequired("admin"), topupHandler.PerformTopup)
 	users.Get("/:id/topups", middleware.RoleRequired("admin"), topupHandler.GetUserTopups)
+	users.Post("/:id/verify", middleware.RoleRequired("admin"), userHandler.VerifyUser)
+	users.Post("/:id/balance", middleware.RoleRequired("admin"), topupHandler.AdjustBalance)
+
+	// Admin profit report, provider balances and alert settings
+	admin := api.Group("/admin", middleware.AuthRequired(cfg, db), middleware.RoleRequired("admin"))
+	admin.Get("/profit", adminHandler.Profit)
+	admin.Get("/provider-balances", adminHandler.ProviderBalances)
+	admin.Get("/settings", adminHandler.GetSettings)
+	admin.Put("/settings", adminHandler.SaveSettings)
+	admin.Post("/settings/test-alert", adminHandler.TestAlert)
 
 	// Protected SMS Templates Group (Each user manages their own templates)
 	templates := api.Group("/sms-templates", middleware.AuthRequired(cfg, db))

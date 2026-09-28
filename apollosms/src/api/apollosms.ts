@@ -52,6 +52,8 @@ export interface UserResponse {
   email: string;
   role: "admin" | "user" | string;
   sms_balance: number;
+  whatsapp_balance?: number;
+  phone?: string;
   profile_image: string;
   is_verified: boolean;
   created_at?: string;
@@ -702,6 +704,88 @@ export interface BillingSummary {
   sms_price_ugx: number;
   whatsapp_price_ugx: number;
   min_whatsapp_credit_order: number;
+  features?: BillingFeatures;
+}
+
+export interface BillingFeatures {
+  ai_images: boolean;
+  whatsapp_templates: boolean;
+}
+
+export type ProfitRange = "today" | "7d" | "30d" | "90d" | "year" | "all";
+
+export interface ProviderUsage {
+  provider: string;
+  source: "app" | "api" | string;
+  messages: number;
+  segments: number;
+  cost_ugx: number;
+  unit_cost_ugx: number;
+  revenue_ugx: number;
+}
+
+export interface ProfitDay {
+  day: string;
+  revenue_ugx: number;
+  sms_cost_ugx: number;
+  profit_ugx: number;
+}
+
+export interface ProfitSummary {
+  from: string | null;
+  to: string;
+  sms_revenue_ugx: number;
+  plan_revenue_ugx: number;
+  whatsapp_revenue_ugx: number;
+  total_revenue_ugx: number;
+  sms_cost_ugx: number;
+  sms_profit_ugx: number;
+  total_profit_ugx: number;
+  avg_sell_price_ugx: number;
+  app_segments: number;
+  api_segments: number;
+  app_revenue_ugx: number;
+  api_revenue_ugx: number;
+  app_cost_ugx: number;
+  api_cost_ugx: number;
+  topups: number;
+  paying_users: number;
+  whatsapp_sent: number;
+  providers: ProviderUsage[];
+  daily: ProfitDay[];
+}
+
+export interface ProviderBalance {
+  provider: string;
+  label: string;
+  configured: boolean;
+  balance: number | null;
+  currency: string;
+  threshold: number;
+  low: boolean;
+  error?: string;
+}
+
+export interface AdminSettings {
+  julysms_cost_ugx: number;
+  africastalking_cost_ugx: number;
+  other_cost_ugx: number;
+  alert_email: string;
+  alert_phone: string;
+  alert_whatsapp: string;
+  email_enabled: boolean;
+  sms_enabled: boolean;
+  whatsapp_enabled: boolean;
+  notify_on_topup: boolean;
+  julysms_threshold: number;
+  africastalking_threshold: number;
+}
+
+export interface AdminAdjustBalanceRequest {
+  kind: "sms" | "whatsapp";
+  action: "credit" | "debit";
+  amount: number;
+  reason?: string;
 }
 
 export interface SubscribeResponse {
@@ -1351,6 +1435,14 @@ export const apollosmsApi = {
     revokeSession: (id: ID) => apiRequest<ApiMessage>(`/security/sessions/${id}`, { method: "DELETE" }),
     logs: () => apiRequest<SecurityLogResponse[]>("/security/logs"),
   },
+  admin: {
+    profit: (range: ProfitRange) => apiRequest<ProfitSummary>("/admin/profit", { query: { range } }),
+    providerBalances: () => apiRequest<ProviderBalance[]>("/admin/provider-balances"),
+    settings: () => apiRequest<AdminSettings>("/admin/settings"),
+    saveSettings: (payload: AdminSettings) =>
+      apiRequest<AdminSettings>("/admin/settings", { method: "PUT", body: JSON.stringify(payload) }),
+    testAlert: () => apiRequest<{ problems: string[] | null }>("/admin/settings/test-alert", { method: "POST" }),
+  },
   users: {
     list: () => apiRequest<UserResponse[]>("/users"),
     searchCreditRecipients: async (query: string) =>
@@ -1364,6 +1456,10 @@ export const apollosmsApi = {
     update: (id: ID, payload: UpdateUserRequest) =>
       apiRequest<UserResponse>(`/users/${id}`, { method: "PUT", body: JSON.stringify(payload) }),
     delete: (id: ID) => apiRequest<ApiMessage>(`/users/${id}`, { method: "DELETE" }),
+    setVerified: (id: ID, verified: boolean) =>
+      apiRequest<UserResponse>(`/users/${id}/verify`, { method: "POST", body: JSON.stringify({ verified }) }),
+    adjustBalance: (id: ID, payload: AdminAdjustBalanceRequest) =>
+      apiRequest<UserResponse>(`/users/${id}/balance`, { method: "POST", body: JSON.stringify(payload) }),
     uploadProfileImage: (id: ID, file: File) => {
       const body = new FormData();
       body.append("file", file);

@@ -136,7 +136,7 @@ export default function SettingsPage() {
 
   return (
     <SettingsLayout title="Notification Settings">
-      <div className="max-w-4xl mx-auto px-6 sm:px-10 py-8">
+      <div className="max-w-4xl mx-auto px-4 sm:px-10 py-8">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
           <div>
             <h1 className="text-lg font-semibold text-foreground mb-1">Notifications</h1>

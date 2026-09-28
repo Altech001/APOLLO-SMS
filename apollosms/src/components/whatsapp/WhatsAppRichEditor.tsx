@@ -1,5 +1,6 @@
 import { apollosmsApi, StockPhoto, WhatsAppButton, WhatsAppRich } from "@/api/apollosms";
 import { Button } from "@/components/ui/button";
+import { usePaidFeatures } from "@/hooks/use-billing-summary";
 import { cn } from "@/lib/utils";
 import { ImageIcon, Images, Link2, Loader2, MessageSquareReply, Phone, Plus, Search, Sparkles, Trash2, Upload, X } from "lucide-react";
 import { useRef, useState } from "react";
@@ -32,6 +33,7 @@ export default function WhatsAppRichEditor({ value, onChange, imageQuery, classN
     const [busy, setBusy] = useState(false);
     const fileRef = useRef<HTMLInputElement>(null);
     const buttons = value.buttons || [];
+    const { aiImages } = usePaidFeatures();
 
     const set = (patch: Partial<WhatsAppRich>) => onChange({ ...value, ...patch });
     const setButton = (i: number, patch: Partial<WhatsAppButton>) => set({ buttons: buttons.map((b, idx) => (idx === i ? { ...b, ...patch } : b)) });
@@ -91,7 +93,7 @@ export default function WhatsAppRichEditor({ value, onChange, imageQuery, classN
                                 ["stock", "Stock photo", <Images key="s" className="w-3.5 h-3.5" />],
                                 ["upload", "Upload", <Upload key="u" className="w-3.5 h-3.5" />],
                                 ["ai", "AI", <Sparkles key="a" className="w-3.5 h-3.5" />],
-                            ] as const).map(([id, label, icon]) => (
+                            ] as const).filter(([id]) => id !== "ai" || aiImages).map(([id, label, icon]) => (
                                 <button
                                     key={id}
                                     type="button"
@@ -160,7 +162,7 @@ export default function WhatsAppRichEditor({ value, onChange, imageQuery, classN
                             </div>
                         )}
 
-                        {tab === "ai" && (
+                        {tab === "ai" && aiImages && (
                             <form
                                 className="flex gap-2"
                                 onSubmit={(e) => {

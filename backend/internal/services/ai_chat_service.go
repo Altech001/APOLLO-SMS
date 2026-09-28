@@ -353,6 +353,13 @@ func (s *AIChatService) Chat(userID uint, req *AIChatRequest) (*AIChatResponse, 
 		}
 		s.ensureImage(out, last.Content, context)
 		fixImageOffClaim(out)
+		if s.billing != nil && !s.billing.HasPaidFeatures(userID) {
+			for i := range out.Actions {
+				if out.Actions[i].Type == "generate_image" {
+					out.Actions[i].Source = "stock"
+				}
+			}
+		}
 	} else {
 		out.Actions = withoutImages(out.Actions)
 	}

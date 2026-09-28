@@ -187,6 +187,78 @@ func (s *SMSTopupService) PerformTopup(userID uint, req *models.SMSTopupRequest)
 	return &res, nil
 }
 
+// AdminAdjustBalance credits or debits a user's SMS or WhatsApp balance. SMS changes are logged
+// in the top-up history with a negative amount for debits.
+func (s *SMSTopupService) AdminAdjustBalance(userID uint, req *models.AdminAdjustBalanceRequest) (*models.UserResponse, error) {
+	kind := strings.ToLower(strings.TrimSpace(req.Kind))
+	action := strings.ToLower(strings.TrimSpace(req.Action))
+	reason := strings.TrimSpace(req.Reason)
+	if kind != models.BalanceKindSMS && kind != models.BalanceKindWhatsApp {
+		return nil, errors.New("kind must be sms or whatsapp")
+	}
+	if action != models.BalanceCredit && action != models.BalanceDebit {
+		return nil, errors.New("action must be credit or debit")
+	}
+	if req.Amount <= 0 {
+		return nil, errors.New("amount must be greater than zero")
+	}
+	delta := req.Amount
+	if action == models.BalanceDebit {
+		delta = -req.Amount
+	}
+
+	var user models.User
+	err := s.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&user, userID).Error; err != nil {
+			return errors.New("user not found")
+		}
+		current := &user.SMSBalance
+		column := "sms_balance"
+		if kind == models.BalanceKindWhatsApp {
+			current = &user.WhatsAppBalance
+			column = "whatsapp_balance"
+		}
+		if *current+delta < 0 {
+			return fmt.Errorf("cannot debit %d: the user only has %d", req.Amount, *current)
+		}
+		*current += delta
+		if err := tx.Model(&models.User{}).Where("id = ?", userID).Update(column, *current).Error; err != nil {
+			return fmt.Errorf("failed to update balance: %w", err)
+		}
+		if kind != models.BalanceKindSMS {
+			return nil
+		}
+		description := "Admin " + action
+		if reason != "" {
+			description += ": " + reason
+		}
+		return s.topupRepo.CreateWithTx(tx, &models.SMSTopup{UserID: userID, Amount: delta, Description: description, Reference: "admin-adjustment"})
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	s.cacheTopupUser(&user)
+	label := "SMS"
+	balance := user.SMSBalance
+	if kind == models.BalanceKindWhatsApp {
+		label = "WhatsApp"
+		balance = user.WhatsAppBalance
+	}
+	verb := "added to"
+	if action == models.BalanceDebit {
+		verb = "removed from"
+	}
+	message := fmt.Sprintf("%d %s credits were %s your account. New balance: %d", req.Amount, label, verb, balance)
+	if reason != "" {
+		message += ". Reason: " + reason
+	}
+	s.notifService.Notify(userID, label+" Balance Adjusted", message, "info")
+
+	res := user.ToResponse()
+	return &res, nil
+}
+
 func (s *SMSTopupService) validateTransferRequest(sender, recipient models.User, credits int) error {
 	if sender.ID == 0 || recipient.ID == 0 {
 		return errors.New("sender and recipient are required")

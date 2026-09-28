@@ -9,6 +9,7 @@ import {
   Megaphone,
   Settings,
   User,
+  Users,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useEffect, useMemo, useState } from "react";
@@ -41,6 +42,12 @@ const navItems: SettingsNavItem[] = [
     label: "Billing & Plans",
     icon: <CreditCard className="w-4 h-4" />,
     path: "/settings/billing",
+  },
+  {
+    id: "admin-users",
+    label: "Users",
+    icon: <Users className="w-4 h-4" />,
+    path: "/settings/users",
   },
   {
     id: "admin-settings",
@@ -99,7 +106,7 @@ export default function SettingsLayout({
       <SEO title={title} />
       <AppHeader />
 
-      <div className="flex h-[calc(100vh-57px)] overflow-hidden">
+      <div className="flex h-[calc(100dvh-57px)] overflow-hidden">
         {/* ── settings sidebar ── */}
         <aside className="hidden lg:flex flex-col w-[250px] shrink-0 border-r border-border/50 bg-card overflow-y-auto">
           <div className="px-4 pt-6 pb-2">
@@ -151,8 +158,29 @@ export default function SettingsLayout({
           </nav>
         </aside>
 
-        {/* ── main content ── */}
-        <main className="flex-1 overflow-y-auto min-h-0">{children}</main>
+        <main className="flex-1 overflow-y-auto min-h-0">
+          <nav className="lg:hidden sticky top-0 z-10 bg-background/95 backdrop-blur border-b border-border/50">
+            <div className="flex gap-1.5 overflow-x-auto px-4 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              {visibleNavItems.map((item) => {
+                const active = isActive(item.path);
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => navigate(item.path)}
+                    className={`shrink-0 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium border transition-colors ${active
+                      ? "bg-primary text-white border-primary"
+                      : "bg-card text-foreground/80 border-border/60"
+                      }`}
+                  >
+                    {item.icon}
+                    {item.label}
+                  </button>
+                );
+              })}
+            </div>
+          </nav>
+          {children}
+        </main>
       </div>
     </div>
   );

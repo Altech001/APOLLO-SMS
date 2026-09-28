@@ -96,7 +96,7 @@ export default function PlanEditorPage() {
 
     return (
         <SettingsLayout title="Plan Editor">
-            <div className="max-w-6xl mx-auto px-6 sm:px-10 py-8">
+            <div className="max-w-6xl mx-auto px-4 sm:px-10 py-8">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
                     <div>
                         <h1 className="text-base font-bold text-foreground">Plan Editor</h1>

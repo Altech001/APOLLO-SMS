@@ -16,6 +16,7 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { usePaidFeatures } from "@/hooks/use-billing-summary";
 import { cn } from "@/lib/utils";
 import {
     Activity,
@@ -104,6 +105,7 @@ export default function TemplatesIndex() {
     const [searchQuery, setSearchQuery] = useState("");
     const [filterCategory, setFilterCategory] = useState<string>("all");
     const [filterChannel, setFilterChannel] = useState<"all" | MessageChannel>("all");
+    const { whatsappTemplates } = usePaidFeatures();
 
     // Right Panel State
     const [isPanelOpen, setIsPanelOpen] = useState(false);
@@ -303,9 +305,10 @@ export default function TemplatesIndex() {
                 t.content.toLowerCase().includes(searchQuery.toLowerCase());
             const matchesCategory = filterCategory === "all" || t.category === filterCategory;
             const matchesChannel = filterChannel === "all" || t.channel === filterChannel;
-            return matchesSearch && matchesCategory && matchesChannel;
+            const allowed = whatsappTemplates || t.channel !== "whatsapp";
+            return matchesSearch && matchesCategory && matchesChannel && allowed;
         });
-    }, [templates, searchQuery, filterCategory, filterChannel]);
+    }, [templates, searchQuery, filterCategory, filterChannel, whatsappTemplates]);
 
     const getCategoryBadgeClass = (category: SMSTemplate["category"]) => {
         switch (category) {
@@ -368,7 +371,7 @@ export default function TemplatesIndex() {
                         )}
                     </div>
                     <div className="flex rounded border border-border overflow-hidden text-xs h-10 shrink-0">
-                        {(["all", "sms", "whatsapp"] as const).map((value) => (
+                        {(["all", "sms", "whatsapp"] as const).filter((value) => value !== "whatsapp" || whatsappTemplates).map((value) => (
                             <button
                                 key={value}
                                 type="button"
@@ -622,7 +625,7 @@ export default function TemplatesIndex() {
                                 <div className="space-y-2">
                                     <Label className="text-xs font-semibold">Channel</Label>
                                     <div className="grid grid-cols-2 gap-2">
-                                        {(["sms", "whatsapp"] as const).map((value) => (
+                                        {(["sms", "whatsapp"] as const).filter((value) => value !== "whatsapp" || whatsappTemplates).map((value) => (
                                             <button
                                                 key={value}
                                                 type="button"

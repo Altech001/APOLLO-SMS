@@ -206,7 +206,7 @@ export default function ComposeIndex() {
                 setCostPerSms(pricing.cost_per_segment || 31);
                 setContacts(nextContacts);
                 setGroups(groupsData.map((group) => toGroup(group, nextContacts)));
-                setTemplates(templatesData.map(toTemplate));
+                setTemplates(templatesData.filter((t: TemplateResponse & { channel?: string }) => t.channel !== "whatsapp").map(toTemplate));
             })
             .catch((error) => {
                 toast.error(error instanceof Error ? error.message : "Unable to load compose data");
@@ -537,13 +537,14 @@ export default function ComposeIndex() {
                 "min-h-screen bg-background transition-all duration-300",
                 sidebarCollapsed ? "md:pl-[72px]" : "md:pl-[280px]"
             )}
+            style={{ ["--compose-sidebar" as string]: sidebarCollapsed ? "72px" : "280px" }}
         >
             <SEO title="Bulk Message Compose" />
             <AppHeader onCreateForm={() => { }} />
 
-            <main className="max-w-8xl mx-auto px-4 sm:px-6 py-6">
+            <main className="max-w-8xl mx-auto px-3 sm:px-6 py-4 sm:py-6 pb-28 lg:pb-6">
                 {/* Header Title */}
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4 sm:mb-6">
                     <div>
                         <h1 className="text-base tracking-tight text-foreground sm:text-lg">
                             Bulk Message Compose
@@ -555,10 +556,10 @@ export default function ComposeIndex() {
                 </div>
 
                 {/* 2-Column Grid */}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
                     {/* Left Column - Contacts Selector */}
-                    <Card className="lg:col-span-1 border-border/10 shadow-sm rounded-none flex flex-col min-h-[480px]">
-                        <CardHeader className="pb-3 border-b border-border/10 flex flex-row items-center justify-between space-y-0">
+                    <Card className="lg:col-span-1 border-border/10 shadow-sm rounded flex flex-col lg:min-h-[480px]">
+                        <CardHeader className="p-4 pb-3 border-b border-border/10 flex flex-col sm:flex-row lg:flex-col xl:flex-row sm:items-center lg:items-stretch xl:items-center justify-between gap-3 space-y-0">
                             <div>
                                 <CardTitle className="text-sm ">
                                     Contacts ({selectedContacts.length})
@@ -567,7 +568,7 @@ export default function ComposeIndex() {
                                     Broadcast recipients list
                                 </CardDescription>
                             </div>
-                            <div className="flex items-center gap-1.5">
+                            <div className="grid grid-cols-2 sm:flex lg:grid xl:flex items-center gap-1.5">
                                 <Button
                                     onClick={() => setIsContactPickerOpen(true)}
                                     size="sm"
@@ -589,9 +590,9 @@ export default function ComposeIndex() {
                         </CardHeader>
 
                         {/* Contacts List Scroll Area */}
-                        <CardContent className="flex-1 p-4 overflow-y-auto max-h-[380px]">
+                        <CardContent className="flex-1 p-3 sm:p-4 overflow-y-auto max-h-[260px] sm:max-h-[380px]">
                             {selectedContacts.length === 0 ? (
-                                <div className="h-64 border border-dashed border-border/80 rounded flex flex-col items-center justify-center text-center p-4">
+                                <div className="h-40 sm:h-64 border border-dashed border-border/80 rounded flex flex-col items-center justify-center text-center p-4">
                                     <div className="p-3 bg-muted/40 rounded-full text-muted-foreground/60 mb-2">
                                         <img src="/bg/empty.png" className="w-15 h-12" />
                                     </div>
@@ -607,7 +608,7 @@ export default function ComposeIndex() {
                                             key={contact.id}
                                             className="flex items-center justify-between p-2 rounded border border-border/50 hover:bg-muted/10 transition-colors"
                                         >
-                                            <div className="flex items-center gap-2">
+                                            <div className="flex items-center gap-2 min-w-0 flex-1">
                                                 <div className="w-8 h-8 rounded-full bg-primary/5 text-primary text-[10px]  flex items-center justify-center shrink-0">
                                                     {contact.name.split(" ").map(n => n[0]).join("").substring(0, 2).toUpperCase()}
                                                 </div>
@@ -620,7 +621,7 @@ export default function ComposeIndex() {
                                                 variant="ghost"
                                                 size="icon"
                                                 onClick={() => handleRemoveContact(contact.id)}
-                                                className="h-7 w-7 rounded-full text-muted-foreground hover:text-rose-500"
+                                                className="h-8 w-8 shrink-0 rounded-full text-muted-foreground hover:text-rose-500"
                                             >
                                                 <X className="w-3.5 h-3.5" />
                                             </Button>
@@ -631,7 +632,7 @@ export default function ComposeIndex() {
                         </CardContent>
 
                         {/* Left Column Footer */}
-                        <div className="p-4 border-t border-border/10 bg-muted/5 flex flex-col sm:flex-row items-center justify-between gap-3">
+                        <div className="p-3 sm:p-4 border-t border-border/10 bg-muted/5 flex flex-col sm:flex-row items-center justify-between gap-3">
                             <span className="text-[12px] font-semibold text-muted-foreground">
                                 {selectedContacts.length} contacts selected
                             </span>
@@ -649,7 +650,7 @@ export default function ComposeIndex() {
 
                     {/* Right Column - Message Composer */}
                     <Card className="lg:col-span-2 border-border/20 rounded shadow-sm flex flex-col justify-between">
-                        <CardHeader className="pb-3 border-b border-border/10 flex flex-row items-center justify-between space-y-0">
+                        <CardHeader className="p-4 pb-3 border-b border-border/10 flex flex-col xl:flex-row xl:items-center justify-between gap-3 space-y-0">
                             <div>
                                 <CardTitle className="text-sm ">
                                     Composing {channel === "whatsapp" ? "WhatsApp" : "SMS"} to {selectedContacts.length} contacts
@@ -658,8 +659,8 @@ export default function ComposeIndex() {
                                     Draft message contents to send to recipients.
                                 </CardDescription>
                             </div>
-                            <div className="flex items-center gap-1.5">
-                                <div className="flex rounded border border-border overflow-hidden text-xs h-10" role="tablist" aria-label="Message channel">
+                            <div className="flex flex-wrap sm:flex-nowrap items-center gap-1.5">
+                                <div className="flex w-full sm:w-auto rounded border border-border overflow-hidden text-xs h-10" role="tablist" aria-label="Message channel">
                                     {(["sms", "whatsapp"] as const).map((value) => (
                                         <button
                                             key={value}
@@ -668,7 +669,7 @@ export default function ComposeIndex() {
                                             aria-selected={channel === value}
                                             onClick={() => setChannel(value)}
                                             className={cn(
-                                                "px-3 flex items-center gap-1.5 transition-colors",
+                                                "flex-1 sm:flex-none justify-center px-3 flex items-center gap-1.5 transition-colors",
                                                 channel === value
                                                     ? value === "whatsapp" ? "bg-emerald-600 text-white" : "bg-primary text-primary-foreground"
                                                     : "bg-card text-muted-foreground hover:bg-muted/30"
@@ -683,7 +684,7 @@ export default function ComposeIndex() {
                                     onClick={() => openPanel("templates")}
                                     variant="outline"
                                     size="sm"
-                                    className="h-10 text-xs  border-border/80"
+                                    className="h-10 text-xs flex-1 sm:flex-none border-border/80"
                                 >
                                     <FileText className="w-3.5 h-3.5 mr-1" />
                                     Use Template
@@ -692,7 +693,7 @@ export default function ComposeIndex() {
                                     onClick={handleClearAll}
                                     variant="destructive"
                                     size="sm"
-                                    className="h-10 text-xs"
+                                    className="h-10 text-xs flex-1 sm:flex-none"
                                 >
                                     <Trash2 className="w-3.5 h-3.5 mr-1" />
                                     Reset All
@@ -700,7 +701,7 @@ export default function ComposeIndex() {
                             </div>
                         </CardHeader>
 
-                        <CardContent className="p-5 space-y-2">
+                        <CardContent className="p-3 sm:p-5 space-y-2">
                             {/* SMS Textarea Input */}
                             <div className="space-y-2">
                                 <div className="flex items-center justify-between gap-3">
@@ -715,7 +716,7 @@ export default function ComposeIndex() {
                                     </div>
                                 </div>
                                 {showAdvancedConfig && channel === "sms" ? (
-                                    <div className="p-3 bg-muted/15 border border-border/30 rounded flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                    <div className="p-3 bg-muted/15 border border-border/30 rounded flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4">
                                         <div className="space-y-1">
                                             <p className="text-[12px] font-semibold text-muted-foreground">Recipient Grouping</p>
                                             <p className="text-xs font-semibold text-foreground">
@@ -729,7 +730,7 @@ export default function ComposeIndex() {
                                                     id="sender-id"
                                                     value={senderId}
                                                     onChange={(e) => setSenderId(e.target.value)}
-                                                    className="h-8 text-xs bg-card w-28 text-center "
+                                                    className="h-9 text-base sm:text-xs bg-card w-28 text-center"
                                                 />
                                             </div>
                                             <div className="space-y-1">
@@ -738,7 +739,7 @@ export default function ComposeIndex() {
                                                     id="batch-size"
                                                     value={batchSize}
                                                     onChange={(e) => setBatchSize(e.target.value)}
-                                                    className="h-8 text-xs bg-card w-20 text-center font-semibold font-mono"
+                                                    className="h-9 text-base sm:text-xs bg-card w-20 text-center font-semibold font-mono"
                                                 />
                                             </div>
                                         </div>
@@ -753,19 +754,19 @@ export default function ComposeIndex() {
                                         rows={8}
                                         value={messageText}
                                         onChange={(e) => setMessageText(e.target.value)}
-                                        className="w-full p-4 text-xs bg-transparent focus:outline-none resize-none leading-normal"
+                                        className="w-full p-3 sm:p-4 text-base sm:text-xs bg-transparent focus:outline-none resize-y min-h-[160px] leading-normal"
                                         placeholder={channel === "whatsapp" ? "Compose your WhatsApp message here..." : "Compose your SMS broadcast text here..."}
                                     />
                                     {/* Textarea info footer */}
                                     <div className={cn(
-                                        "px-3 py-2 border-t border-border/20 bg-muted/5 flex items-center justify-between text-[10px] text-muted-foreground",
+                                        "px-3 py-2 border-t border-border/20 bg-muted/5 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-[10px] text-muted-foreground",
                                         channel === "whatsapp" && "hidden"
                                     )}>
                                         <span className="font-semibold text-primary/90 flex items-center gap-1">
                                             <Layers className="w-3 h-3" />
                                             SMS Segment {smsDetails.segments}
                                         </span>
-                                        <div className="flex gap-4">
+                                        <div className="flex flex-wrap gap-x-4 gap-y-1">
                                             <span>{smsDetails.remaining} characters remaining</span>
                                             <span>
                                                 Units: <b className="text-foreground font-mono">{totalSmsUnits.toLocaleString()}</b>
@@ -795,11 +796,12 @@ export default function ComposeIndex() {
 
                         {/* Broadcast Dispatch Footer */}
                         <div className={cn(
-                            "px-5 py-4 border-t border-border/10 bg-muted/15 flex items-center justify-between",
+                            "fixed lg:static bottom-0 inset-x-0 z-30 md:left-[var(--compose-sidebar)] px-3 sm:px-5 py-3 lg:py-4 border-t border-border/40 lg:border-border/10 bg-card/95 lg:bg-muted/15 backdrop-blur lg:backdrop-blur-none flex items-center justify-between gap-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] lg:pb-4",
                             channel === "whatsapp" && "hidden"
                         )}>
-                            <div className="text-[10px]  text-muted-foreground uppercase">
-                                Dispatch to {selectedContacts.length} numbers
+                            <div className="text-[10px] text-muted-foreground uppercase leading-tight">
+                                <span className="hidden sm:inline">Dispatch to </span>{selectedContacts.length} numbers
+                                <span className="block sm:hidden normal-case font-semibold text-foreground">{totalCost.toLocaleString()} UGX</span>
                             </div>
                             <div className="flex gap-2">
                                 <Button
@@ -842,12 +844,12 @@ export default function ComposeIndex() {
 
             <div
                 className={cn(
-                    "fixed inset-y-0 right-0 z-50 w-full sm:w-[460px] bg-card border-l border-border shadow-2xl flex flex-col transition-transform duration-300 ease-in-out transform",
+                    "fixed inset-y-0 right-0 z-50 w-full sm:w-[460px] max-w-full bg-card border-l border-border shadow-2xl flex flex-col transition-transform duration-300 ease-in-out transform",
                     isPanelOpen ? "translate-x-0" : "translate-x-full"
                 )}
             >
                 {/* Panel Header */}
-                <div className="px-6 py-4 border-b border-border/10 flex items-center justify-between bg-muted/5">
+                <div className="px-4 sm:px-6 py-4 border-b border-border/10 flex items-center justify-between gap-3 bg-muted/5">
                     <div>
                         <h3 className="text-sm  text-foreground flex items-center gap-1.5">
                             {panelType === "numbers" && <Plus className="w-4 h-4 text-primary" />}
@@ -874,7 +876,7 @@ export default function ComposeIndex() {
                 </div>
 
                 {/* Panel Body Content */}
-                <div className="flex-1 p-6 overflow-y-auto space-y-4">
+                <div className="flex-1 p-4 sm:p-6 overflow-y-auto space-y-4">
                     {/* PANEL TYPE: NUMBERS */}
                     {panelType === "numbers" && (
                         <form onSubmit={handleBulkNumbersImport} className="space-y-4">

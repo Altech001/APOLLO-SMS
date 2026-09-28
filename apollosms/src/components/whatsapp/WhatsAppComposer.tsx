@@ -44,6 +44,7 @@ export default function WhatsAppComposer({ message, onMessageChange, recipients,
     const autoBannerFor = useRef<string>();
     const navigate = useNavigate();
     const { summary } = useBillingSummary();
+    const canUseTemplates = !!summary?.features?.whatsapp_templates;
 
     const loadAccounts = useCallback(async () => {
         setIsLoading(true);
@@ -144,7 +145,7 @@ export default function WhatsAppComposer({ message, onMessageChange, recipients,
     return (
         <div className={cn("space-y-3", className)}>
             <div className="flex flex-wrap items-center gap-2">
-                {onMessageChange && (
+                {onMessageChange && canUseTemplates && (
                     <Button type="button" variant="outline" size="sm" onClick={() => setGalleryOpen(true)} className="h-8 text-xs gap-1.5">
                         <LayoutTemplate className="w-3.5 h-3.5" />
                         Templates
@@ -176,7 +177,7 @@ export default function WhatsAppComposer({ message, onMessageChange, recipients,
             <WhatsAppPreview message={trimmed} rich={rich} />
 
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 min-w-0">
                     <MessageCircle className="w-4 h-4 text-emerald-600 shrink-0" />
                     <label htmlFor="whatsapp-sender" className="text-xs font-semibold whitespace-nowrap">Send from</label>
                     <select
@@ -184,7 +185,7 @@ export default function WhatsAppComposer({ message, onMessageChange, recipients,
                         value={accountId}
                         onChange={(e) => setAccountId(e.target.value)}
                         disabled={isLoading}
-                        className="h-8 text-xs bg-card border border-border rounded px-2 min-w-[200px]"
+                        className="h-9 sm:h-8 flex-1 min-w-0 sm:flex-none sm:min-w-[200px] text-xs bg-card border border-border rounded px-2"
                     >
                         {isLoading && <option>Loading numbers...</option>}
                         {accounts.map((account) => (
@@ -199,7 +200,7 @@ export default function WhatsAppComposer({ message, onMessageChange, recipients,
                     type="button"
                     onClick={handleSend}
                     disabled={isSending || isLoading || !selected || recipients.length === 0 || (!trimmed && !rich.image_url) || tooLong || !!buttonIssue}
-                    className="h-9 text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"
+                    className="h-10 sm:h-9 w-full sm:w-auto text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"
                 >
                     <Send className="w-3.5 h-3.5" />
                     {isSending ? "Checking numbers..." : `Send via WhatsApp (${recipients.length})`}
@@ -242,7 +243,7 @@ export default function WhatsAppComposer({ message, onMessageChange, recipients,
                 </span>
             </div>
 
-            {onMessageChange && (
+            {onMessageChange && canUseTemplates && (
                 <WhatsAppTemplateGallery
                     open={galleryOpen}
                     onOpenChange={setGalleryOpen}

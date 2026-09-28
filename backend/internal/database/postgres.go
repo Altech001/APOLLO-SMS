@@ -69,6 +69,7 @@ func Migrate(db *gorm.DB) error {
 		&models.BillingPlan{},
 		&models.UserSubscription{},
 		&models.DailyUsage{},
+		&models.AdminSettings{},
 		&models.AuthCode{},
 		&models.AuthSMSCharge{},
 	); err != nil {

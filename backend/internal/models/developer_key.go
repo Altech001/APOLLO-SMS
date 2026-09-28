@@ -58,6 +58,7 @@ type GatewaySendSMSRequest struct {
 	Phone   string   `json:"phone"`
 	Phones  []string `json:"phones"`
 	Message string   `json:"message" validate:"required"`
+	Source  string   `json:"-"` // set by the server: api for developer-key sends, app otherwise
 }
 
 // GatewaySendSMSResponse is the response returned to client applications.

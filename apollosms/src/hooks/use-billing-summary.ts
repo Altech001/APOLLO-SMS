@@ -31,3 +31,13 @@ export function useBillingSummary() {
 
     return { summary, isLoading, refresh };
 }
+
+/** Paid-only features the current plan unlocks. Locked until the summary loads. */
+export function usePaidFeatures() {
+    const { summary, isLoading } = useBillingSummary();
+    return {
+        aiImages: !!summary?.features?.ai_images,
+        whatsappTemplates: !!summary?.features?.whatsapp_templates,
+        isLoading,
+    };
+}

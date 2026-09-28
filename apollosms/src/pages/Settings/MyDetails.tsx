@@ -120,7 +120,7 @@ export default function MyDetailsPage() {
 
   return (
     <SettingsLayout title="My Details">
-      <div className="max-w-3xl mx-auto px-6 sm:px-10 py-8">
+      <div className="max-w-3xl mx-auto px-4 sm:px-10 py-8">
 
         {/* ── header row with avatar on the right ── */}
         <div className="flex items-start justify-between gap-6 mb-4">

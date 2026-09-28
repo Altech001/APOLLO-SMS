@@ -190,7 +190,7 @@ export default function APISettingsPage() {
 
   return (
     <SettingsLayout title="API Settings">
-      <div className="max-w-4xl mx-auto px-6 sm:px-10 py-8">
+      <div className="max-w-4xl mx-auto px-4 sm:px-10 py-8">
         <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
           <p className="text-sm text-muted-foreground">
             Configure the SMS gateway used when messages are dispatched from Compose and queued messages.

@@ -2,6 +2,7 @@ import { renultApi } from "@/api/apollosms";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { SettingsIcon } from "@/constants/Icons";
+import { useAuth } from "@/lib/auth";
 import {
     Check,
     ChevronsUpDown,
@@ -15,6 +16,8 @@ import {
     Sparkles,
     Share2Icon,
     Ticket,
+    TrendingUp,
+    UserCog,
     Users,
     Wallet2Icon
 } from "lucide-react";
@@ -80,6 +83,19 @@ const secondaryNavItems: NavItem[] = [
     },
 ];
 
+const adminNavItems: NavItem[] = [
+    {
+        label: "Profit",
+        icon: <TrendingUp className="w-5 h-5" />,
+        path: "/admin/profit",
+    },
+    {
+        label: "Manage Users",
+        icon: <UserCog className="w-5 h-5" />,
+        path: "/settings/users",
+    },
+];
+
 interface Workspace {
     id: string;
     name: string;
@@ -96,6 +112,7 @@ const workspaceIconColors = [
 export default function SideBar({ isOpen, onClose }: SideBarProps) {
     const navigate = useNavigate();
     const location = useLocation();
+    const { user } = useAuth();
     const [isCollapsed, setIsCollapsed] = useState(() => localStorage.getItem("sidebar-collapsed") === "true");
     const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
     const [selectedWorkspace, setSelectedWorkspace] = useState<Workspace | null>(null);
@@ -184,6 +201,7 @@ export default function SideBar({ isOpen, onClose }: SideBarProps) {
 
     const isActive = (path: string) => {
         if (path === "/") return location.pathname === "/";
+        if (path === "/settings" && location.pathname.startsWith("/settings/users")) return false;
         return location.pathname.startsWith(path);
     };
 
@@ -348,6 +366,14 @@ export default function SideBar({ isOpen, onClose }: SideBarProps) {
                             {supportNavItems.map(renderNavItem)}
                         </div>
                     </nav>
+
+                    {user?.role === "admin" && (
+                        <nav className="py-3 px-2 border-t border-border/40">
+                            <div className="space-y-0.5">
+                                {adminNavItems.map(renderNavItem)}
+                            </div>
+                        </nav>
+                    )}
 
                     <nav className="py-3 px-2 border-t border-border/40">
                         <div className="space-y-0.5">

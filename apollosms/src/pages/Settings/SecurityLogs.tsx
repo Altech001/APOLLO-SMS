@@ -400,7 +400,7 @@ export default function SecurityLogsPage() {
 
     return (
         <SettingsLayout title="Security Logs">
-            <div className="text-foreground min-h-[calc(100vh-57px)] w-full p-6 sm:p-10 font-sans flex flex-col justify-between selection:bg-primary/20 selection:text-primary">
+            <div className="text-foreground min-h-[calc(100dvh-57px)] w-full p-4 sm:p-10 font-sans flex flex-col justify-between selection:bg-primary/20 selection:text-primary">
                 <div className="space-y-8 flex-1">
                     {/* Header */}
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">

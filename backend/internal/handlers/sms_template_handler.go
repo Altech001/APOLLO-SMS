@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"strconv"
+	"strings"
 
 	"backend/internal/models"
 	"backend/internal/services"
@@ -13,11 +14,16 @@ import (
 // SMSTemplateHandler handles HTTP requests for SMS template CRUD.
 type SMSTemplateHandler struct {
 	service *services.SMSTemplateService
+	billing *services.BillingService
 }
 
 // NewSMSTemplateHandler creates a new SMSTemplateHandler.
-func NewSMSTemplateHandler(service *services.SMSTemplateService) *SMSTemplateHandler {
-	return &SMSTemplateHandler{service: service}
+func NewSMSTemplateHandler(service *services.SMSTemplateService, billing *services.BillingService) *SMSTemplateHandler {
+	return &SMSTemplateHandler{service: service, billing: billing}
+}
+
+func (h *SMSTemplateHandler) whatsAppLocked(c *fiber.Ctx, channel string) bool {
+	return strings.EqualFold(strings.TrimSpace(channel), "whatsapp") && h.billing != nil && !h.billing.HasPaidFeatures(getUserID(c))
 }
 
 // CreateTemplate godoc
@@ -37,6 +43,9 @@ func (h *SMSTemplateHandler) CreateTemplate(c *fiber.Ctx) error {
 	var req models.CreateSMSTemplateRequest
 	if err := c.BodyParser(&req); err != nil {
 		return response.Error(c, fiber.StatusBadRequest, "Invalid request body")
+	}
+	if h.whatsAppLocked(c, req.Channel) {
+		return response.Error(c, fiber.StatusPaymentRequired, services.ErrPaidPlanRequired.Error())
 	}
 
 	res, err := h.service.Create(currentUserID, &req)
@@ -116,6 +125,9 @@ func (h *SMSTemplateHandler) UpdateTemplate(c *fiber.Ctx) error {
 	var req models.UpdateSMSTemplateRequest
 	if err := c.BodyParser(&req); err != nil {
 		return response.Error(c, fiber.StatusBadRequest, "Invalid request body")
+	}
+	if h.whatsAppLocked(c, req.Channel) {
+		return response.Error(c, fiber.StatusPaymentRequired, services.ErrPaidPlanRequired.Error())
 	}
 
 	currentUserID := getUserID(c)

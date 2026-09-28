@@ -185,6 +185,36 @@ func (h *UserHandler) UpdateUser(c *fiber.Ctx) error {
 	return response.Success(c, user)
 }
 
+// VerifyUser godoc
+// @Summary      Manually verify a user
+// @Description  Mark a user's account as verified or unverified (Admin only)
+// @Tags         Users
+// @Security     BearerAuth
+// @Accept       json
+// @Produce      json
+// @Param        id    path  int                            true  "User ID"
+// @Param        body  body  models.AdminVerifyUserRequest  true  "Verification state"
+// @Success      200  {object}  models.UserResponse
+// @Failure      404  {object}  response.ErrorResponse
+// @Router       /users/{id}/verify [post]
+func (h *UserHandler) VerifyUser(c *fiber.Ctx) error {
+	userID, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	if err != nil {
+		return response.Error(c, fiber.StatusBadRequest, "Invalid User ID format")
+	}
+
+	var req models.AdminVerifyUserRequest
+	if err := c.BodyParser(&req); err != nil {
+		return response.Error(c, fiber.StatusBadRequest, "Invalid request body")
+	}
+
+	user, err := h.service.SetVerified(uint(userID), req.Verified)
+	if err != nil {
+		return response.Error(c, fiber.StatusNotFound, err.Error())
+	}
+	return response.Success(c, user)
+}
+
 // DeleteUser godoc
 // @Summary      Delete User
 // @Description  Soft delete a user from the system (Admin only)

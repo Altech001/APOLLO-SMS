@@ -40,6 +40,8 @@ import SettingsPage from "./pages/Settings/Settings";
 import APISettingsPage from "./pages/Settings/APISettings";
 import PlanEditorPage from "./pages/Settings/PlanEditor";
 import SecurityLogsPage from "./pages/Settings/SecurityLogs";
+import UsersAdminPage from "./pages/Settings/Users";
+import ProfitPage from "./pages/Admin/Profit";
 
 const queryClient = new QueryClient();
 
@@ -87,6 +89,8 @@ const AppRoutes = () => {
         <Route path="/billing" element={protect(<BillingPage />)} />
         <Route path="/settings/admin" element={<AdminRoute><APISettingsPage /></AdminRoute>} />
         <Route path="/settings/plans" element={<AdminRoute><PlanEditorPage /></AdminRoute>} />
+        <Route path="/settings/users" element={<AdminRoute><UsersAdminPage /></AdminRoute>} />
+        <Route path="/admin/profit" element={<AdminRoute><ProfitPage /></AdminRoute>} />
         <Route path="/settings/notifications" element={protect(<SettingsPage />)} />
         <Route path="/settings/support" element={protect(<Campign />)} />
         <Route path="/security-logs" element={protect(<SecurityLogsPage />)} />

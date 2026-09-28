@@ -133,6 +133,7 @@ func (h *DeveloperKeyHandler) GatewaySendSMS(c *fiber.Ctx) error {
 	}
 
 	// Enqueue jobs in transaction
+	req.Source = "api"
 	res, err := h.service.EnqueueGatewaySMS(&devKey.User, &req)
 	if err != nil {
 		return response.Error(c, fiber.StatusBadRequest, err.Error())

@@ -54,6 +54,36 @@ func (h *SMSTopupHandler) PerformTopup(c *fiber.Ctx) error {
 	return response.Success(c, res)
 }
 
+// AdjustBalance godoc
+// @Summary      Credit or debit a user's balance
+// @Description  Add or remove SMS or WhatsApp credits for a user (Admin only)
+// @Tags         SMS Topup
+// @Security     BearerAuth
+// @Accept       json
+// @Produce      json
+// @Param        id    path  int                               true  "User ID"
+// @Param        body  body  models.AdminAdjustBalanceRequest  true  "Adjustment"
+// @Success      200  {object}  models.UserResponse
+// @Failure      400  {object}  response.ErrorResponse
+// @Router       /users/{id}/balance [post]
+func (h *SMSTopupHandler) AdjustBalance(c *fiber.Ctx) error {
+	userID, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	if err != nil {
+		return response.Error(c, fiber.StatusBadRequest, "Invalid User ID format")
+	}
+
+	var req models.AdminAdjustBalanceRequest
+	if err := c.BodyParser(&req); err != nil {
+		return response.Error(c, fiber.StatusBadRequest, "Invalid request body")
+	}
+
+	user, err := h.service.AdminAdjustBalance(uint(userID), &req)
+	if err != nil {
+		return response.Error(c, fiber.StatusBadRequest, err.Error())
+	}
+	return response.Success(c, user)
+}
+
 // ShareCredits lets an authenticated user transfer SMS credits to another user.
 func (h *SMSTopupHandler) ShareCredits(c *fiber.Ctx) error {
 	currentUserID := getUserID(c)

@@ -159,7 +159,7 @@ export default function BillingPage() {
 
   return (
     <SettingsLayout title="Billing">
-      <div className="max-w-7xl mx-auto px-6 sm:px-10 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-10 py-8">
         {/* Transactions Section */}
         <div className="space-y-4">
           {/* Filters Bar */}

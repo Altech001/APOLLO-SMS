@@ -165,6 +165,11 @@ func (s *DeveloperKeyService) EnqueueGatewaySMS(user *models.User, req *models.G
 		}
 	}
 
+	source := "app"
+	if req.Source == "api" {
+		source = "api"
+	}
+
 	var jobGroupID string
 	var queuedJobIDs []uint
 	var freeUnits, paidUnits int
@@ -247,6 +252,7 @@ func (s *DeveloperKeyService) EnqueueGatewaySMS(user *models.User, req *models.G
 					SMSJobID:             &jobID,
 					PaymentTransactionID: &debit.ID,
 					Provider:             provider,
+					Source:               source,
 					MessageID:            messageID,
 					Phone:                job.Phone,
 					Message:              job.Message,

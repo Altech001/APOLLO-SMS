@@ -23,6 +23,7 @@ type SMSMessage struct {
 	SMSJobID             *uint          `json:"sms_job_id" gorm:"uniqueIndex"`
 	PaymentTransactionID *uint          `json:"payment_transaction_id" gorm:"index"`
 	Provider             string         `json:"provider" gorm:"index"`
+	Source               string         `json:"source" gorm:"not null;default:'app';index"` // app or api
 	MessageID            string         `json:"message_id" gorm:"uniqueIndex;not null"`
 	Phone                string         `json:"phone" gorm:"not null"`
 	Message              string         `json:"message" gorm:"type:text;not null"`
@@ -84,12 +85,12 @@ type SMSDashboardHeatmapCell struct {
 }
 
 type SMSDashboardStats struct {
-	SuccessCount  int                       `json:"success_count"`
-	QueuedCount   int                       `json:"queued_count"`
-	TotalSent     int                       `json:"total_sent"`
-	FailedCount   int                       `json:"failed_count"`
-	DeliveryRate  float64                   `json:"delivery_rate"`
-	Chart         []SMSDashboardChartPoint  `json:"chart"`
-	Heatmap       []SMSDashboardHeatmapCell `json:"heatmap"`
-	Recent        []SMSMessageListItem      `json:"recent"`
+	SuccessCount int                       `json:"success_count"`
+	QueuedCount  int                       `json:"queued_count"`
+	TotalSent    int                       `json:"total_sent"`
+	FailedCount  int                       `json:"failed_count"`
+	DeliveryRate float64                   `json:"delivery_rate"`
+	Chart        []SMSDashboardChartPoint  `json:"chart"`
+	Heatmap      []SMSDashboardHeatmapCell `json:"heatmap"`
+	Recent       []SMSMessageListItem      `json:"recent"`
 }

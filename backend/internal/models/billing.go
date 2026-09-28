@@ -128,14 +128,21 @@ type SubscribeResponse struct {
 
 // BillingSummary is everything the UI needs to show a user's plan and balances.
 type BillingSummary struct {
-	Plan                   BillingPlan `json:"plan"`
-	SubscriptionID         *uint       `json:"subscription_id"`
-	SubscriptionExpiresAt  *time.Time  `json:"subscription_expires_at"`
-	SMSBalance             int         `json:"sms_balance"`
-	WhatsAppBalance        int         `json:"whatsapp_balance"`
-	FreeSMSRemaining       int         `json:"free_sms_remaining"`
-	FreeWhatsAppRemaining  int         `json:"free_whatsapp_remaining"`
-	SMSPriceUGX            int         `json:"sms_price_ugx"`
-	WhatsAppPriceUGX       int         `json:"whatsapp_price_ugx"`
-	MinWhatsAppCreditOrder int         `json:"min_whatsapp_credit_order"`
+	Plan                   BillingPlan     `json:"plan"`
+	SubscriptionID         *uint           `json:"subscription_id"`
+	SubscriptionExpiresAt  *time.Time      `json:"subscription_expires_at"`
+	SMSBalance             int             `json:"sms_balance"`
+	WhatsAppBalance        int             `json:"whatsapp_balance"`
+	FreeSMSRemaining       int             `json:"free_sms_remaining"`
+	FreeWhatsAppRemaining  int             `json:"free_whatsapp_remaining"`
+	SMSPriceUGX            int             `json:"sms_price_ugx"`
+	WhatsAppPriceUGX       int             `json:"whatsapp_price_ugx"`
+	MinWhatsAppCreditOrder int             `json:"min_whatsapp_credit_order"`
+	Features               BillingFeatures `json:"features"`
+}
+
+// BillingFeatures lists paid-only features and whether the user's plan unlocks them.
+type BillingFeatures struct {
+	AIImages          bool `json:"ai_images"`
+	WhatsAppTemplates bool `json:"whatsapp_templates"`
 }

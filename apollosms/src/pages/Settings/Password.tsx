@@ -48,7 +48,7 @@ export default function PasswordPage() {
 
   return (
     <SettingsLayout title="Password">
-      <div className="max-w-3xl mx-auto px-6 sm:px-10 py-8">
+      <div className="max-w-3xl mx-auto px-4 sm:px-10 py-8">
         <h1 className="text-lg font-semibold text-foreground mb-0.5">
           Password
         </h1>

@@ -31,6 +31,12 @@ type PaymentService struct {
 	cfg              *config.Config
 	httpClient       *http.Client
 	billing          *BillingService
+	onTopup          func(payment models.PaymentTransaction, user models.User)
+}
+
+// SetTopupHook registers a callback run after a user payment completes (used for admin alerts).
+func (s *PaymentService) SetTopupHook(hook func(payment models.PaymentTransaction, user models.User)) {
+	s.onTopup = hook
 }
 
 // SetBilling enables plan-aware SMS pricing, plan purchases and WhatsApp credit purchases.
@@ -261,6 +267,8 @@ func (s *PaymentService) HandleMarzPayWebhook(payload *models.MarzPayWebhookPayl
 	var userID uint
 	var completed bool
 	var notifyTitle, notifyMessage string
+	var paidPayment models.PaymentTransaction
+	var paidUser models.User
 
 	err := s.db.Transaction(func(tx *gorm.DB) error {
 		payment, err := s.repo.FindByReferenceForUpdate(tx, reference)
@@ -352,6 +360,8 @@ func (s *PaymentService) HandleMarzPayWebhook(payload *models.MarzPayWebhookPayl
 
 			userID = user.ID
 			completed = true
+			paidPayment = *payment
+			paidUser = user
 		default:
 			if payload.Transaction.Status == models.PaymentStatusFailed || strings.Contains(payload.EventType, "failed") || strings.Contains(payload.EventType, "cancelled") {
 				payment.Status = models.PaymentStatusFailed
@@ -368,6 +378,9 @@ func (s *PaymentService) HandleMarzPayWebhook(payload *models.MarzPayWebhookPayl
 
 	if completed {
 		s.notifService.Notify(userID, notifyTitle, notifyMessage, "success")
+		if s.onTopup != nil {
+			s.onTopup(paidPayment, paidUser)
+		}
 	}
 	s.cachePaymentReference(reference)
 	return nil

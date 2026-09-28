@@ -158,6 +158,24 @@ func (s *UserService) UpdateUser(id uint, req *models.UpdateUserRequest) (*model
 	return &res, nil
 }
 
+// SetVerified manually verifies or unverifies a user (admin).
+func (s *UserService) SetVerified(id uint, verified bool) (*models.UserResponse, error) {
+	user, err := s.userRepo.FindByID(id)
+	if err != nil {
+		return nil, errors.New("user not found")
+	}
+	user.IsVerified = verified
+	if verified {
+		user.VerificationToken = ""
+		user.VerificationExpiresAt = nil
+	}
+	if err := s.userRepo.Update(user); err != nil {
+		return nil, fmt.Errorf("failed to update verification: %w", err)
+	}
+	res := user.ToResponse()
+	return &res, nil
+}
+
 // DeleteUser removes a user.
 func (s *UserService) DeleteUser(id uint) error {
 	_, err := s.userRepo.FindByID(id)

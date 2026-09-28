@@ -192,7 +192,7 @@ export default function AppHeader({ onCreateForm }: AppHeaderProps) {
                   <span className="hidden sm:inline">Bal: {smsBalance.toLocaleString()} SMS</span>
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-80 p-5 rounded border bg-card/95 text-card-foreground shadow-xl backdrop-blur-md border-border/40 focus:outline-none z-50" align="end" sideOffset={8}>
+              <PopoverContent className="w-80 max-w-[calc(100vw-1.5rem)] p-5 rounded border bg-card/95 text-card-foreground shadow-xl backdrop-blur-md border-border/40 focus:outline-none z-50" align="end" sideOffset={8}>
                 <PopoverArrow className="fill-card border-none" />
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">

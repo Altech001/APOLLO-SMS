@@ -16,7 +16,9 @@
       "Bash(curl -s -m 20 https://integrate.api.nvidia.com/v1/models)",
       "Bash(python3 -c ' *)",
       "Bash(echo \"eslint exit $?\")",
-      "Bash(ps -eo pid,args)"
+      "Bash(ps -eo pid,args)",
+      "Bash(go build *)",
+      "Bash(go vet *)"
     ]
   }
 }

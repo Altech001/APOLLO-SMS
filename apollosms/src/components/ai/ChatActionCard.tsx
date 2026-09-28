@@ -73,7 +73,7 @@ export default function ChatActionCard({ action, onChange, ...context }: ChatAct
         case "create_template":
             return <TemplateCard action={action} status={status} onChange={onChange} />;
         case "generate_image":
-            return <ImageCard action={action} onChange={onChange} />;
+            return <ImageCard action={action} onChange={onChange} allowAI={!!context.summary?.features?.ai_images} />;
         case "send_personalized":
         case "send_from_file":
             return <BatchCard action={action} status={status} context={context} onChange={onChange} />;
@@ -690,11 +690,13 @@ function copyText(text: string, label: string) {
     navigator.clipboard.writeText(text).then(() => toast.success(`${label} copied`), () => toast.error("Could not copy"));
 }
 
-function ImageCard({ action, onChange }: { action: ChatActionState; onChange: (next: ChatActionState) => void }) {
-    return action.source === "ai" ? <AIImageView action={action} onChange={onChange} /> : <StockImageView action={action} onChange={onChange} />;
+function ImageCard({ action, onChange, allowAI }: { action: ChatActionState; onChange: (next: ChatActionState) => void; allowAI: boolean }) {
+    return action.source === "ai" && allowAI
+        ? <AIImageView action={action} onChange={onChange} />
+        : <StockImageView action={action} onChange={onChange} allowAI={allowAI} />;
 }
 
-function StockImageView({ action, onChange }: { action: ChatActionState; onChange: (next: ChatActionState) => void }) {
+function StockImageView({ action, onChange, allowAI }: { action: ChatActionState; onChange: (next: ChatActionState) => void; allowAI: boolean }) {
     const aspect: AIImageAspect = action.aspect || "square";
     const [query, setQuery] = useState(action.stock?.query || action.query || action.prompt || "");
     const [isSearching, setIsSearching] = useState(false);
@@ -703,7 +705,11 @@ function StockImageView({ action, onChange }: { action: ChatActionState; onChang
     const stock = action.stock;
     const selected = stock?.photos.find((p) => p.id === stock.selectedId) || stock?.photos[0];
 
-    const switchToAI = (note?: string) => onChange({ ...action, source: "ai", note });
+    const switchToAI = (note?: string) => {
+        if (allowAI) return onChange({ ...action, source: "ai", note });
+        onChange({ ...action, note: "No matching stock photos. Try other words." });
+        setEditing(true);
+    };
 
     const search = async (text = query, page = 1) => {
         if (text.trim().length < 2) return toast.error("Describe the photo you want");
@@ -748,8 +754,8 @@ function StockImageView({ action, onChange }: { action: ChatActionState; onChang
                 {!selected && (
                     <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-muted-foreground">
                         <div className="absolute inset-0 animate-pulse bg-gradient-to-br from-primary/10 via-muted/40 to-primary/5" />
-                        <Images className="relative w-7 h-7 animate-pulse text-primary" />
-                        <p className="relative text-xs">Finding photos…</p>
+                        <Images className={cn("relative w-7 h-7 text-primary", isSearching && "animate-pulse")} />
+                        <p className="relative text-xs">{isSearching || !action.note ? "Finding photos…" : "No photo yet"}</p>
                     </div>
                 )}
                 {selected && (
@@ -787,10 +793,12 @@ function StockImageView({ action, onChange }: { action: ChatActionState; onChang
                         <Search className="w-3.5 h-3.5" />
                         Search again
                     </Button>
-                    <Button type="button" size="sm" variant="outline" onClick={() => switchToAI()} className="h-8 text-xs gap-1.5">
-                        <Sparkles className="w-3.5 h-3.5" />
-                        Generate with AI
-                    </Button>
+                    {allowAI && (
+                        <Button type="button" size="sm" variant="outline" onClick={() => switchToAI()} className="h-8 text-xs gap-1.5">
+                            <Sparkles className="w-3.5 h-3.5" />
+                            Generate with AI
+                        </Button>
+                    )}
                     <Button type="button" size="sm" variant="ghost" onClick={() => copyText(selected.full, "Image link")} className="h-8 text-xs gap-1.5">
                         <Link2 className="w-3.5 h-3.5" />
                         Copy link
