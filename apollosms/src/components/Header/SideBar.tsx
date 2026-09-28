@@ -5,20 +5,14 @@ import { SettingsIcon } from "@/constants/Icons";
 import {
     Check,
     ChevronsUpDown,
-    CircleDollarSign,
-    CopySlash,
     EqualApproximatelyIcon,
     History,
     MenuSquareIcon,
-    MessageCircleCodeIcon,
-    MoreHorizontal,
+    MessageCircle,
     MoreVerticalIcon,
-    PanelLeft,
     PersonStanding,
-    Plus,
     Send,
-    SendHorizonal,
-    Settings,
+    Sparkles,
     Share2Icon,
     Ticket,
     Users,
@@ -47,47 +41,37 @@ const primaryNavItems: NavItem[] = [
         path: "/",
     },
     {
-        label: "Compose SMS",
+        label: "Compose Message",
         icon: <Send className="w-5 h-5" />,
         path: "/compose",
+    },
+    {
+        label: "AI Assistant",
+        icon: <img src="/icons/ai.webp" className="w-5 h-5" />,
+        path: "/chat",
     },
     {
         label: "Recent History",
         icon: <History className="w-5 h-5" />,
         path: "/recents-sms",
     },
-    {
-        label: "SMS Templates",
-        icon: <Ticket className="w-5 h-5" />,
-        path: "/templates",
-    },
+
 ];
 
 const supportNavItems: NavItem[] = [
     {
-        label: "SMS Topups",
+        label: "Topups Credits",
         icon: <Wallet2Icon className="w-5 h-5" />,
         path: "/sms-tp",
     },
     {
-        label: "Share SMS",
-        icon: <Share2Icon className="w-5 h-5" />,
-        path: "/share-sms",
+        label: "Connect WhatsApp",
+        icon: <MessageCircle className="w-5 h-5" />,
+        path: "/whatsapp",
     },
-    // {
-    //     label: "Contacts",
-    //     icon: <PersonStanding className="w-5 h-5" />,
-    //     path: "/my-contacts",
-    // },
-    // {
-    //     label: "Airtime Resell",
-    //     icon: <CopySlash className="w-5 h-5" />,
-    //     path: "/airtime",
-    // },
 ];
 
 const secondaryNavItems: NavItem[] = [
-
     {
         label: "My Settings",
         icon: <SettingsIcon className="w-5 h-5" />,
@@ -116,7 +100,8 @@ export default function SideBar({ isOpen, onClose }: SideBarProps) {
     const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
     const [selectedWorkspace, setSelectedWorkspace] = useState<Workspace | null>(null);
     const [smsBalance, setSmsBalance] = useState(0);
-    const selectedName = selectedWorkspace?.name || "My Workspace";
+    const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState(false);
+    const selectedName = selectedWorkspace?.name || "Workspace";
     const selectedIconColor = selectedWorkspace?.iconColor || workspaceIconColors[0];
 
     const handleSelectWorkspace = (workspace: Workspace) => {
@@ -283,13 +268,13 @@ export default function SideBar({ isOpen, onClose }: SideBarProps) {
                         <img src="/bg/logo.png" alt="Logo" className="w-10 h-7" />
                     </div>
                     <span className={`text-lg font-bold tracking-tight text-foreground ${isCollapsed ? "hidden" : ""}`}>
-                        LUCOSMS
+                        CHRIS-SMS
                     </span>
                 </div>
 
                 {/* Sidebar header (Workspace Selector) */}
                 <div className={`p-3 ${isCollapsed ? "flex justify-center" : ""}`}>
-                    <Popover>
+                    <Popover open={workspaceMenuOpen} onOpenChange={setWorkspaceMenuOpen}>
                         <PopoverTrigger asChild>
                             <button
                                 className={`flex items-center border border-border/60 rounded bg-card/50 transition-all duration-150 hover:bg-muted/40 ${isCollapsed ? "justify-center w-10 h-10 mx-auto" : "w-full justify-between px-3 py-2"}`}
@@ -317,50 +302,33 @@ export default function SideBar({ isOpen, onClose }: SideBarProps) {
                             className="w-64 p-2 bg-popover border border-border/60 shadow rounded"
                         >
                             <div className="px-2 py-1.5 text-xs font-mono text-muted-foreground">
-                                
-                            </div>
-                            <div className="space-y-0.5 my-1">
-                                {workspaces.length === 0 && (
-                                    <div className="px-2.5 py-2 text-xs text-muted-foreground">
-                                        <EqualApproximatelyIcon className="w-10 h-10 mx-auto" />
-                                    </div>
-                                )}
-                                {workspaces.map((workspace) => {
-                                    const isActive = workspace.id === selectedWorkspace?.id;
-                                    return (
-                                        <button
-                                            key={workspace.id}
-                                            onClick={() => handleSelectWorkspace(workspace)}
-                                            className={`w-full flex items-center justify-between px-2.5 py-2 rounded text-sm transition-colors text-left ${isActive
-                                                ? "bg-primary/10 text-primary font-semibold"
-                                                : "hover:bg-muted/60 text-foreground"
-                                                }`}
-                                        >
-                                            <div className="flex items-center gap-2.5 min-w-0">
-                                                <div className={`w-5 h-5 rounded-full bg-gradient-to-tr ${workspace.iconColor} shrink-0`} />
-                                                <span className="truncate">{workspace.name}</span>
-                                            </div>
-                                            {isActive && <Check className="w-4 h-4 text-primary shrink-0" />}
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                            <div className="border-t border-border/40 mt-1.5 pt-1.5">
-                                {/* <button
-                                    onClick={() => handleNavigate("/branches")}
-                                    className="w-full flex items-center gap-2 px-2.5 py-2 rounded text-sm text-foreground/80 hover:bg-muted/60 transition-colors text-left"
-                                >
-                                    <Settings className="w-4 h-4 text-muted-foreground" />
-                                    <span className="font-medium">Manage Branches</span>
-                                </button> */}
-                                {/* <button
-                                    onClick={() => handleNavigate("/branches?new=branch")}
-                                    className="w-full flex items-center gap-2 px-2.5 py-2 rounded text-sm text-foreground/80 hover:bg-muted/60 transition-colors text-left"
-                                >
-                                    <Plus className="w-4 h-4 text-muted-foreground" />
-                                    <span className="font-medium">Create New Branch</span>
-                                </button> */}
 
+                            </div>
+                            <div className="space-y-1">
+                                {[
+                                    { label: "Share Credits", path: "/share-sms", icon: <Share2Icon className="w-4 h-4" /> },
+                                    { label: "PhoneBook", path: "/my-contacts", icon: <PersonStanding className="w-4 h-4" /> },
+                                    {
+                                        label: "Templates & Artworks",
+                                        icon: <Ticket className="w-5 h-5" />,
+                                        path: "/templates",
+                                    },
+                                ].map((action) => (
+                                    <button
+                                        key={action.path}
+                                        onClick={() => {
+                                            setWorkspaceMenuOpen(false);
+                                            handleNavigate(action.path);
+                                        }}
+                                        className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded text-sm transition-colors text-left ${isActive(action.path)
+                                            ? "bg-primary/10 text-primary font-semibold"
+                                            : "text-foreground/80 hover:bg-muted/60"
+                                            }`}
+                                    >
+                                        <span className={isActive(action.path) ? "text-primary" : "text-muted-foreground"}>{action.icon}</span>
+                                        <span className="font-medium">{action.label}</span>
+                                    </button>
+                                ))}
                             </div>
                         </PopoverContent>
                     </Popover>

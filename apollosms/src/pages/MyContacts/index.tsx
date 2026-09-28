@@ -117,6 +117,27 @@ export default function MyContactsIndex() {
         loadContacts();
     }, []);
 
+    // Contacts saved by the old browser-only version of this page can be moved into the account once.
+    const [browserSavedCount, setBrowserSavedCount] = useState(0);
+    const [isMovingBrowserContacts, setIsMovingBrowserContacts] = useState(false);
+    useEffect(() => {
+        renultApi.contacts.browserSavedCount().then(setBrowserSavedCount).catch(() => setBrowserSavedCount(0));
+    }, []);
+
+    const handleMoveBrowserContacts = async () => {
+        setIsMovingBrowserContacts(true);
+        try {
+            const summary = await renultApi.contacts.importFromBrowser();
+            toast.success(`Moved ${summary.created + summary.updated} contacts to your account${summary.skipped ? ` (${summary.skipped} invalid skipped)` : ""}.`);
+            setBrowserSavedCount(0);
+            await loadContacts();
+        } catch (error) {
+            toast.error(error instanceof Error ? error.message : "Unable to move contacts");
+        } finally {
+            setIsMovingBrowserContacts(false);
+        }
+    };
+
     // Filter States
     const [selectedGroupFilter, setSelectedGroupFilter] = useState<string>("all"); // 'all' | 'ungrouped' | group.id
     const [searchQuery, setSearchQuery] = useState("");
@@ -228,8 +249,9 @@ export default function MyContactsIndex() {
                     groups: importGroupId && importGroupId !== "none" ? [importGroupId] : [],
                 })),
             });
-            setContacts([...created.map(toContact), ...contacts]);
-            toast.success(`Successfully imported ${validToImport.length} contacts!`);
+            setContacts(created.contacts.map(toContact));
+            const { summary } = created;
+            toast.success(`Imported ${summary.created} new contact${summary.created === 1 ? "" : "s"}${summary.updated ? `, updated ${summary.updated} existing` : ""}${summary.skipped ? `, skipped ${summary.skipped} invalid` : ""}.`);
             setIsImportModalOpen(false);
             setImportPasteText("");
             setImportGroupId("none");
@@ -487,6 +509,17 @@ export default function MyContactsIndex() {
             <AppHeader onCreateForm={() => { }} />
 
             <main className="max-w-screen mx-auto px-4 sm:px-6 py-6">
+                {browserSavedCount > 0 && (
+                    <div className="mb-6 p-3 rounded border border-amber-500/50 bg-amber-500/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                        <span>
+                            <b>{browserSavedCount.toLocaleString()} contacts</b> are saved only in this browser. Move them to your account so they're
+                            safe and available on every device.
+                        </span>
+                        <Button size="sm" className="h-8 text-xs shrink-0" disabled={isMovingBrowserContacts} onClick={handleMoveBrowserContacts}>
+                            {isMovingBrowserContacts ? "Moving..." : "Move to my account"}
+                        </Button>
+                    </div>
+                )}
                 {/* Header */}
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
                     <div>

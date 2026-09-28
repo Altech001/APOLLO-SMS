@@ -57,6 +57,9 @@ type PaymentTransaction struct {
 	UserID                *uint          `json:"user_id" gorm:"index"`
 	User                  User           `json:"-" gorm:"foreignKey:UserID"`
 	Type                  string         `json:"type" gorm:"not null;index"`
+	Purpose               string         `json:"purpose" gorm:"not null;default:'sms';index"`
+	PlanID                *uint          `json:"plan_id"`
+	WhatsAppCredits       int            `json:"whatsapp_credits" gorm:"column:whatsapp_credits;not null;default:0"`
 	Status                string         `json:"status" gorm:"not null;default:'pending';index"`
 	AmountUGX             int            `json:"amount_ugx" gorm:"not null"`
 	SMSCredits            int            `json:"sms_credits" gorm:"not null;default:0"`
@@ -84,12 +87,14 @@ type CreateCollectionRequest struct {
 }
 
 type CreateCollectionResponse struct {
-	Reference   string                 `json:"reference"`
-	Status      string                 `json:"status"`
-	AmountUGX   int                    `json:"amount_ugx"`
-	SMSCredits  int                    `json:"sms_credits"`
-	PricePerSMS int                    `json:"price_per_sms"`
-	RawResponse map[string]interface{} `json:"raw_response,omitempty"`
+	Reference       string                 `json:"reference"`
+	Status          string                 `json:"status"`
+	Purpose         string                 `json:"purpose"`
+	AmountUGX       int                    `json:"amount_ugx"`
+	SMSCredits      int                    `json:"sms_credits"`
+	WhatsAppCredits int                    `json:"whatsapp_credits"`
+	PricePerSMS     int                    `json:"price_per_sms"`
+	RawResponse     map[string]interface{} `json:"raw_response,omitempty"`
 }
 
 type CreateWithdrawalRequest struct {
@@ -102,6 +107,9 @@ type PaymentTransactionResponse struct {
 	ID                    uint       `json:"id"`
 	UserID                *uint      `json:"user_id"`
 	Type                  string     `json:"type"`
+	Purpose               string     `json:"purpose"`
+	PlanID                *uint      `json:"plan_id"`
+	WhatsAppCredits       int        `json:"whatsapp_credits"`
 	Status                string     `json:"status"`
 	AmountUGX             int        `json:"amount_ugx"`
 	SMSCredits            int        `json:"sms_credits"`
@@ -123,6 +131,9 @@ func (p *PaymentTransaction) ToResponse() PaymentTransactionResponse {
 		ID:                    p.ID,
 		UserID:                p.UserID,
 		Type:                  p.Type,
+		Purpose:               p.Purpose,
+		PlanID:                p.PlanID,
+		WhatsAppCredits:       p.WhatsAppCredits,
 		Status:                p.Status,
 		AmountUGX:             p.AmountUGX,
 		SMSCredits:            p.SMSCredits,

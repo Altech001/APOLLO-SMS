@@ -30,6 +30,7 @@ type DeveloperKeyService struct {
 	configRepo   *repository.SMSConfigRepository
 	notifService *NotificationService
 	redisService *RedisService
+	billing      *BillingService
 }
 
 func NewDeveloperKeyService(
@@ -51,6 +52,11 @@ func NewDeveloperKeyService(
 }
 
 // GenerateRandomKey creates a random secure API key prefixed with luco_live_.
+// SetBilling enables plan-based free SMS allowances when queueing SMS.
+func (s *DeveloperKeyService) SetBilling(billing *BillingService) {
+	s.billing = billing
+}
+
 func GenerateRandomKey() (string, error) {
 	bytes := make([]byte, 24)
 	if _, err := rand.Read(bytes); err != nil {
@@ -161,6 +167,7 @@ func (s *DeveloperKeyService) EnqueueGatewaySMS(user *models.User, req *models.G
 
 	var jobGroupID string
 	var queuedJobIDs []uint
+	var freeUnits, paidUnits int
 
 	// Perform user debit and job registration atomically
 	err := s.db.Transaction(func(tx *gorm.DB) error {
@@ -169,12 +176,19 @@ func (s *DeveloperKeyService) EnqueueGatewaySMS(user *models.User, req *models.G
 			return errors.New("user not found")
 		}
 
-		if dbUser.SMSBalance < cost {
-			return fmt.Errorf("insufficient SMS balance. Required: %d segments, Available: %d credits", cost, dbUser.SMSBalance)
+		// Use today's free SMS allowance first, then deduct the rest from the balance.
+		if s.billing != nil {
+			var err error
+			if freeUnits, paidUnits, err = s.billing.ConsumeSMS(tx, &dbUser, cost); err != nil {
+				return err
+			}
+		} else {
+			if dbUser.SMSBalance < cost {
+				return fmt.Errorf("insufficient SMS balance. Required: %d segments, Available: %d credits", cost, dbUser.SMSBalance)
+			}
+			dbUser.SMSBalance -= cost
+			paidUnits = cost
 		}
-
-		// Deduct user balance
-		dbUser.SMSBalance -= cost
 		if err := tx.Save(&dbUser).Error; err != nil {
 			return fmt.Errorf("failed to deduct SMS balance: %w", err)
 		}
@@ -184,14 +198,14 @@ func (s *DeveloperKeyService) EnqueueGatewaySMS(user *models.User, req *models.G
 			UserID:      &userID,
 			Type:        models.PaymentTypeSMSDebit,
 			Status:      models.PaymentStatusCompleted,
-			AmountUGX:   -(cost * pricePerSMS),
-			SMSCredits:  -cost,
+			AmountUGX:   -(paidUnits * pricePerSMS),
+			SMSCredits:  -paidUnits,
 			PricePerSMS: pricePerSMS,
 			Country:     "UG",
 			Method:      "sms_balance",
 			Provider:    provider,
 			Reference:   uuid.NewString(),
-			Description: fmt.Sprintf("SMS send queued: %d recipient(s), %d segment(s) each", len(phonesMap), segments),
+			Description: fmt.Sprintf("SMS send queued: %d recipient(s), %d segment(s) each, %d free today", len(phonesMap), segments, freeUnits),
 		}
 		now := time.Now()
 		debit.CompletedAt = &now
@@ -265,12 +279,12 @@ func (s *DeveloperKeyService) EnqueueGatewaySMS(user *models.User, req *models.G
 
 	s.pushJobsToRedisQueue(queuedJobIDs)
 	if s.notifService != nil {
-		s.notifService.Notify(user.ID, "SMS Queued", fmt.Sprintf("%d SMS message(s) queued. %d credit(s) deducted.", len(phonesMap), cost), "info")
+		s.notifService.Notify(user.ID, "SMS Queued", fmt.Sprintf("%d SMS message(s) queued. %d credit(s) deducted, %d free.", len(phonesMap), paidUnits, freeUnits), "info")
 	}
 
 	return &models.GatewaySendSMSResponse{
 		Success:    true,
-		Message:    fmt.Sprintf("Successfully enqueued %d SMS messages. Cost: %d credits", len(phonesMap), cost),
+		Message:    fmt.Sprintf("Successfully enqueued %d SMS messages. Cost: %d credits (%d free today)", len(phonesMap), paidUnits, freeUnits),
 		JobGroupID: jobGroupID,
 	}, nil
 }

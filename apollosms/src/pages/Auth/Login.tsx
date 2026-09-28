@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { apollosmsApi } from "@/api/apollosms";
+import { ApiError, apollosmsApi } from "@/api/apollosms";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useAuth } from "@/lib/auth";
 import { Loader2 } from "lucide-react";
@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { authErrorMessage } from "./auth-errors";
 import AuthShell from "./AuthShell";
 import { AuthInput, PasswordInput, SubmitButton } from "./auth-ui";
+import { isVerificationRequired, saveVerification } from "./verification-state";
 
 const REMEMBER_LOGIN_KEY = "lucosms:remember-login-email";
 
@@ -48,6 +49,13 @@ export default function Login() {
       const auth = await apollosmsApi.auth.login({ email, password });
       await finishLogin(auth);
     } catch (err: unknown) {
+      // Right password, unverified account: continue on the verify screen instead of failing.
+      if (err instanceof ApiError && err.code === "verification_required" && isVerificationRequired(err.data)) {
+        saveVerification(err.data);
+        toast.info("Verify your account to continue");
+        navigate("/verify-account", { state: { verification: err.data } });
+        return;
+      }
       toast.error(authErrorMessage(err, "Failed to log in"));
     } finally {
       setIsLoading(false);

@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { renultApi, SmsMessageResponse } from "@/api/apollosms";
+import { apollosmsApi, renultApi, SmsMessageResponse, WhatsAppAccountResponse, WhatsAppMessageRecord } from "@/api/apollosms";
 import AppHeader from "@/components/Header/AppHeader";
 import SEO from "@/components/SEO";
 import { Badge } from "@/components/ui/badge";
@@ -36,6 +36,7 @@ import {
     ExternalLink,
     History,
     Loader2,
+    MessageCircle,
     MessageSquare,
     Plus,
     RefreshCcw,
@@ -44,7 +45,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -60,6 +61,7 @@ interface SmsRecord {
     cost: number; // in UGX
     segments: number;
     failReason?: string;
+    channel: "sms" | "whatsapp";
 }
 
 interface QueuedSms {
@@ -69,9 +71,10 @@ interface QueuedSms {
     message: string;
     senderId: string;
     scheduledFor: string;
-    status: "Pending" | "Sending" | "Scheduled";
+    status: "Pending" | "Sending" | "Scheduled" | "Queued";
     cost: number;
     segments: number;
+    channel: "sms" | "whatsapp";
 }
 
 // Relative Date Generator Helpers
@@ -121,6 +124,7 @@ const toHistoryRecord = (message: SmsMessageResponse): SmsRecord => ({
     cost: message.cost ?? 0,
     segments: message.segments ?? 1,
     failReason: message.failReason || message.fail_reason || undefined,
+    channel: "sms",
 });
 
 const toQueuedRecord = (message: SmsMessageResponse): QueuedSms => ({
@@ -133,12 +137,69 @@ const toQueuedRecord = (message: SmsMessageResponse): QueuedSms => ({
     status: ["Pending", "Sending", "Scheduled"].includes(message.status) ? message.status as QueuedSms["status"] : "Pending",
     cost: message.cost ?? 0,
     segments: message.segments ?? 1,
+    channel: "sms",
 });
+
+// WhatsApp records share the table with SMS; their IDs are prefixed so they never collide.
+const WHATSAPP_ID_PREFIX = "wa-";
+const WHATSAPP_HISTORY_STATUSES = new Set(["sent", "failed", "cancelled"]);
+
+const whatsAppSender = (accounts: WhatsAppAccountResponse[], accountId: WhatsAppMessageRecord["account_id"]) => {
+    const account = accounts.find((item) => String(item.id) === String(accountId));
+    return account?.phone_number ? `+${account.phone_number}` : "WhatsApp";
+};
+
+const formatWhatsAppRecipient = (recipient: string) => (/^\d+$/.test(recipient) ? `+${recipient}` : recipient);
+
+const toWhatsAppHistoryRecord = (message: WhatsAppMessageRecord, accounts: WhatsAppAccountResponse[]): SmsRecord => ({
+    id: `${WHATSAPP_ID_PREFIX}${message.id}`,
+    recipientName: "WhatsApp contact",
+    phone: formatWhatsAppRecipient(message.recipient),
+    message: message.body,
+    senderId: whatsAppSender(accounts, message.account_id),
+    sentAt: message.sent_at || message.created_at,
+    status: message.status === "sent" ? "Sent" : "Failed",
+    cost: message.charged_from === "credit" ? 1 : 0,
+    segments: 1,
+    failReason: message.error || undefined,
+    channel: "whatsapp",
+});
+
+const toWhatsAppQueuedRecord = (message: WhatsAppMessageRecord, accounts: WhatsAppAccountResponse[]): QueuedSms => ({
+    id: `${WHATSAPP_ID_PREFIX}${message.id}`,
+    recipientName: "WhatsApp contact",
+    phone: formatWhatsAppRecipient(message.recipient),
+    message: message.body,
+    senderId: whatsAppSender(accounts, message.account_id),
+    scheduledFor: message.created_at,
+    status: message.status === "sending" ? "Sending" : "Queued",
+    cost: message.charged_from === "credit" ? 1 : 0,
+    segments: 1,
+    channel: "whatsapp",
+});
+
+// Shows ISO timestamps as local "YYYY-MM-DD HH:MM"; leaves anything unparseable as-is.
+const formatLogTime = (value: string) => {
+    const time = Date.parse(value);
+    if (!value || Number.isNaN(time)) return value;
+    const d = new Date(time);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+};
+
+const recordTime = (value: string) => {
+    const time = Date.parse(value);
+    return Number.isNaN(time) ? 0 : time;
+};
 
 type SmsLogsCache = {
     history: SmsRecord[];
     queue: QueuedSms[];
+    whatsAppQueue: QueuedSms[];
 };
+
+type LogsTab = "history" | "whatsapp" | "queue";
+const LOGS_TABS: LogsTab[] = ["history", "whatsapp", "queue"];
 
 const SMS_LOGS_CACHE_TIME = 30 * 60 * 1000;
 const SMS_LOGS_STALE_TIME = 2 * 60 * 1000;
@@ -282,8 +343,14 @@ export default function SalesIndex() {
         return () => window.removeEventListener("sidebar-collapse-change", handler);
     }, []);
 
-    // Main UI Tabs: "history" | "queue"
-    const [activeTab, setActiveTab] = useState<"history" | "queue">("history");
+    // Main UI Tabs, kept in the URL (?tab=whatsapp) so other pages can link straight to a tab.
+    const [searchParams, setSearchParams] = useSearchParams();
+    const tabParam = searchParams.get("tab") as LogsTab | null;
+    const activeTab: LogsTab = tabParam && LOGS_TABS.includes(tabParam) ? tabParam : "history";
+    const setActiveTab = (tab: LogsTab) => {
+        setSearchParams(tab === "history" ? {} : { tab }, { replace: true });
+    };
+    const [channelFilter, setChannelFilter] = useState<"all" | "sms" | "whatsapp">("all");
 
     // Search and Filters
     const [searchQuery, setSearchQuery] = useState("");
@@ -311,7 +378,7 @@ export default function SalesIndex() {
 
     const smsLogsQueryKey = useMemo(() => ["sms", "logs", user?.id || "anonymous"] as const, [user?.id]);
     const {
-        data: smsLogs = { history: [], queue: [] },
+        data: smsLogs = { history: [], queue: [], whatsAppQueue: [] },
         error: logsError,
         isLoading: isLoadingLogs,
         isFetching: isFetchingLogs,
@@ -319,13 +386,25 @@ export default function SalesIndex() {
     } = useQuery<SmsLogsCache>({
         queryKey: smsLogsQueryKey,
         queryFn: async () => {
-            const [historyData, queueData] = await Promise.all([
+            // WhatsApp is optional here: if it fails, SMS history still loads.
+            const [historyData, queueData, whatsAppMessages, whatsAppAccounts] = await Promise.all([
                 renultApi.sms.history({ limit: 200 }),
                 renultApi.sms.queue({ limit: 200 }),
+                apollosmsApi.whatsapp.messages({ limit: 200 }).catch(() => [] as WhatsAppMessageRecord[]),
+                apollosmsApi.whatsapp.accounts().catch(() => [] as WhatsAppAccountResponse[]),
             ]);
+            const whatsAppHistory = whatsAppMessages
+                .filter((message) => WHATSAPP_HISTORY_STATUSES.has(message.status))
+                .map((message) => toWhatsAppHistoryRecord(message, whatsAppAccounts));
+            const whatsAppQueue = whatsAppMessages
+                .filter((message) => message.status === "queued" || message.status === "sending")
+                .map((message) => toWhatsAppQueuedRecord(message, whatsAppAccounts))
+                .sort((a, b) => recordTime(a.scheduledFor) - recordTime(b.scheduledFor));
             return {
-                history: historyData.map(toHistoryRecord),
+                history: [...historyData.map(toHistoryRecord), ...whatsAppHistory]
+                    .sort((a, b) => recordTime(b.sentAt) - recordTime(a.sentAt)),
                 queue: queueData.map(toQueuedRecord),
+                whatsAppQueue,
             };
         },
         enabled: Boolean(user?.id),
@@ -333,7 +412,8 @@ export default function SalesIndex() {
         staleTime: SMS_LOGS_STALE_TIME,
         placeholderData: (previousData) => previousData,
         refetchOnMount: true,
-        refetchInterval: SMS_LOGS_STALE_TIME,
+        // While WhatsApp messages are going out, refresh often so the queue drains visibly.
+        refetchInterval: (query) => (query.state.data?.whatsAppQueue.length ? 5000 : SMS_LOGS_STALE_TIME),
         refetchOnReconnect: "always",
         refetchOnWindowFocus: true,
         retry: 1,
@@ -341,11 +421,12 @@ export default function SalesIndex() {
 
     const history = smsLogs.history;
     const queue = smsLogs.queue;
+    const whatsAppQueue = smsLogs.whatsAppQueue;
     const loadError = logsError instanceof Error ? logsError.message : "";
     const isRefreshing = isFetchingLogs && !isLoadingLogs;
 
     const updateSmsLogsCache = (updater: (current: SmsLogsCache) => SmsLogsCache) => {
-        queryClient.setQueryData<SmsLogsCache>(smsLogsQueryKey, (current = { history: [], queue: [] }) => updater(current));
+        queryClient.setQueryData<SmsLogsCache>(smsLogsQueryKey, (current = { history: [], queue: [], whatsAppQueue: [] }) => updater(current));
     };
 
     const setHistory = (updater: SmsRecord[] | ((current: SmsRecord[]) => SmsRecord[])) => {
@@ -377,7 +458,7 @@ export default function SalesIndex() {
         if (result.error) {
             toast.error(result.error instanceof Error ? result.error.message : "Unable to load SMS data");
         } else {
-            toast.success("SMS history and outbox data synchronized successfully.");
+            toast.success("SMS and WhatsApp history synchronized successfully.");
         }
     };
 
@@ -458,6 +539,9 @@ export default function SalesIndex() {
     // Handle History Filtering
     const filteredHistory = useMemo(() => {
         return history.filter(record => {
+            if (channelFilter !== "all" && record.channel !== channelFilter) {
+                return false;
+            }
             // Status Filter
             if (statusFilter !== "all" && record.status.toLowerCase() !== statusFilter.toLowerCase()) {
                 return false;
@@ -483,11 +567,12 @@ export default function SalesIndex() {
 
             return true;
         });
-    }, [history, statusFilter, senderFilter, dateFilter, searchQuery]);
+    }, [history, channelFilter, statusFilter, senderFilter, dateFilter, searchQuery]);
 
     // Handle Queue Filtering
+    const activeQueue = activeTab === "whatsapp" ? whatsAppQueue : queue;
     const filteredQueue = useMemo(() => {
-        return queue.filter(record => {
+        return activeQueue.filter(record => {
             // Status Filter
             if (statusFilter !== "all" && record.status.toLowerCase() !== statusFilter.toLowerCase()) {
                 return false;
@@ -508,7 +593,7 @@ export default function SalesIndex() {
 
             return true;
         });
-    }, [queue, statusFilter, senderFilter, searchQuery]);
+    }, [activeQueue, statusFilter, senderFilter, searchQuery]);
 
     // Paginated list based on active tab
     const paginatedRecords = useMemo(() => {
@@ -529,14 +614,15 @@ export default function SalesIndex() {
     // Reset pagination on tab change or filters change
     useEffect(() => {
         setCurrentPage(1);
-    }, [activeTab, searchQuery, statusFilter, senderFilter, dateFilter]);
+    }, [activeTab, channelFilter, searchQuery, statusFilter, senderFilter, dateFilter]);
 
     // Actions
     const handleResend = (record: SmsRecord | QueuedSms) => {
         navigate("/compose", {
             state: {
                 initialRecipient: record.phone,
-                initialText: record.message
+                initialText: record.message,
+                channel: record.channel,
             }
         });
         toast.info("Transferred recipient and text to compose page.");
@@ -550,6 +636,19 @@ export default function SalesIndex() {
     const confirmCancelQueue = async () => {
         if (!cancelId) return;
         try {
+            if (cancelId.startsWith(WHATSAPP_ID_PREFIX)) {
+                await apollosmsApi.whatsapp.cancelMessage(cancelId.slice(WHATSAPP_ID_PREFIX.length));
+                updateSmsLogsCache((current) => ({
+                    ...current,
+                    whatsAppQueue: current.whatsAppQueue.filter((q) => q.id !== cancelId),
+                }));
+                setIsCancelDialogOpen(false);
+                setCancelId(null);
+                toast.success("WhatsApp message cancelled and its credit refunded.");
+                window.dispatchEvent(new CustomEvent("renult-wallet-change"));
+                refetchLogs();
+                return;
+            }
             await renultApi.sms.cancelQueued(cancelId);
             setQueue(prev => prev.filter(q => q.id !== cancelId));
             setIsCancelDialogOpen(false);
@@ -619,6 +718,8 @@ export default function SalesIndex() {
                 );
             case "Scheduled":
                 return <Badge variant="outline" className="bg-purple-500/10 text-purple-500 border-purple-500/20 ">Scheduled</Badge>;
+            case "Queued":
+                return <Badge variant="outline" className="bg-amber-500/10 text-amber-500 border-amber-500/20 ">Queued</Badge>;
         }
     };
 
@@ -643,7 +744,7 @@ export default function SalesIndex() {
                             History - Outbox
                         </h1>
                         <p className="text-xs text-muted-foreground mt-4">
-                            SMS logs, audit delivery rates, and control pending broadcasts.
+                            SMS and WhatsApp logs, delivery status, and pending broadcasts.
                         </p>
                     </div>
 
@@ -692,6 +793,23 @@ export default function SalesIndex() {
                             </span>
                         </button>
                         <button
+                            onClick={() => { setActiveTab("whatsapp"); setStatusFilter("all"); }}
+                            className={cn(
+                                "flex items-center gap-1.5 px-4 py-2.5 text-xs  border-b-2 transition-all duration-150 -mb-px",
+                                activeTab === "whatsapp"
+                                    ? "border-emerald-600 text-emerald-600"
+                                    : "border-transparent text-muted-foreground hover:text-foreground"
+                            )}
+                        >
+                            <MessageCircle className="w-3.5 h-3.5" />
+                            WhatsApp Queue
+                            {whatsAppQueue.length > 0 && (
+                                <span className="ml-1 bg-emerald-500/10 px-1.5 py-0.5 rounded text-[10px] text-emerald-600">
+                                    {whatsAppQueue.length}
+                                </span>
+                            )}
+                        </button>
+                        <button
                             onClick={() => { setActiveTab("queue"); setStatusFilter("all"); }}
                             className={cn(
                                 "flex items-center gap-1.5 px-4 py-2.5 text-xs  border-b-2 transition-all duration-150 -mb-px",
@@ -701,7 +819,7 @@ export default function SalesIndex() {
                             )}
                         >
                             <Clock className="w-3.5 h-3.5" />
-                            Outbox Queue
+                            SMS Outbox
                             {queue.length > 0 && (
                                 <span className="ml-1 bg-amber-500/10 px-1.5 py-0.5 rounded text-[10px] text-amber-500  ">
                                     {queue.length}
@@ -715,14 +833,35 @@ export default function SalesIndex() {
                         <CardHeader className="pb-3 flex flex-row items-center justify-between">
                             <div>
                                 <CardTitle className="text-sm  tracking-tight text-foreground">
-                                    {activeTab === "history" ? "SMS Transmission Records" : "Outbound Queue"}
+                                    {activeTab === "history" ? "Message Records" : activeTab === "whatsapp" ? "WhatsApp Queue" : "SMS Outbound Queue"}
                                 </CardTitle>
                                 <CardDescription className="text-xs text-muted-foreground mt-0.5">
                                     {activeTab === "history"
-                                        ? "List of recently processed transmissions. Click on any record to view details or resend."
-                                        : "SMS broadcasts queued for dispatch or scheduled for future delivery."}
+                                        ? "Recently processed SMS and WhatsApp messages. Click on any record to view details or resend."
+                                        : activeTab === "whatsapp"
+                                            ? "WhatsApp messages waiting to go out. They are sent one at a time with pauses to protect your number; cancelling refunds the credit."
+                                            : "SMS broadcasts queued for dispatch or scheduled for future delivery."}
                                 </CardDescription>
                             </div>
+                            {activeTab === "history" && (
+                                <div className="flex rounded border border-border overflow-hidden text-xs h-8 shrink-0">
+                                    {(["all", "sms", "whatsapp"] as const).map((value) => (
+                                        <button
+                                            key={value}
+                                            type="button"
+                                            onClick={() => setChannelFilter(value)}
+                                            className={cn(
+                                                "px-3",
+                                                channelFilter === value
+                                                    ? value === "whatsapp" ? "bg-emerald-600 text-white" : "bg-primary text-primary-foreground"
+                                                    : "bg-card text-muted-foreground hover:bg-muted/30"
+                                            )}
+                                        >
+                                            {value === "all" ? "All" : value === "sms" ? "SMS" : "WhatsApp"}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
                         </CardHeader>
                         <CardContent className="p-0 sm:p-6 sm:pt-0">
                             <div className="overflow-x-auto border-y sm:border border-border/10 sm:rounded">
@@ -734,7 +873,7 @@ export default function SalesIndex() {
                                             <TableHead className=" text-xs truncate  text-foreground">Sender ID</TableHead>
                                             <TableHead className=" text-xs  text-foreground w-[40%]">Message</TableHead>
                                             <TableHead className=" text-xs  text-foreground">
-                                                {activeTab === "history" ? "Sent At" : "Scheduled For"}
+                                                {activeTab === "history" ? "Sent At" : activeTab === "whatsapp" ? "Queued At" : "Scheduled For"}
                                             </TableHead>
                                             <TableHead className=" text-xs  text-foreground text-center">UNIT(S)</TableHead>
                                             <TableHead className=" text-xs  text-foreground text-center">Status</TableHead>
@@ -760,7 +899,9 @@ export default function SalesIndex() {
                                                 <TableCell colSpan={8} className="h-44 text-center">
                                                     <div className="flex flex-col items-center justify-center text-muted-foreground">
                                                         <img src="/bg/empty.png" className="w-10 h-10 mb-2 stroke-[1.2] text-muted-foreground/60" />
-                                                        <span className="text-sm  text-foreground">{loadError ? "Unable to load SMS records" : "No records found"}</span>
+                                                        <span className="text-sm  text-foreground">
+                                                            {loadError ? "Unable to load records" : activeTab === "whatsapp" ? "WhatsApp queue is empty" : "No records found"}
+                                                        </span>
                                                         <span className="text-xs mt-0.5">{loadError || "There are no messages matching the active filter parameters."}</span>
                                                     </div>
                                                 </TableCell>
@@ -781,9 +922,16 @@ export default function SalesIndex() {
                                                             </div>
                                                         </TableCell>
                                                         <TableCell>
-                                                            <Badge variant="destructive" className="text-[10px]  font-semibold py-0 px-2 rounded-full">
-                                                                {record.senderId}
-                                                            </Badge>
+                                                            {record.channel === "whatsapp" ? (
+                                                                <Badge variant="outline" className="text-[10px] font-semibold py-0 px-2 rounded-full gap-1 bg-emerald-500/10 text-emerald-600 border-emerald-500/30 whitespace-nowrap">
+                                                                    <MessageCircle className="w-3 h-3" />
+                                                                    {record.senderId}
+                                                                </Badge>
+                                                            ) : (
+                                                                <Badge variant="destructive" className="text-[10px]  font-semibold py-0 px-2 rounded-full">
+                                                                    {record.senderId}
+                                                                </Badge>
+                                                            )}
                                                         </TableCell>
                                                         <TableCell className="text-xs font-normal text-foreground max-w-[280px]">
                                                             <div className="truncate" title={record.message}>
@@ -792,13 +940,15 @@ export default function SalesIndex() {
                                                         </TableCell>
                                                         <TableCell className="text-xs truncate  text-muted-foreground">
                                                             {activeTab === "history"
-                                                                ? (record as SmsRecord).sentAt
+                                                                ? formatLogTime((record as SmsRecord).sentAt)
                                                                 : (record as QueuedSms).scheduledFor === "Immediate"
                                                                     ? "Immediate"
-                                                                    : (record as QueuedSms).scheduledFor}
+                                                                    : formatLogTime((record as QueuedSms).scheduledFor)}
                                                         </TableCell>
                                                         <TableCell className="text-center truncate  text-xs  text-foreground">
-                                                            {record.cost > 0 ? `${record.cost} SMS` : "Free"}
+                                                            {record.channel === "whatsapp"
+                                                                ? record.cost > 0 ? "1 WhatsApp" : "Free"
+                                                                : record.cost > 0 ? `${record.cost} SMS` : "Free"}
                                                         </TableCell>
                                                         <TableCell className="text-center">{getStatusBadge(record.status)}</TableCell>
                                                         <TableCell className="text-right">
@@ -827,6 +977,20 @@ export default function SalesIndex() {
                                                                             <Send className="w-3.5 h-3.5" />
                                                                         </Button>
                                                                     </>
+                                                                ) : record.channel === "whatsapp" ? (
+                                                                    record.status === "Queued" ? (
+                                                                        <Button
+                                                                            variant="ghost"
+                                                                            size="icon"
+                                                                            title="Cancel and refund"
+                                                                            onClick={() => triggerCancelQueue(record.id)}
+                                                                            className="w-7 h-7 text-rose-500 hover:text-rose-600 rounded-full hover:bg-rose-50 dark:hover:bg-rose-950/20"
+                                                                        >
+                                                                            <Trash2 className="w-3.5 h-3.5" />
+                                                                        </Button>
+                                                                    ) : (
+                                                                        <span className="text-[10px] text-muted-foreground pr-2">Sending now</span>
+                                                                    )
                                                                 ) : (
                                                                     <>
                                                                         {record.status !== "Sending" && (
@@ -930,7 +1094,9 @@ export default function SalesIndex() {
                             {/* Status and ID */}
                             <div className="flex items-center justify-between">
                                 <div>
-                                    <span className="text-muted-foreground block text-[10px]   ">SMS Reference ID</span>
+                                    <span className="text-muted-foreground block text-[10px]   ">
+                                        {selectedMessage.channel === "whatsapp" ? "WhatsApp Message ID" : "SMS Reference ID"}
+                                    </span>
                                     <span className="  text-foreground">{selectedMessage.id}</span>
                                 </div>
                                 <div>
@@ -955,7 +1121,9 @@ export default function SalesIndex() {
 
                             {/* Message content */}
                             <div className="space-y-1">
-                                <span className="text-muted-foreground block text-[10px]   ">SMS Content</span>
+                                <span className="text-muted-foreground block text-[10px]   ">
+                                    {selectedMessage.channel === "whatsapp" ? "WhatsApp Content" : "SMS Content"}
+                                </span>
                                 <div className="p-3 bg-primary/20 border border-primary/60 rounded leading-relaxed break-words relative group">
                                     {selectedMessage.message}
                                     <Button
@@ -973,23 +1141,31 @@ export default function SalesIndex() {
                             {/* Audit metrics */}
                             <div className="grid grid-cols-3 gap-3 text-center border-t border-border/20 pt-3">
                                 <div>
-                                    <span className="text-muted-foreground block text-[10px]    mb-0.5">Sender ID</span>
+                                    <span className="text-muted-foreground block text-[10px]    mb-0.5">
+                                        {selectedMessage.channel === "whatsapp" ? "Sent From" : "Sender ID"}
+                                    </span>
                                     <span className=" text-foreground ">{selectedMessage.senderId}</span>
                                 </div>
                                 <div>
                                     <span className="text-muted-foreground block text-[10px]    mb-0.5">Billing cost</span>
-                                    <span className=" text-foreground ">{selectedMessage.cost} UGX</span>
+                                    <span className=" text-foreground ">
+                                        {selectedMessage.channel === "whatsapp"
+                                            ? selectedMessage.cost > 0 ? "1 WhatsApp credit" : "Free daily message"
+                                            : `${selectedMessage.cost} UGX`}
+                                    </span>
                                 </div>
                                 <div>
-                                    <span className="text-muted-foreground block text-[10px]    mb-0.5">Segments</span>
-                                    <span className=" text-foreground ">{selectedMessage.segments} SMS</span>
+                                    <span className="text-muted-foreground block text-[10px]    mb-0.5">Channel</span>
+                                    <span className=" text-foreground ">
+                                        {selectedMessage.channel === "whatsapp" ? "WhatsApp" : `SMS · ${selectedMessage.segments} segment${selectedMessage.segments === 1 ? "" : "s"}`}
+                                    </span>
                                 </div>
                             </div>
 
                             {/* Time sent */}
                             <div className="flex items-center justify-between border-t border-border/20 pt-3 text-muted-foreground">
                                 <span>Sent Timestamp:</span>
-                                <span className="  text-foreground/80">{selectedMessage.sentAt}</span>
+                                <span className="  text-foreground/80">{formatLogTime(selectedMessage.sentAt)}</span>
                             </div>
 
                             {/* Fail reason if failed */}
@@ -1034,9 +1210,13 @@ export default function SalesIndex() {
             <Dialog open={isCancelDialogOpen} onOpenChange={setIsCancelDialogOpen}>
                 <DialogContent className="sm:max-w-md w-full bg-card border border-border/60 rounded p-6">
                     <DialogHeader>
-                        <DialogTitle className="text-base  text-foreground">Cancel Outbound Message</DialogTitle>
+                        <DialogTitle className="text-base  text-foreground">
+                            {cancelId?.startsWith(WHATSAPP_ID_PREFIX) ? "Cancel WhatsApp Message" : "Cancel Outbound Message"}
+                        </DialogTitle>
                         <DialogDescription className="text-xs text-muted-foreground mt-1">
-                            Are you sure you want to cancel this outbound transmission? It will be permanently removed from the gateway queue.
+                            {cancelId?.startsWith(WHATSAPP_ID_PREFIX)
+                                ? "This message will not be sent, and its WhatsApp credit (or free daily message) is refunded."
+                                : "Are you sure you want to cancel this outbound transmission? It will be permanently removed from the gateway queue."}
                         </DialogDescription>
                     </DialogHeader>
 
@@ -1055,7 +1235,7 @@ export default function SalesIndex() {
                             onClick={confirmCancelQueue}
                             className="font-semibold text-xs h-9 rounded shadow-sm"
                         >
-                            Yes, Cancel SMS
+                            {cancelId?.startsWith(WHATSAPP_ID_PREFIX) ? "Yes, Cancel Message" : "Yes, Cancel SMS"}
                         </Button>
                     </DialogFooter>
                 </DialogContent>

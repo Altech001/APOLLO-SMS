@@ -32,10 +32,34 @@ type Config struct {
 	MarzPayBaseURL    string
 	MarzPayBasicAuth  string
 	PublicBaseURL     string
+	FrontendURL       string // web app origin; email verification links open its /verify-email page
 	AutoMigrate       bool
 	GormLogLevel      string
 	SMSQueueWorker    bool
 	SMSQueuePollDelay time.Duration
+
+	// WhatsApp (whatsmeow multi-device sessions)
+	WhatsAppEnabled            bool
+	WhatsAppMinDelay           time.Duration
+	WhatsAppMaxDelay           time.Duration
+	WhatsAppDailyLimit         int
+	WhatsAppWarmupDailyLimit   int
+	WhatsAppWarmupDays         int
+	WhatsAppMaxRecipients      int
+	WhatsAppMaxAccountsPerUser int
+
+	// Verification / password reset codes sent by SMS are billed to the user's account.
+	AuthSMSFeeUGX     int // price shown to the user and recorded per SMS
+	AuthSMSFeeCredits int // SMS credits deducted per SMS
+
+	// AI template generation (NVIDIA NIM, OpenAI-compatible)
+	NVIDIAAPIKey  string
+	NVIDIABaseURL string
+	NVIDIAModel   string
+	// AI image generation (NVIDIA NIM genai endpoint, e.g. FLUX.1-schnell)
+	NVIDIAImageBaseURL string
+	NVIDIAImageModel   string
+	PexelsAPIKey       string
 }
 
 // Load reads configuration from .env file and environment variables.
@@ -67,10 +91,30 @@ func Load() *Config {
 		MarzPayBaseURL:    getEnv("MARZPAY_BASE_URL", "https://wallet.wearemarz.com/api/v1"),
 		MarzPayBasicAuth:  getEnv("MARZPAY_BASIC_AUTH", ""),
 		PublicBaseURL:     strings.TrimRight(publicBaseURL, "/"),
+		FrontendURL:       strings.TrimRight(getEnv("FRONTEND_URL", ""), "/"),
 		AutoMigrate:       getEnvBool("AUTO_MIGRATE", true),
 		GormLogLevel:      getEnv("GORM_LOG_LEVEL", "error"),
 		SMSQueueWorker:    getEnvBool("SMS_QUEUE_WORKER_ENABLED", strings.EqualFold(environment, "production")),
 		SMSQueuePollDelay: time.Duration(getEnvInt("SMS_QUEUE_POLL_SECONDS", 5)) * time.Second,
+
+		WhatsAppEnabled:            getEnvBool("WHATSAPP_ENABLED", true),
+		WhatsAppMinDelay:           time.Duration(getEnvInt("WHATSAPP_MIN_DELAY_SECONDS", 4)) * time.Second,
+		WhatsAppMaxDelay:           time.Duration(getEnvInt("WHATSAPP_MAX_DELAY_SECONDS", 12)) * time.Second,
+		WhatsAppDailyLimit:         getEnvInt("WHATSAPP_DAILY_LIMIT", 250),
+		WhatsAppWarmupDailyLimit:   getEnvInt("WHATSAPP_WARMUP_DAILY_LIMIT", 40),
+		WhatsAppWarmupDays:         getEnvInt("WHATSAPP_WARMUP_DAYS", 7),
+		WhatsAppMaxRecipients:      getEnvInt("WHATSAPP_MAX_RECIPIENTS", 200),
+		WhatsAppMaxAccountsPerUser: getEnvInt("WHATSAPP_MAX_ACCOUNTS_PER_USER", 3),
+
+		AuthSMSFeeUGX:     getEnvInt("AUTH_SMS_FEE_UGX", 35),
+		AuthSMSFeeCredits: getEnvInt("AUTH_SMS_FEE_CREDITS", 1),
+
+		NVIDIAAPIKey:       getEnv("NVIDIA_API_KEY", ""),
+		NVIDIABaseURL:      strings.TrimRight(getEnv("NVIDIA_BASE_URL", "https://integrate.api.nvidia.com/v1"), "/"),
+		NVIDIAModel:        getEnv("NVIDIA_MODEL", "nvidia/nemotron-3-super-120b-a12b,nvidia/nemotron-3-ultra-550b-a55b,nvidia/nemotron-3.5-lightning-30b-a3b,deepseek-ai/deepseek-v4.1-flash,moonshotai/kimi-k3,z-ai/glm-5.3-flash,openai/gpt-oss-20b"),
+		NVIDIAImageBaseURL: strings.TrimRight(getEnv("NVIDIA_IMAGE_BASE_URL", "https://ai.api.nvidia.com/v1/genai"), "/"),
+		PexelsAPIKey:       getEnv("PEXELS_API_KEY", getEnv("PEXEL_API_KEY", "")),
+		NVIDIAImageModel:   getEnv("NVIDIA_IMAGE_MODEL", "black-forest-labs/flux.2-klein-4b,black-forest-labs/flux.1-schnell,black-forest-labs/flux.1-dev"),
 	}
 }
 

@@ -30,6 +30,12 @@ type PaymentService struct {
 	redisService     *RedisService
 	cfg              *config.Config
 	httpClient       *http.Client
+	billing          *BillingService
+}
+
+// SetBilling enables plan-aware SMS pricing, plan purchases and WhatsApp credit purchases.
+func (s *PaymentService) SetBilling(billing *BillingService) {
+	s.billing = billing
 }
 
 func NewPaymentService(
@@ -53,44 +59,110 @@ func NewPaymentService(
 	}
 }
 
-func (s *PaymentService) CreateCollection(userID uint, req *models.CreateCollectionRequest) (*models.CreateCollectionResponse, error) {
-	if req.AmountUGX < 500 || req.AmountUGX > 10000000 {
-		return nil, errors.New("amount_ugx must be between 500 and 10000000")
-	}
-	method := req.Method
+func validateCollectionMethod(method, phone string) (string, error) {
 	if method == "" {
 		method = "mobile_money"
 	}
 	if method != "mobile_money" && method != "card" {
-		return nil, errors.New("method must be mobile_money or card")
+		return "", errors.New("method must be mobile_money or card")
 	}
-	if method == "mobile_money" && req.PhoneNumber == "" {
-		return nil, errors.New("phone_number is required for mobile money collections")
+	if method == "mobile_money" && phone == "" {
+		return "", errors.New("phone_number is required for mobile money collections")
+	}
+	return method, nil
+}
+
+// CreateCollection starts an SMS credit purchase. The price per SMS follows the user's plan.
+func (s *PaymentService) CreateCollection(userID uint, req *models.CreateCollectionRequest) (*models.CreateCollectionResponse, error) {
+	if req.AmountUGX < 500 || req.AmountUGX > 10000000 {
+		return nil, errors.New("amount_ugx must be between 500 and 10000000")
+	}
+
+	pricePerSMS, whatsAppPerSMS := 0, 0
+	var err error
+	if s.billing != nil {
+		pricePerSMS, whatsAppPerSMS, err = s.billing.SMSPriceForUser(userID, req.AmountUGX)
+	} else {
+		pricePerSMS, err = s.smsConfigService.PriceForAmountUGX(req.AmountUGX)
+	}
+	if err != nil {
+		return nil, err
+	}
+	smsCredits := req.AmountUGX / pricePerSMS
+
+	return s.startCollection(&models.PaymentTransaction{
+		UserID:          &userID,
+		Purpose:         models.PaymentPurposeSMS,
+		AmountUGX:       req.AmountUGX,
+		SMSCredits:      smsCredits,
+		WhatsAppCredits: smsCredits * whatsAppPerSMS,
+		PricePerSMS:     pricePerSMS,
+		PhoneNumber:     req.PhoneNumber,
+		Method:          req.Method,
+		Description:     req.Description,
+	})
+}
+
+// CreatePlanCollection starts paying for a plan. The plan is activated when the payment completes.
+func (s *PaymentService) CreatePlanCollection(userID uint, plan *models.BillingPlan, req *models.SubscribeRequest) (*models.CreateCollectionResponse, error) {
+	if plan.PriceUGX < 500 {
+		return nil, errors.New("this plan has no price to pay")
+	}
+	planID := plan.ID
+	return s.startCollection(&models.PaymentTransaction{
+		UserID:          &userID,
+		Purpose:         models.PaymentPurposePlan,
+		PlanID:          &planID,
+		AmountUGX:       plan.PriceUGX,
+		WhatsAppCredits: plan.WhatsAppCredits,
+		PhoneNumber:     req.PhoneNumber,
+		Method:          req.Method,
+		Description:     fmt.Sprintf("%s plan (%d days)", plan.Name, plan.DurationDays),
+	})
+}
+
+// CreateWhatsAppCollection starts a WhatsApp credit purchase at the user's plan price.
+func (s *PaymentService) CreateWhatsAppCollection(userID uint, req *models.BuyWhatsAppCreditsRequest) (*models.CreateCollectionResponse, error) {
+	if s.billing == nil {
+		return nil, errors.New("billing is not configured")
+	}
+	if req.Credits <= 0 {
+		return nil, errors.New("credits must be greater than zero")
+	}
+	price, err := s.billing.WhatsAppCreditPrice(userID)
+	if err != nil {
+		return nil, err
+	}
+	amount := req.Credits * price
+	if amount < 500 || amount > 10000000 {
+		return nil, fmt.Errorf("order total must be between 500 and 10000000 UGX (at %d UGX per WhatsApp credit)", price)
+	}
+	return s.startCollection(&models.PaymentTransaction{
+		UserID:          &userID,
+		Purpose:         models.PaymentPurposeWhatsApp,
+		AmountUGX:       amount,
+		WhatsAppCredits: req.Credits,
+		PhoneNumber:     req.PhoneNumber,
+		Method:          req.Method,
+		Description:     fmt.Sprintf("Buy %d WhatsApp credits", req.Credits),
+	})
+}
+
+// startCollection records a pending collection and asks MarzPay to charge the customer.
+func (s *PaymentService) startCollection(payment *models.PaymentTransaction) (*models.CreateCollectionResponse, error) {
+	method, err := validateCollectionMethod(payment.Method, payment.PhoneNumber)
+	if err != nil {
+		return nil, err
 	}
 	if s.cfg.MarzPayBasicAuth == "" {
 		return nil, errors.New("MARZPAY_BASIC_AUTH is not configured")
 	}
 
-	pricePerSMS, err := s.smsConfigService.PriceForAmountUGX(req.AmountUGX)
-	if err != nil {
-		return nil, err
-	}
-	smsCredits := req.AmountUGX / pricePerSMS
-	reference := uuid.NewString()
-
-	payment := &models.PaymentTransaction{
-		UserID:      &userID,
-		Type:        models.PaymentTypeCollection,
-		Status:      models.PaymentStatusPending,
-		AmountUGX:   req.AmountUGX,
-		SMSCredits:  smsCredits,
-		PricePerSMS: pricePerSMS,
-		PhoneNumber: req.PhoneNumber,
-		Country:     "UG",
-		Method:      method,
-		Reference:   reference,
-		Description: req.Description,
-	}
+	payment.Method = method
+	payment.Type = models.PaymentTypeCollection
+	payment.Status = models.PaymentStatusPending
+	payment.Country = "UG"
+	payment.Reference = uuid.NewString()
 	if err := s.repo.Create(payment); err != nil {
 		return nil, fmt.Errorf("failed to create payment record: %w", err)
 	}
@@ -122,12 +194,14 @@ func (s *PaymentService) CreateCollection(userID uint, req *models.CreateCollect
 	s.cachePayment(payment)
 
 	return &models.CreateCollectionResponse{
-		Reference:   payment.Reference,
-		Status:      payment.Status,
-		AmountUGX:   payment.AmountUGX,
-		SMSCredits:  payment.SMSCredits,
-		PricePerSMS: payment.PricePerSMS,
-		RawResponse: rawResp,
+		Reference:       payment.Reference,
+		Status:          payment.Status,
+		Purpose:         payment.Purpose,
+		AmountUGX:       payment.AmountUGX,
+		SMSCredits:      payment.SMSCredits,
+		WhatsAppCredits: payment.WhatsAppCredits,
+		PricePerSMS:     payment.PricePerSMS,
+		RawResponse:     rawResp,
 	}, nil
 }
 
@@ -185,8 +259,8 @@ func (s *PaymentService) HandleMarzPayWebhook(payload *models.MarzPayWebhookPayl
 	}
 
 	var userID uint
-	var smsCredits int
 	var completed bool
+	var notifyTitle, notifyMessage string
 
 	err := s.db.Transaction(func(tx *gorm.DB) error {
 		payment, err := s.repo.FindByReferenceForUpdate(tx, reference)
@@ -220,38 +294,63 @@ func (s *PaymentService) HandleMarzPayWebhook(payload *models.MarzPayWebhookPayl
 			now := time.Now()
 			payment.CompletedAt = &now
 
-			if payment.SMSCredits <= 0 {
-				price, err := s.smsConfigService.PriceForAmountUGX(payment.AmountUGX)
-				if err != nil {
-					return err
-				}
-				payment.PricePerSMS = price
-				payment.SMSCredits = payment.AmountUGX / price
-			}
-
 			var user models.User
 			if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&user, *payment.UserID).Error; err != nil {
 				return err
 			}
-			user.SMSBalance += payment.SMSCredits
+
+			switch payment.Purpose {
+			case models.PaymentPurposePlan:
+				if payment.PlanID == nil || s.billing == nil {
+					return errors.New("plan payment has no plan to activate")
+				}
+				plan, err := s.billing.ActivatePlanTx(tx, &user, *payment.PlanID, payment.Reference, payment.AmountUGX)
+				if err != nil {
+					return err
+				}
+				notifyTitle = "Plan Activated"
+				notifyMessage = fmt.Sprintf("Your %s plan is active. %d WhatsApp credits were added.", plan.Name, plan.WhatsAppCredits)
+
+			case models.PaymentPurposeWhatsApp:
+				user.WhatsAppBalance += payment.WhatsAppCredits
+				notifyTitle = "WhatsApp Credits Added"
+				notifyMessage = fmt.Sprintf("%d WhatsApp credits were added to your balance.", payment.WhatsAppCredits)
+
+			default:
+				if payment.SMSCredits <= 0 {
+					price, err := s.smsConfigService.PriceForAmountUGX(payment.AmountUGX)
+					if err != nil {
+						return err
+					}
+					payment.PricePerSMS = price
+					payment.SMSCredits = payment.AmountUGX / price
+				}
+				user.SMSBalance += payment.SMSCredits
+				user.WhatsAppBalance += payment.WhatsAppCredits
+
+				topup := &models.SMSTopup{
+					UserID:      user.ID,
+					Amount:      payment.SMSCredits,
+					AmountUGX:   payment.AmountUGX,
+					PricePerSMS: payment.PricePerSMS,
+					Description: "MarzPay collection completed",
+					Reference:   payment.Reference,
+				}
+				if err := tx.Create(topup).Error; err != nil {
+					return err
+				}
+				notifyTitle = "Deposit Completed"
+				notifyMessage = fmt.Sprintf("%d SMS credits were added to your balance.", payment.SMSCredits)
+				if payment.WhatsAppCredits > 0 {
+					notifyMessage += fmt.Sprintf(" Bonus: %d WhatsApp credits.", payment.WhatsAppCredits)
+				}
+			}
+
 			if err := tx.Save(&user).Error; err != nil {
 				return err
 			}
 
-			topup := &models.SMSTopup{
-				UserID:      user.ID,
-				Amount:      payment.SMSCredits,
-				AmountUGX:   payment.AmountUGX,
-				PricePerSMS: payment.PricePerSMS,
-				Description: "MarzPay collection completed",
-				Reference:   payment.Reference,
-			}
-			if err := tx.Create(topup).Error; err != nil {
-				return err
-			}
-
 			userID = user.ID
-			smsCredits = payment.SMSCredits
 			completed = true
 		default:
 			if payload.Transaction.Status == models.PaymentStatusFailed || strings.Contains(payload.EventType, "failed") || strings.Contains(payload.EventType, "cancelled") {
@@ -268,7 +367,7 @@ func (s *PaymentService) HandleMarzPayWebhook(payload *models.MarzPayWebhookPayl
 	}
 
 	if completed {
-		s.notifService.Notify(userID, "Deposit Completed", fmt.Sprintf("%d SMS credits were added to your balance.", smsCredits), "success")
+		s.notifService.Notify(userID, notifyTitle, notifyMessage, "success")
 	}
 	s.cachePaymentReference(reference)
 	return nil

@@ -42,6 +42,11 @@ func main() {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
 
+	// Versioned SQL migrations always run (they are recorded and applied once each).
+	if err := database.RunSQLMigrations(db); err != nil {
+		log.Fatalf("Failed to run SQL migrations: %v", err)
+	}
+
 	if cfg.AutoMigrate {
 		if err := database.Migrate(db); err != nil {
 			log.Fatalf("Failed to run migrations: %v", err)
@@ -54,6 +59,7 @@ func main() {
 	app := fiber.New(fiber.Config{
 		AppName:      "Luco SMS API",
 		ErrorHandler: middleware.ErrorHandler,
+		BodyLimit:    8 << 20, // room for 5 MB image uploads plus multipart overhead
 	})
 
 	// Global middleware

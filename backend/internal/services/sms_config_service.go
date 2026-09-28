@@ -9,10 +9,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
+	"regexp"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"backend/internal/config"
@@ -39,6 +42,9 @@ type SMSConfigService struct {
 	notifService *NotificationService
 	cfg          *config.Config
 	httpClient   *http.Client
+
+	healthMu sync.Mutex
+	failedAt map[string]time.Time // provider -> time of its last failed send
 }
 
 // NewSMSConfigService creates a new SMSConfigService.
@@ -356,14 +362,42 @@ func (s *SMSConfigService) PriceForAmountUGX(amountUGX int) (int, error) {
 
 // ── SMS Sending ─────────────────────────────────────────────────────────────
 
-// SendSMS dispatches an SMS through the currently active provider.
+// providerFailureCooldown is how long a provider that just failed is tried last instead of first.
+const providerFailureCooldown = 2 * time.Minute
+
+// SendSMS dispatches an SMS through the active provider and fails over to every other configured
+// provider when it errors or reports low credit. A provider that failed recently is moved to the end
+// of the order so repeated sends don't wait on a gateway that is known to be down.
 func (s *SMSConfigService) SendSMS(req *models.SendSMSRequest) (*models.SendSMSResponse, error) {
 	cfg, err := s.repo.Get()
 	if err != nil {
 		return nil, errors.New("SMS provider not configured. Admin must configure SMS settings first")
 	}
 
-	switch cfg.ActiveProvider {
+	order := s.providerOrder(cfg)
+	if len(order) == 0 {
+		return nil, fmt.Errorf("unsupported active provider: %s", cfg.ActiveProvider)
+	}
+
+	var failures []string
+	for _, provider := range order {
+		resp, err := s.sendVia(provider, cfg, req)
+		if err == nil {
+			s.markProviderHealthy(provider)
+			if len(failures) > 0 {
+				log.Printf("📱 SMS failover: sent via %s after %s", provider, strings.Join(failures, "; "))
+			}
+			return resp, nil
+		}
+		s.markProviderFailed(provider)
+		failures = append(failures, fmt.Sprintf("%s: %v", provider, err))
+		log.Printf("⚠️  SMS provider %s failed: %v", provider, err)
+	}
+	return nil, fmt.Errorf("all SMS providers failed (%s)", strings.Join(failures, "; "))
+}
+
+func (s *SMSConfigService) sendVia(provider string, cfg *models.SMSConfig, req *models.SendSMSRequest) (*models.SendSMSResponse, error) {
+	switch provider {
 	case models.SMSProviderJulySMS:
 		return s.sendViaJulySMS(cfg, req)
 	case models.SMSProviderAfricasTalking:
@@ -373,8 +407,117 @@ func (s *SMSConfigService) SendSMS(req *models.SendSMSRequest) (*models.SendSMSR
 	case models.SMSProviderLocal:
 		return s.sendViaLocal(req)
 	default:
-		return nil, fmt.Errorf("unsupported active provider: %s", cfg.ActiveProvider)
+		return nil, fmt.Errorf("unsupported provider: %s", provider)
 	}
+}
+
+// providerOrder lists the providers to try: the active one, then the other configured gateways.
+// The local (log-only) provider never takes part in failover.
+func (s *SMSConfigService) providerOrder(cfg *models.SMSConfig) []string {
+	if cfg.ActiveProvider == models.SMSProviderLocal {
+		return []string{models.SMSProviderLocal}
+	}
+
+	candidates := []string{cfg.ActiveProvider}
+	for _, p := range []string{models.SMSProviderJulySMS, models.SMSProviderAfricasTalking, models.SMSProviderFuxx} {
+		if p != cfg.ActiveProvider {
+			candidates = append(candidates, p)
+		}
+	}
+
+	var healthy, cooling []string
+	for _, p := range candidates {
+		if !s.providerConfigured(p, cfg) {
+			continue
+		}
+		if s.providerCoolingDown(p) {
+			cooling = append(cooling, p)
+		} else {
+			healthy = append(healthy, p)
+		}
+	}
+	return append(healthy, cooling...)
+}
+
+func (s *SMSConfigService) providerConfigured(provider string, cfg *models.SMSConfig) bool {
+	switch provider {
+	case models.SMSProviderJulySMS:
+		return cfg.JulySMSClientID != "" && cfg.JulySMSClientSecret != ""
+	case models.SMSProviderAfricasTalking:
+		return cfg.ATUsername != "" && cfg.ATAPIKey != ""
+	case models.SMSProviderFuxx:
+		return cfg.FuxxBaseURL != "" && cfg.FuxxUsername != "" && cfg.FuxxPassword != ""
+	}
+	return false
+}
+
+func (s *SMSConfigService) markProviderFailed(provider string) {
+	s.healthMu.Lock()
+	defer s.healthMu.Unlock()
+	if s.failedAt == nil {
+		s.failedAt = make(map[string]time.Time)
+	}
+	s.failedAt[provider] = time.Now()
+}
+
+func (s *SMSConfigService) markProviderHealthy(provider string) {
+	s.healthMu.Lock()
+	defer s.healthMu.Unlock()
+	delete(s.failedAt, provider)
+}
+
+func (s *SMSConfigService) providerCoolingDown(provider string) bool {
+	s.healthMu.Lock()
+	defer s.healthMu.Unlock()
+	failedAt, ok := s.failedAt[provider]
+	return ok && time.Since(failedAt) < providerFailureCooldown
+}
+
+// lowCreditPattern matches gateway messages that mean the account is out of credit.
+var lowCreditPattern = regexp.MustCompile(`(?i)insufficient|low (credit|balance)|no (credit|balance)|out of (credit|balance)|not enough`)
+
+// julySMSSoftFailure reports an error when JulySMS answers 2xx but the body says the send failed.
+func julySMSSoftFailure(raw interface{}, body []byte) error {
+	obj, ok := raw.(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	if success, ok := obj["success"].(bool); ok && !success {
+		return fmt.Errorf("JulySMS rejected the send: %s", string(body))
+	}
+	if status, ok := obj["status"].(string); ok && (strings.EqualFold(status, "error") || strings.EqualFold(status, "failed")) {
+		return fmt.Errorf("JulySMS rejected the send: %s", string(body))
+	}
+	if lowCreditPattern.Match(body) {
+		return fmt.Errorf("JulySMS reports low credit: %s", string(body))
+	}
+	return nil
+}
+
+// atSoftFailure reports an error when Africa's Talking accepted the request but every recipient
+// failed (e.g. InsufficientBalance). Partial success is not an error, so failover never re-sends
+// to recipients that already got the message.
+func atSoftFailure(raw interface{}, body []byte) error {
+	obj, ok := raw.(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	data, ok := obj["SMSMessageData"].(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	recipients, _ := data["Recipients"].([]interface{})
+	if len(recipients) == 0 {
+		return fmt.Errorf("Africa's Talking sent to no recipients: %v", data["Message"])
+	}
+	for _, r := range recipients {
+		rec, _ := r.(map[string]interface{})
+		if status, _ := rec["status"].(string); strings.EqualFold(status, "Success") || strings.EqualFold(status, "Sent") {
+			return nil
+		}
+	}
+	first, _ := recipients[0].(map[string]interface{})
+	return fmt.Errorf("Africa's Talking failed for all recipients: %v", first["status"])
 }
 
 // FormatPhoneNumber formats a phone number specifically for each provider's formatting requirements.
@@ -484,6 +627,9 @@ func (s *SMSConfigService) sendViaJulySMS(cfg *models.SMSConfig, req *models.Sen
 
 	if resp.StatusCode >= 400 {
 		return nil, fmt.Errorf("JulySMS returned status %d: %s", resp.StatusCode, string(respBody))
+	}
+	if err := julySMSSoftFailure(rawResp, respBody); err != nil {
+		return nil, err
 	}
 
 	return &models.SendSMSResponse{
@@ -643,6 +789,9 @@ func (s *SMSConfigService) sendViaAfricasTalking(cfg *models.SMSConfig, req *mod
 
 	if resp.StatusCode >= 400 {
 		return nil, fmt.Errorf("Africa's Talking returned status %d: %s", resp.StatusCode, string(respBody))
+	}
+	if err := atSoftFailure(rawResp, respBody); err != nil {
+		return nil, err
 	}
 
 	return &models.SendSMSResponse{

@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(gofmt -l internal/services/whatsapp* internal/models/whatsapp.go internal/handlers/whatsapp_handler.go internal/repository/whatsapp_repo.go internal/routes)",
+      "Bash(go test *)",
+      "Bash(gofmt -w internal/services/whatsapp_service_test.go)",
+      "Bash(gofmt -l internal/services/whatsapp*)",
+      "Bash(cd ~/go/pkg/mod/go.mau.fi/whatsmeow@v0.0.0-20260921121126-35ae40906e74 && grep -n \"ErrNotConnected *=\\\\|ErrNotLoggedIn *=\\\\|ErrClientIsNil *=\" errors.go; grep -n \"type SendResponse struct\" -A14 send.go; sed -n 200,225p user.go; grep -n \"^func ParseJID\" types/jid.go; grep -n \"^func Stdout\" util/log/*.go; ls proto | grep -i e2e; grep -n \"InitialAutoReconnect\" client.go | head -3; grep -n \"func \\(device \\\\*Device\\) Delete\\\\|Store.Delete\" store/*.go *.go | head)",
+      "Read(//home/altech/go/pkg/mod/go.mau.fi/whatsmeow@v0.0.0-20260921121126-35ae40906e74/**)",
+      "Bash(PGPASSWORD=postgres psql -h localhost -U postgres -c \"CREATE DATABASE wa_smoketest\")",
+      "Bash(psql -h /var/run/postgresql -c \"select 1\")",
+      "Bash(psql -h /var/run/postgresql -d postgres -c \"CREATE DATABASE wa_smoketest\")",
+      "Read(//home/altech/.claude/projects/-home-altech-Desktop-ApolloSMS/memory/**)",
+      "Bash(touch MEMORY.md)",
+      "Bash(echo \"- [WhatsApp uses whatsmeow]\\(whatsapp-uses-whatsmeow.md\\) — not Meta Cloud; per-user sessions, single instance\")",
+      "Bash(curl -s -m 20 https://integrate.api.nvidia.com/v1/models)",
+      "Bash(python3 -c ' *)",
+      "Bash(echo \"eslint exit $?\")",
+      "Bash(ps -eo pid,args)"
+    ]
+  }
+}

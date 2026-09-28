@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -29,7 +30,7 @@ func NewAuthHandler(service *services.AuthService) *AuthHandler {
 // @Accept       json
 // @Produce      json
 // @Param        body  body  models.RegisterRequest  true  "User details"
-// @Success      201  {object}  models.UserResponse
+// @Success      201  {object}  models.RegisterResponse
 // @Failure      400  {object}  response.ErrorResponse
 // @Failure      409  {object}  response.ErrorResponse
 // @Router       /auth/register [post]
@@ -42,12 +43,15 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 	ipAddress := c.IP()
 	userAgent := c.Get("User-Agent")
 
-	user, err := h.service.Register(&req, ipAddress, userAgent)
+	user, verification, err := h.service.Register(&req, ipAddress, userAgent)
 	if err != nil {
 		return response.Error(c, fiber.StatusConflict, err.Error())
 	}
 
-	return response.Created(c, user.ToResponse())
+	return response.Created(c, models.RegisterResponse{
+		UserResponse: user.ToResponse(),
+		Verification: *verification,
+	})
 }
 
 // VerifyEmail godoc
@@ -107,6 +111,7 @@ func (h *AuthHandler) VerifyEmail(c *fiber.Ctx) error {
 // @Success      200  {object}  models.LoginResponse
 // @Failure      400  {object}  response.ErrorResponse
 // @Failure      401  {object}  response.ErrorResponse
+// @Failure      403  {object}  models.VerificationRequiredResponse "Account not verified: code=verification_required, data carries the verify ticket"
 // @Router       /auth/login [post]
 func (h *AuthHandler) Login(c *fiber.Ctx) error {
 	var req models.LoginRequest
@@ -119,6 +124,15 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 
 	user, token, err := h.service.Login(&req, ipAddress, userAgent)
 	if err != nil {
+		var verifyErr *services.VerificationRequiredError
+		if errors.As(err, &verifyErr) {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"success": false,
+				"error":   verifyErr.Error(),
+				"code":    "verification_required",
+				"data":    verifyErr.Info,
+			})
+		}
 		return response.Error(c, fiber.StatusUnauthorized, err.Error())
 	}
 
@@ -153,12 +167,12 @@ func (h *AuthHandler) Logout(c *fiber.Ctx) error {
 
 // ForgotPassword godoc
 // @Summary      Forgot Password
-// @Description  Request a password reset link to be sent via email
+// @Description  Request a password reset link by email, or (channel=sms) a reset code on the registered phone, billed to the user
 // @Tags         Auth
 // @Accept       json
 // @Produce      json
-// @Param        body  body  models.ForgotPasswordRequest  true  "User email"
-// @Success      200  {object}  response.SuccessResponse
+// @Param        body  body  models.ForgotPasswordRequest  true  "User email and channel"
+// @Success      200  {object}  models.ForgotPasswordResponse
 // @Failure      400  {object}  response.ErrorResponse
 // @Router       /auth/forgot-password [post]
 func (h *AuthHandler) ForgotPassword(c *fiber.Ctx) error {
@@ -170,12 +184,77 @@ func (h *AuthHandler) ForgotPassword(c *fiber.Ctx) error {
 	ipAddress := c.IP()
 	userAgent := c.Get("User-Agent")
 
-	err := h.service.ForgotPassword(&req, ipAddress, userAgent)
+	result, err := h.service.ForgotPassword(&req, ipAddress, userAgent)
 	if err != nil {
-		return response.Error(c, fiber.StatusInternalServerError, err.Error())
+		return response.Error(c, fiber.StatusBadRequest, err.Error())
 	}
 
-	return response.Success(c, fiber.Map{"message": "If the account exists, a password reset link has been sent to your email"})
+	return response.Success(c, result)
+}
+
+// ResetPasswordWithSMS godoc
+// @Summary      Reset Password With SMS Code
+// @Description  Reset the password using the code sent to the registered phone number
+// @Tags         Auth
+// @Accept       json
+// @Produce      json
+// @Param        body  body  models.ResetPasswordSMSRequest  true  "Email, code and new password"
+// @Success      200  {object}  response.SuccessResponse
+// @Failure      400  {object}  response.ErrorResponse
+// @Router       /auth/reset-password/sms [post]
+func (h *AuthHandler) ResetPasswordWithSMS(c *fiber.Ctx) error {
+	var req models.ResetPasswordSMSRequest
+	if err := c.BodyParser(&req); err != nil {
+		return response.Error(c, fiber.StatusBadRequest, "Invalid request body")
+	}
+	if err := h.service.ResetPasswordWithSMSCode(&req, c.IP(), c.Get("User-Agent")); err != nil {
+		return response.Error(c, fiber.StatusBadRequest, err.Error())
+	}
+	return response.Success(c, fiber.Map{"message": "Password has been reset successfully"})
+}
+
+// SendVerificationSMS godoc
+// @Summary      Send Verification SMS
+// @Description  Send an account verification code to the registered phone (billed to the user). Requires the ticket from signup or login.
+// @Tags         Auth
+// @Accept       json
+// @Produce      json
+// @Param        body  body  models.VerificationTicketRequest  true  "Verification ticket"
+// @Success      200  {object}  models.SMSCodeSentResponse
+// @Failure      400  {object}  response.ErrorResponse
+// @Router       /auth/verify/sms/send [post]
+func (h *AuthHandler) SendVerificationSMS(c *fiber.Ctx) error {
+	var req models.VerificationTicketRequest
+	if err := c.BodyParser(&req); err != nil {
+		return response.Error(c, fiber.StatusBadRequest, "Invalid request body")
+	}
+	result, err := h.service.SendVerificationSMS(req.Ticket)
+	if err != nil {
+		return response.Error(c, fiber.StatusBadRequest, err.Error())
+	}
+	return response.Success(c, result)
+}
+
+// VerifySMSCode godoc
+// @Summary      Verify With SMS Code
+// @Description  Verify the account with the SMS code and sign in
+// @Tags         Auth
+// @Accept       json
+// @Produce      json
+// @Param        body  body  models.VerifySMSCodeRequest  true  "Ticket and code"
+// @Success      200  {object}  models.LoginResponse
+// @Failure      400  {object}  response.ErrorResponse
+// @Router       /auth/verify/sms/confirm [post]
+func (h *AuthHandler) VerifySMSCode(c *fiber.Ctx) error {
+	var req models.VerifySMSCodeRequest
+	if err := c.BodyParser(&req); err != nil {
+		return response.Error(c, fiber.StatusBadRequest, "Invalid request body")
+	}
+	user, token, err := h.service.VerifyWithSMSCode(&req, c.IP(), c.Get("User-Agent"))
+	if err != nil {
+		return response.Error(c, fiber.StatusBadRequest, err.Error())
+	}
+	return response.Success(c, models.LoginResponse{User: user.ToResponse(), Token: token})
 }
 
 // GetResetPassword renders password reset HTML form for browsers

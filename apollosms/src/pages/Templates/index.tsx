@@ -1,4 +1,5 @@
-import { renultApi, TemplateResponse } from "@/api/apollosms";
+import { AITemplateResponse, AIWriteMode, MessageChannel, renultApi, TemplateResponse } from "@/api/apollosms";
+import HelpMeWrite from "@/components/ai/HelpMeWrite";
 import AppHeader from "@/components/Header/AppHeader";
 import SEO from "@/components/SEO";
 import { Badge } from "@/components/ui/badge";
@@ -21,6 +22,7 @@ import {
     Clock,
     Edit,
     FileText,
+    MessageCircle,
     Plus,
     Search,
     Share2,
@@ -36,6 +38,7 @@ interface SMSTemplate {
     id: string;
     name: string;
     category: "Authentication" | "Marketing" | "Transactional" | "Alert";
+    channel: MessageChannel;
     content: string;
     variables: string[];
     lastUsed: string;
@@ -51,6 +54,7 @@ const toTemplate = (template: TemplateResponse): SMSTemplate => ({
     id: template.id,
     name: template.name,
     category: (template.category as SMSTemplate["category"]) || "Transactional",
+    channel: template.channel === "whatsapp" ? "whatsapp" : "sms",
     content: template.content,
     variables: template.variables || [],
     lastUsed: template.lastUsed || template.last_used || "Never",
@@ -99,6 +103,7 @@ export default function TemplatesIndex() {
 
     const [searchQuery, setSearchQuery] = useState("");
     const [filterCategory, setFilterCategory] = useState<string>("all");
+    const [filterChannel, setFilterChannel] = useState<"all" | MessageChannel>("all");
 
     // Right Panel State
     const [isPanelOpen, setIsPanelOpen] = useState(false);
@@ -109,7 +114,9 @@ export default function TemplatesIndex() {
     const [formName, setFormName] = useState("");
     const [formCategory, setFormCategory] = useState<SMSTemplate["category"]>("Authentication");
     const [formContent, setFormContent] = useState("");
+    const [formChannel, setFormChannel] = useState<MessageChannel>("sms");
     const textareaRef = useRef<HTMLTextAreaElement>(null);
+
 
     const {
         data: templates = [],
@@ -151,6 +158,7 @@ export default function TemplatesIndex() {
         setFormName(template.name);
         setFormCategory(template.category);
         setFormContent(template.content);
+        setFormChannel(template.channel);
         setPanelMode("edit");
         setIsPanelOpen(true);
     };
@@ -160,6 +168,7 @@ export default function TemplatesIndex() {
         setFormName("");
         setFormCategory("Authentication");
         setFormContent("");
+        setFormChannel(filterChannel === "whatsapp" ? "whatsapp" : "sms");
         setPanelMode("create");
         setIsPanelOpen(true);
     };
@@ -198,6 +207,22 @@ export default function TemplatesIndex() {
     const maxCharsSingle = 160;
     const segments = charCount === 0 ? 0 : charCount <= maxCharsSingle ? 1 : Math.ceil(charCount / 153);
     const charsRemaining = charCount <= maxCharsSingle ? maxCharsSingle - charCount : 153 - (charCount % 153 || 153);
+    const isWhatsAppForm = formChannel === "whatsapp";
+
+    const handleAIResult = (draft: AITemplateResponse, mode: AIWriteMode, previous: string) => {
+        setFormContent(draft.content);
+        if (mode === "create") {
+            if (!formName.trim()) setFormName(draft.name);
+            setFormCategory((draft.category as SMSTemplate["category"]) || formCategory);
+        }
+        toast.success(mode === "create" ? "Draft written. Review it before saving." : "Text rewritten", {
+            action: previous ? { label: "Undo", onClick: () => setFormContent(previous) } : undefined,
+        });
+    };
+
+    const sendWithTemplate = (template: SMSTemplate, channel: MessageChannel) => {
+        navigate("/compose", { state: { initialText: template.content, channel, extras: (template as { extras?: unknown }).extras } });
+    };
 
     // Parse variables in template content on save
     const extractVariables = (text: string): string[] => {
@@ -231,6 +256,7 @@ export default function TemplatesIndex() {
                 const created = await renultApi.templates.create({
                     name: formName.trim(),
                     category: formCategory,
+                    channel: formChannel,
                     content: formContent.trim(),
                     variables: detectedVars,
                 });
@@ -240,6 +266,7 @@ export default function TemplatesIndex() {
                 const updated = await renultApi.templates.update(activeTemplate.id, {
                     name: formName.trim(),
                     category: formCategory,
+                    channel: formChannel,
                     content: formContent.trim(),
                     variables: detectedVars,
                 });
@@ -275,9 +302,10 @@ export default function TemplatesIndex() {
                 t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                 t.content.toLowerCase().includes(searchQuery.toLowerCase());
             const matchesCategory = filterCategory === "all" || t.category === filterCategory;
-            return matchesSearch && matchesCategory;
+            const matchesChannel = filterChannel === "all" || t.channel === filterChannel;
+            return matchesSearch && matchesCategory && matchesChannel;
         });
-    }, [templates, searchQuery, filterCategory]);
+    }, [templates, searchQuery, filterCategory, filterChannel]);
 
     const getCategoryBadgeClass = (category: SMSTemplate["category"]) => {
         switch (category) {
@@ -339,6 +367,23 @@ export default function TemplatesIndex() {
                             </button>
                         )}
                     </div>
+                    <div className="flex rounded border border-border overflow-hidden text-xs h-10 shrink-0">
+                        {(["all", "sms", "whatsapp"] as const).map((value) => (
+                            <button
+                                key={value}
+                                type="button"
+                                onClick={() => setFilterChannel(value)}
+                                className={cn(
+                                    "px-3",
+                                    filterChannel === value
+                                        ? value === "whatsapp" ? "bg-emerald-600 text-white" : "bg-primary text-primary-foreground"
+                                        : "bg-card text-muted-foreground hover:bg-muted/30"
+                                )}
+                            >
+                                {value === "all" ? "All" : value === "sms" ? "SMS" : "WhatsApp"}
+                            </button>
+                        ))}
+                    </div>
                     <div className="w-full sm:w-[200px]">
                         <Select value={filterCategory} onValueChange={setFilterCategory}>
                             <SelectTrigger className="h-10 text-xs bg-card">
@@ -376,9 +421,16 @@ export default function TemplatesIndex() {
                             >
                                 <CardHeader className="pb-3">
                                     <div className="flex justify-between items-start gap-2">
-                                        <Badge className={cn("text-[10px] px-2 py-0 border-none font-semibold rounded-full", getCategoryBadgeClass(template.category))}>
-                                            {template.category}
-                                        </Badge>
+                                        <div className="flex gap-1">
+                                            <Badge className={cn("text-[10px] px-2 py-0 border-none font-semibold rounded-full", getCategoryBadgeClass(template.category))}>
+                                                {template.category}
+                                            </Badge>
+                                            {template.channel === "whatsapp" && (
+                                                <Badge className="text-[10px] px-2 py-0 border-none font-semibold rounded-full bg-emerald-500/10 text-emerald-600">
+                                                    WhatsApp
+                                                </Badge>
+                                            )}
+                                        </div>
                                         <span className="text-[10px] text-muted-foreground font-medium flex items-center gap-1">
                                             <Activity className="w-3 h-3 text-primary/70" />
                                             {template.usageCount} uses
@@ -456,7 +508,7 @@ export default function TemplatesIndex() {
                             <h2 className="text-sm  text-foreground">
                                 {panelMode === "view" && "Template Details"}
                                 {panelMode === "edit" && "Edit Template"}
-                                {panelMode === "create" && "Create SMS Template"}
+                                {panelMode === "create" && "Create Template"}
                             </h2>
                             <p className="text-[11px] text-muted-foreground">
                                 {panelMode === "view" && "Preview your SMS template and delivery segments"}
@@ -516,9 +568,13 @@ export default function TemplatesIndex() {
                                         <span className="text-lg font-black text-foreground">{activeTemplate.usageCount}</span>
                                     </div>
                                     <div className="bg-muted/10 border border-border/0 p-3 text-center">
-                                        <span className="text-[10px] text-muted-foreground font-semibold block uppercase">SMS Segments</span>
+                                        <span className="text-[10px] text-muted-foreground font-semibold block uppercase">
+                                            {activeTemplate.channel === "whatsapp" ? "Characters" : "SMS Segments"}
+                                        </span>
                                         <span className="text-lg font-black text-foreground">
-                                            {activeTemplate.content.length <= 160 ? 1 : Math.ceil(activeTemplate.content.length / 153)}
+                                            {activeTemplate.channel === "whatsapp"
+                                                ? activeTemplate.content.length
+                                                : activeTemplate.content.length <= 160 ? 1 : Math.ceil(activeTemplate.content.length / 153)}
                                         </span>
                                     </div>
                                 </div>
@@ -535,22 +591,56 @@ export default function TemplatesIndex() {
                                         Edit Template
                                     </Button>
                                     <Button
-                                        onClick={() => {
-                                            toast.success("Navigating to Compose Message with template loaded...");
-                                            navigate("/compose", { state: { initialText: activeTemplate.content } });
-                                        }}
+                                        onClick={() => sendWithTemplate(activeTemplate, "sms")}
                                         size="sm"
+                                        variant={activeTemplate.channel === "sms" ? "default" : "outline"}
                                         className="flex-1 gap-1.5 text-xs font-semibold h-10"
                                     >
                                         <Share2 className="w-3.5 h-3.5" />
-                                        Use Template
+                                        Send as SMS
                                     </Button>
                                 </div>
+                                <Button
+                                    onClick={() => sendWithTemplate(activeTemplate, "whatsapp")}
+                                    size="sm"
+                                    className={cn(
+                                        "w-full gap-1.5 text-xs font-semibold h-10",
+                                        activeTemplate.channel === "whatsapp"
+                                            ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+                                            : "bg-card text-emerald-700 border border-emerald-500/40 hover:bg-emerald-500/10"
+                                    )}
+                                >
+                                    <MessageCircle className="w-3.5 h-3.5" />
+                                    Send on WhatsApp
+                                </Button>
                             </>
                         )}
 
                         {(panelMode === "edit" || panelMode === "create") && (
                             <form onSubmit={handleSave} className="space-y-5">
+                                {/* Channel */}
+                                <div className="space-y-2">
+                                    <Label className="text-xs font-semibold">Channel</Label>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        {(["sms", "whatsapp"] as const).map((value) => (
+                                            <button
+                                                key={value}
+                                                type="button"
+                                                onClick={() => setFormChannel(value)}
+                                                className={cn(
+                                                    "h-10 rounded border text-xs flex items-center justify-center gap-1.5 transition-colors",
+                                                    formChannel === value
+                                                        ? value === "whatsapp" ? "border-emerald-500 bg-emerald-500/10 text-emerald-700" : "border-primary bg-primary/5 text-primary"
+                                                        : "border-border/60 text-muted-foreground hover:bg-muted/20"
+                                                )}
+                                            >
+                                                {value === "whatsapp" ? <MessageCircle className="w-3.5 h-3.5" /> : <FileText className="w-3.5 h-3.5" />}
+                                                {value === "sms" ? "SMS" : "WhatsApp"}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
                                 {/* Form fields */}
                                 <div className="space-y-2">
                                     <Label htmlFor="tpl-form-name" className="text-xs font-semibold">
@@ -592,18 +682,29 @@ export default function TemplatesIndex() {
                                             Template Body Content <span className="text-rose-500">*</span>
                                         </Label>
                                         <span className="text-[10px] text-muted-foreground font-semibold">
-                                            {charCount} chars | {segments} segment{segments > 1 ? "s" : ""}
+                                            {isWhatsAppForm
+                                                ? `${charCount} / 4096 chars`
+                                                : `${charCount} chars | ${segments} segment${segments > 1 ? "s" : ""}`}
                                         </span>
                                     </div>
-                                    <Textarea
-                                        id="tpl-form-content"
-                                        ref={textareaRef}
-                                        placeholder="Compose your message template body here. Wrap variables in curly braces like {code} or {name}."
-                                        value={formContent}
-                                        onChange={(e) => setFormContent(e.target.value)}
-                                        className="min-h-32 text-xs bg-card leading-relaxed resize-none"
-                                        required
-                                    />
+                                    <div className="relative">
+                                        <Textarea
+                                            id="tpl-form-content"
+                                            ref={textareaRef}
+                                            placeholder="Compose your message template body here. Wrap variables in curly braces like {code} or {name}. Or tap Help me write."
+                                            value={formContent}
+                                            onChange={(e) => setFormContent(e.target.value)}
+                                            className="min-h-40 text-xs bg-card leading-relaxed resize-none pb-11"
+                                            required
+                                        />
+                                        <HelpMeWrite
+                                            content={formContent}
+                                            channel={formChannel}
+                                            category={formCategory}
+                                            onResult={handleAIResult}
+                                            className="absolute bottom-2.5 right-2.5 shadow-sm"
+                                        />
+                                    </div>
 
                                     {/* Suggestions Row */}
                                     <div className="space-y-1.5 pt-1">
@@ -622,7 +723,7 @@ export default function TemplatesIndex() {
                                         </div>
                                     </div>
 
-                                    <div className="flex justify-between items-center text-[10px] text-muted-foreground font-medium pt-1">
+                                    <div className={cn("flex justify-between items-center text-[10px] text-muted-foreground font-medium pt-1", isWhatsAppForm && "hidden")}>
                                         <span>
                                             {charsRemaining} chars left in current segment
                                         </span>

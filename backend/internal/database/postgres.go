@@ -64,6 +64,13 @@ func Migrate(db *gorm.DB) error {
 		&models.DeveloperKey{},
 		&models.SMSJob{},
 		&models.PaymentTransaction{},
+		&models.WhatsAppAccount{},
+		&models.WhatsAppMessage{},
+		&models.BillingPlan{},
+		&models.UserSubscription{},
+		&models.DailyUsage{},
+		&models.AuthCode{},
+		&models.AuthSMSCharge{},
 	); err != nil {
 		return err
 	}

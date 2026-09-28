@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { renultApi } from "@/api/apollosms";
+import { useBillingSummary } from "@/hooks/use-billing-summary";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { TaskIcon } from "@/constants/Icons";
 import { useAuth } from "@/lib/auth";
-import { Menu, PanelLeft, User, Wallet, Sun, Moon, Monitor, Lock, VerifiedIcon } from "lucide-react";
+import { Menu, PanelLeft, Wallet, Sun, Moon, Monitor, Lock, VerifiedIcon, Sparkles } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import React, { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
@@ -59,8 +59,13 @@ export default function AppHeader({ onCreateForm }: AppHeaderProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem("sidebar-collapsed") === "true");
   const [balanceOpen, setBalanceOpen] = useState(false);
-  const [smsBalance, setSmsBalance] = useState(0);
-  const [cashBalance, setCashBalance] = useState(0);
+  const { summary } = useBillingSummary();
+  const smsBalance = summary?.sms_balance ?? 0;
+  const whatsAppBalance = summary?.whatsapp_balance ?? 0;
+  const planName = summary?.plan.name || "Free";
+  const planDaysLeft = summary?.subscription_expires_at
+    ? Math.max(0, Math.ceil((new Date(summary.subscription_expires_at).getTime() - Date.now()) / 86400000))
+    : null;
   const [themeMode, setThemeMode] = useState<ThemeMode>(getInitialTheme);
   const navigate = useNavigate();
   const location = useLocation();
@@ -77,27 +82,6 @@ export default function AppHeader({ onCreateForm }: AppHeaderProps) {
     };
     window.addEventListener("sidebar-collapse-change", handler);
     return () => window.removeEventListener("sidebar-collapse-change", handler);
-  }, []);
-
-  useEffect(() => {
-    let mounted = true;
-    const loadWallet = () => {
-      renultApi.wallet.get()
-        .then((wallet) => {
-          if (!mounted) return;
-          setSmsBalance(wallet.sms_balance);
-          setCashBalance(wallet.cash_balance);
-        })
-        .catch(() => undefined);
-    };
-    loadWallet();
-    window.addEventListener("focus", loadWallet);
-    window.addEventListener("renult-wallet-change", loadWallet);
-    return () => {
-      mounted = false;
-      window.removeEventListener("focus", loadWallet);
-      window.removeEventListener("renult-wallet-change", loadWallet);
-    };
   }, []);
 
   const toggleSidebarCollapse = () => {
@@ -189,6 +173,15 @@ export default function AppHeader({ onCreateForm }: AppHeaderProps) {
 
           {/* Right section: actions */}
           <div className="flex items-center gap-3 sm:gap-4">
+            <Link
+              to="/settings/billing"
+              title={planDaysLeft !== null ? `${planName} plan · ${planDaysLeft} day${planDaysLeft === 1 ? "" : "s"} left` : `${planName} plan`}
+              className="hidden sm:flex items-center gap-1.5 h-9 px-3 rounded border border-primary/30 bg-primary/5 text-xs font-semibold text-primary hover:bg-primary/10 transition-colors"
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>{planName} Plan</span>
+              {planDaysLeft !== null && <span className="font-normal text-primary/70">· {planDaysLeft}d left</span>}
+            </Link>
             <Popover open={balanceOpen} onOpenChange={setBalanceOpen}>
               <PopoverTrigger asChild>
                 <Button
@@ -202,24 +195,32 @@ export default function AppHeader({ onCreateForm }: AppHeaderProps) {
               <PopoverContent className="w-80 p-5 rounded border bg-card/95 text-card-foreground shadow-xl backdrop-blur-md border-border/40 focus:outline-none z-50" align="end" sideOffset={8}>
                 <PopoverArrow className="fill-card border-none" />
                 <div className="space-y-4">
-                  <h3 className="font-bold text-base text-foreground tracking-tight">Billing Plans</h3>
-                  <p className="text-xs text-muted-foreground leading-relaxed">
-                    This is a list of your billing plans and their balances:
-                  </p>
-                  <div className="grid grid-cols-1 gap-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-bold text-base text-foreground tracking-tight">{planName} plan</h3>
+                    {planDaysLeft !== null && (
+                      <span className="text-[11px] text-muted-foreground">{planDaysLeft} day{planDaysLeft === 1 ? "" : "s"} left</span>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
                     <div className="border border-border/40 rounded p-3">
-                      <p className="text-[10px] font-bold text-muted-foreground uppercase">SMS Balance</p>
+                      <p className="text-[10px] font-bold text-muted-foreground uppercase">SMS</p>
                       <p className="text-sm font-black text-foreground">{smsBalance.toLocaleString()}</p>
+                      <p className="text-[10px] text-muted-foreground mt-0.5">{summary?.free_sms_remaining ?? 0} free today</p>
+                    </div>
+                    <div className="border border-border/40 rounded p-3">
+                      <p className="text-[10px] font-bold text-muted-foreground uppercase">WhatsApp</p>
+                      <p className="text-sm font-black text-foreground">{whatsAppBalance.toLocaleString()}</p>
+                      <p className="text-[10px] text-muted-foreground mt-0.5">{summary?.free_whatsapp_remaining ?? 0} free today</p>
                     </div>
                   </div>
                   <p className="text-xs text-muted-foreground leading-relaxed">
-                    For more information, please visit our{" "}
+                    Upgrade your plan or buy credits on the{" "}
                     <Link
                       to="/settings/billing"
                       className="text-primary hover:underline font-semibold"
                       onClick={() => setBalanceOpen(false)}
                     >
-                      pricing pages
+                      billing page
                     </Link>
                     .
                   </p>

@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
-import { renultApi, TopupResponse, WalletResponse } from "@/api/apollosms";
+import { renultApi, TopupResponse } from "@/api/apollosms";
+import BillingPlans from "@/components/billing/BillingPlans";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -53,7 +54,6 @@ const toTransaction = (topup: TopupResponse): Transaction => ({
 });
 
 export default function BillingPage() {
-  const [wallet, setWallet] = useState<WalletResponse | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -72,10 +72,9 @@ export default function BillingPage() {
     let mounted = true;
     setIsLoading(true);
     setLoadError("");
-    Promise.all([renultApi.wallet.get(), renultApi.topups.list()])
-      .then(([walletData, topups]) => {
+    renultApi.topups.list()
+      .then((topups: TopupResponse[]) => {
         if (!mounted) return;
-        setWallet(walletData);
         setTransactions(topups.map(toTransaction));
       })
       .catch((error) => {
@@ -161,17 +160,8 @@ export default function BillingPage() {
   return (
     <SettingsLayout title="Billing">
       <div className="max-w-7xl mx-auto px-6 sm:px-10 py-8">
-
-        <div className="grid grid-cols-0 sm:grid-cols-2 gap-4 mb-8">
-          <div className="border border-border/30 rounded p-4">
-            <p className="text-[11px] font-bold uppercase text-muted-foreground">SMS Balance</p>
-            <p className="text-2xl font-black text-foreground mt-1">{(wallet?.sms_balance || 0).toLocaleString()} SMS</p>
-          </div>
-        </div>
-
         {/* Transactions Section */}
         <div className="space-y-4">
-
           {/* Filters Bar */}
           <div className="flex flex-wrap items-center justify-between gap-2 py-2">
             <div className="flex items-center rounded border border-primary p-1">

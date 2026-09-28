@@ -1,21 +1,50 @@
 {
-  "name": "LUCOSMS - Free Online Form Builder",
-  "short_name": "LUCOSMS",
-  "description": "Create forms, surveys, and quizzes in minutes. Free, fast, no code.",
-  "start_url": "/",
+  "id": "/",
+  "name": "Lucosms - SMS & WhatsApp Messaging",
+  "short_name": "Lucosms",
+  "description": "Send bulk SMS and WhatsApp messages, manage contacts and templates, and run campaigns with the Apollo AI assistant.",
+  "lang": "en",
+  "dir": "ltr",
+  "start_url": "/?source=pwa",
+  "scope": "/",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "portrait",
   "background_color": "#ffffff",
   "theme_color": "#ffffff",
+  "categories": ["business", "productivity", "communication"],
+  "prefer_related_applications": false,
   "icons": [
+    { "src": "/icons/icon-96.png", "sizes": "96x96", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
     {
-      "src": "/favicon-192x192.png",
-      "sizes": "192x192",
-      "type": "image/png"
+      "name": "Apollo AI Assistant",
+      "short_name": "AI Chat",
+      "url": "/chat?source=shortcut",
+      "icons": [{ "src": "/icons/icon-96.png", "sizes": "96x96", "type": "image/png" }]
     },
     {
-      "src": "/favicon-512x512.png",
-      "sizes": "512x512",
-      "type": "image/png"
+      "name": "Compose Message",
+      "short_name": "Compose",
+      "url": "/compose?source=shortcut",
+      "icons": [{ "src": "/icons/icon-96.png", "sizes": "96x96", "type": "image/png" }]
+    },
+    {
+      "name": "My Contacts",
+      "short_name": "Contacts",
+      "url": "/my-contacts?source=shortcut",
+      "icons": [{ "src": "/icons/icon-96.png", "sizes": "96x96", "type": "image/png" }]
+    },
+    {
+      "name": "Top Up Credits",
+      "short_name": "Top Up",
+      "url": "/sms-tp?source=shortcut",
+      "icons": [{ "src": "/icons/icon-96.png", "sizes": "96x96", "type": "image/png" }]
     }
   ]
 }

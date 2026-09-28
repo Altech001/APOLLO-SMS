@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   apollosmsApi,
   ChangePasswordRequest,
+  ConnectWhatsAppRequest,
   CreateCollectionRequest,
   CreateUserRequest,
   CreateWithdrawalRequest,
@@ -41,6 +42,8 @@ export const apollosmsQueryKeys = {
   developerKeys: ["apollosms", "developer-keys"] as const,
   collection: (reference: string) => ["apollosms", "payments", "collections", reference] as const,
   transactions: (limit?: number) => ["apollosms", "payments", "transactions", { limit }] as const,
+  whatsappAccounts: ["apollosms", "whatsapp", "accounts"] as const,
+  whatsappGroups: (accountId: ID) => ["apollosms", "whatsapp", "accounts", accountId, "groups"] as const,
 };
 
 export function useHealthCheck() {
@@ -354,5 +357,76 @@ export function useCreateWithdrawal() {
   return useMutation({
     mutationFn: (payload: CreateWithdrawalRequest) => apollosmsApi.payments.createWithdrawal(payload),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: apollosmsQueryKeys.transactions() }),
+  });
+}
+
+/** Linked WhatsApp numbers. Polls every 5s while any number still has queued messages. */
+export function useWhatsAppAccounts() {
+  return useQuery({
+    queryKey: apollosmsQueryKeys.whatsappAccounts,
+    queryFn: apollosmsApi.whatsapp.accounts,
+    staleTime: 30_000,
+    refetchInterval: (query) =>
+      (query.state.data || []).some((account) => (account.queued || 0) > 0) ? 5000 : false,
+  });
+}
+
+/**
+ * WhatsApp groups of one number, cached per account on both sides: the server keeps them in
+ * Redis, and here they stay fresh for 10 minutes so re-renders and remounts never refetch.
+ * Loads automatically once `accountId` is set; use `useRefreshWhatsAppGroups` to force a reload.
+ */
+export function useWhatsAppGroups(accountId: ID | null | undefined) {
+  return useQuery({
+    queryKey: apollosmsQueryKeys.whatsappGroups(accountId || ""),
+    queryFn: () => apollosmsApi.whatsapp.groups(accountId as ID),
+    enabled: Boolean(accountId),
+    staleTime: 10 * 60_000,
+    gcTime: 30 * 60_000,
+    refetchOnWindowFocus: false,
+    retry: false,
+  });
+}
+
+/** Asks the server to reload a number's groups from WhatsApp, then updates the cached list. */
+export function useRefreshWhatsAppGroups() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (accountId: ID) => apollosmsApi.whatsapp.groups(accountId, { refresh: true }),
+    onSuccess: (data, accountId) => queryClient.setQueryData(apollosmsQueryKeys.whatsappGroups(accountId), data),
+  });
+}
+
+export function useConnectWhatsApp() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: ConnectWhatsAppRequest) => apollosmsApi.whatsapp.connect(payload),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: apollosmsQueryKeys.whatsappAccounts }),
+  });
+}
+
+export function usePairWhatsApp() {
+  return useMutation({ mutationFn: (id: ID) => apollosmsApi.whatsapp.pair(id) });
+}
+
+export function useReconnectWhatsApp() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: ID) => apollosmsApi.whatsapp.reconnect(id),
+    // The session takes a moment to come online, so check again shortly after.
+    onSuccess: () => {
+      window.setTimeout(() => queryClient.invalidateQueries({ queryKey: apollosmsQueryKeys.whatsappAccounts }), 3000);
+    },
+  });
+}
+
+export function useDisconnectWhatsApp() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: ID) => apollosmsApi.whatsapp.disconnect(id),
+    onSuccess: (_data, id) => {
+      queryClient.removeQueries({ queryKey: apollosmsQueryKeys.whatsappGroups(id) });
+      return queryClient.invalidateQueries({ queryKey: apollosmsQueryKeys.whatsappAccounts, exact: true });
+    },
   });
 }

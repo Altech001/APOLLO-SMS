@@ -3,6 +3,7 @@ package services
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"backend/internal/models"
 	"backend/internal/repository"
@@ -28,8 +29,10 @@ func (s *SMSTemplateService) Create(userID uint, req *models.CreateSMSTemplateRe
 		UserID:   userID,
 		Name:     req.Name,
 		Category: req.Category,
+		Channel:  normalizeTemplateChannel(req.Channel),
 		Body:     req.Body,
 	}
+	template.SetRichExtras(req.Extras)
 
 	if err := s.templateRepo.Create(template); err != nil {
 		return nil, fmt.Errorf("failed to create template: %w", err)
@@ -83,7 +86,13 @@ func (s *SMSTemplateService) Update(templateID, userID uint, isAdmin bool, req *
 
 	template.Name = req.Name
 	template.Category = req.Category
+	if req.Channel != "" {
+		template.Channel = normalizeTemplateChannel(req.Channel)
+	}
 	template.Body = req.Body
+	if req.Extras != nil {
+		template.SetRichExtras(req.Extras)
+	}
 
 	if err := s.templateRepo.Update(template); err != nil {
 		return nil, fmt.Errorf("failed to update template: %w", err)
@@ -113,4 +122,12 @@ func (s *SMSTemplateService) Delete(templateID, userID uint, isAdmin bool) error
 	s.notifService.Notify(userID, "SMS Template Deleted", fmt.Sprintf("Template '%s' was deleted successfully.", template.Name), "warning")
 
 	return nil
+}
+
+// normalizeTemplateChannel maps a requested channel to "sms" or "whatsapp".
+func normalizeTemplateChannel(channel string) string {
+	if strings.EqualFold(strings.TrimSpace(channel), "whatsapp") {
+		return "whatsapp"
+	}
+	return "sms"
 }

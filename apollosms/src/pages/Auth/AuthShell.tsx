@@ -51,23 +51,19 @@ export default function AuthShell({ title, subtitle, seoTitle, path, children, f
       {/* Left branding panel */}
       <div className="hidden lg:flex lg:w-1/2 relative flex-col justify-between overflow-hidden bg-[#303030] p-10 text-white">
         <img
-          src="/bg/bg2.png"
+          src="/bg/bg-bg.jpg"
           alt=""
-          className="absolute inset-0 w-screen h-full object-cover pointer-events-none select-none blur-[2px]"
+          className="absolute inset-0 w-screen h-full object-cover pointer-events-none select-none blur-[1px]"
         />
-        {/* <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-[#1b1b1b]/70 to-[#1b1b1b]/35" /> */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-[#1b1b1b]/70 to-[#1b1b1b]/35" />
 
-        <div className="relative z-10">
-          <Link to="/" className="inline-flex items-center ">
-            <img src="/bg/logo.png" alt="Renult" className="h-16 w-auto object-cover" />
-          </Link>
+        <div className="relative text-[14px] text-white/55 font-medium barlow-semibold">
+          Privacy© {new Date().getFullYear()}
         </div>
 
         <div className="relative z-10 flex items-center justify-between w-full">
-          <div className="text-[14px] text-white/55 font-medium barlow-semibold">
-            Lucosms © {new Date().getFullYear()}
-          </div>
-          
+          <div></div>
+
           <div className="flex items-center bg-black/30 border border-white/10 rounded-full p-0.5 gap-0.5">
             {(["light", "dark", "system"] as ThemeMode[]).map((mode) => (
               <button
@@ -76,11 +72,10 @@ export default function AuthShell({ title, subtitle, seoTitle, path, children, f
                   e.preventDefault();
                   setThemeMode(mode);
                 }}
-                className={`w-8 h-8 rounded-full flex items-center justify-center transition-all duration-200 capitalize relative group ${
-                  themeMode === mode
-                    ? "bg-white text-black shadow-md scale-105"
-                    : "text-white/60 hover:text-white hover:bg-white/5"
-                }`}
+                className={`w-8 h-8 rounded-full flex items-center justify-center transition-all duration-200 capitalize relative group ${themeMode === mode
+                  ? "bg-white text-black shadow-md scale-105"
+                  : "text-white/60 hover:text-white hover:bg-white/5"
+                  }`}
                 title={`${mode} mode`}
                 aria-label={`${mode} mode`}
               >
@@ -105,11 +100,10 @@ export default function AuthShell({ title, subtitle, seoTitle, path, children, f
                   e.preventDefault();
                   setThemeMode(mode);
                 }}
-                className={`w-8 h-8 rounded-full flex items-center justify-center transition-all duration-200 capitalize ${
-                  themeMode === mode
-                    ? "bg-background text-foreground shadow-sm ring-1 ring-border/50"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
+                className={`w-8 h-8 rounded-full flex items-center justify-center transition-all duration-200 capitalize ${themeMode === mode
+                  ? "bg-background text-foreground shadow-sm ring-1 ring-border/50"
+                  : "text-muted-foreground hover:text-foreground"
+                  }`}
                 title={`${mode} mode`}
                 aria-label={`${mode} mode`}
               >

@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { apollosmsApi, ContactGroupResponse, ContactResponse, renultApi, TemplateResponse } from "@/api/apollosms";
+import { apollosmsApi, ContactGroupResponse, ContactResponse, renultApi, TemplateResponse, WhatsAppRich } from "@/api/apollosms";
 import AppHeader from "@/components/Header/AppHeader";
 import SEO from "@/components/SEO";
 import CsvImport from "./CsvImport";
@@ -8,10 +8,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import WhatsAppComposer from "@/components/whatsapp/WhatsAppComposer";
+import ContactPicker, { PickedContact } from "@/components/contacts/ContactPicker";
 import { cn } from "@/lib/utils";
 import {
     FileText,
     Layers,
+    MessageCircle,
+    MessageSquare,
     Plus,
     RefreshCw,
     Send,
@@ -33,7 +37,10 @@ interface Contact {
     groups: string[];
 }
 
+type ComposeChannel = "sms" | "whatsapp";
+
 interface ComposeDraft {
+    channel?: ComposeChannel;
     selectedContacts: Contact[];
     messageText: string;
     senderId: string;
@@ -41,7 +48,7 @@ interface ComposeDraft {
     showAdvancedConfig: boolean;
 }
 
-const DEFAULT_MESSAGE_TEXT = "LUCOSMS: ";
+const DEFAULT_MESSAGE_TEXT = "";
 const DEFAULT_SENDER_ID = "ATInfo";
 const DEFAULT_BATCH_SIZE = "100";
 const composeDraftKey = (userId?: string | number | null) => `apollosms:compose-draft:${userId || "anonymous"}`;
@@ -92,6 +99,8 @@ export default function ComposeIndex() {
     const [senderId, setSenderId] = useState(DEFAULT_SENDER_ID);
     const [batchSize, setBatchSize] = useState(DEFAULT_BATCH_SIZE);
     const [showAdvancedConfig, setShowAdvancedConfig] = useState(false);
+    const [channel, setChannel] = useState<ComposeChannel>("sms");
+    const [whatsAppRich, setWhatsAppRich] = useState<{ key: number; rich?: WhatsAppRich }>({ key: 0 });
     const [walletBalance, setWalletBalance] = useState(0);
     const [smsBalance, setSmsBalance] = useState(0);
     const [costPerSms, setCostPerSms] = useState(31);
@@ -99,6 +108,9 @@ export default function ComposeIndex() {
     const [groups, setGroups] = useState<Array<{ id: string; name: string; count: number }>>([]);
     const [templates, setTemplates] = useState<Array<{ id: string; name: string; category: string; content: string }>>([]);
     const [isLoadingData, setIsLoadingData] = useState(true);
+
+    // Saved contacts / groups picker
+    const [isContactPickerOpen, setIsContactPickerOpen] = useState(false);
 
     // Sliding Panel State
     const [isPanelOpen, setIsPanelOpen] = useState(false);
@@ -140,6 +152,7 @@ export default function ComposeIndex() {
             setSenderId(typeof draft.senderId === "string" ? draft.senderId : DEFAULT_SENDER_ID);
             setBatchSize(typeof draft.batchSize === "string" ? draft.batchSize : DEFAULT_BATCH_SIZE);
             setShowAdvancedConfig(Boolean(draft.showAdvancedConfig));
+            setChannel(draft.channel === "whatsapp" ? "whatsapp" : "sms");
         } catch {
             localStorage.removeItem(draftKey);
         }
@@ -156,7 +169,8 @@ export default function ComposeIndex() {
             messageText.trim() !== DEFAULT_MESSAGE_TEXT.trim() ||
             senderId !== DEFAULT_SENDER_ID ||
             batchSize !== DEFAULT_BATCH_SIZE ||
-            showAdvancedConfig;
+            showAdvancedConfig ||
+            channel !== "sms";
 
         if (!hasDraftContent) {
             localStorage.removeItem(draftKey);
@@ -164,6 +178,7 @@ export default function ComposeIndex() {
         }
 
         const draft: ComposeDraft = {
+            channel,
             selectedContacts,
             messageText,
             senderId,
@@ -171,7 +186,7 @@ export default function ComposeIndex() {
             showAdvancedConfig,
         };
         localStorage.setItem(draftKey, JSON.stringify(draft));
-    }, [batchSize, draftKey, messageText, selectedContacts, senderId, showAdvancedConfig]);
+    }, [batchSize, channel, draftKey, messageText, selectedContacts, senderId, showAdvancedConfig]);
 
     useEffect(() => {
         let mounted = true;
@@ -217,13 +232,17 @@ export default function ComposeIndex() {
 
     // Load initial values from navigation state if present
     useEffect(() => {
-        const state = location.state as { initialRecipient?: string; initialText?: string } | null;
-        if (!state?.initialRecipient && !state?.initialText) return;
+        const state = location.state as { initialRecipient?: string; initialText?: string; channel?: ComposeChannel; extras?: WhatsAppRich } | null;
+        if (!state?.initialRecipient && !state?.initialText && !state?.channel) return;
         if (isLoadingData && state.initialRecipient) return;
 
-        const stateKey = `${location.key}:${state.initialRecipient || ""}:${state.initialText || ""}`;
+        const stateKey = `${location.key}:${state.initialRecipient || ""}:${state.initialText || ""}:${state.channel || ""}`;
         if (consumedNavigationState.current === stateKey) return;
         consumedNavigationState.current = stateKey;
+
+        if (state.channel) {
+            setChannel(state.channel);
+        }
 
         if (state.initialRecipient) {
             const found = contacts.find(c => c.phone === state.initialRecipient);
@@ -241,9 +260,12 @@ export default function ComposeIndex() {
             });
             toast.success(`Loaded recipient: ${state.initialRecipient}`);
         }
+        if (state.extras) {
+            setWhatsAppRich((current) => ({ key: current.key + 1, rich: state.extras }));
+        }
         if (state.initialText) {
             setMessageText(state.initialText);
-            toast.success("Loaded SMS template text");
+            toast.success(state.channel === "whatsapp" ? "Loaded template for WhatsApp" : "Loaded SMS template text");
         }
         navigate("/compose", { replace: true, state: null });
     }, [contacts, isLoadingData, location.key, location.state, navigate]);
@@ -352,6 +374,15 @@ export default function ComposeIndex() {
             toast.success(`Imported ${addedCount} contacts from group`);
         } else {
             toast.info("All contacts from this group are already added");
+        }
+    };
+
+    const handleContactsPicked = (picked: PickedContact[]) => {
+        const existingPhones = new Set(selectedContacts.map((c) => c.phone));
+        const additions = picked.filter((c) => !existingPhones.has(c.phone));
+        setSelectedContacts([...selectedContacts, ...additions]);
+        if (additions.length > 0) {
+            toast.success(`Added ${additions.length} recipient${additions.length === 1 ? "" : "s"} from contacts`);
         }
     };
 
@@ -473,6 +504,18 @@ export default function ComposeIndex() {
         }
     };
 
+    const handleWhatsAppSent = () => {
+        clearComposeDraft();
+        setSelectedContacts([]);
+        setMessageText(DEFAULT_MESSAGE_TEXT);
+        setBatchSize(DEFAULT_BATCH_SIZE);
+    };
+
+    const whatsAppRecipients = useMemo(
+        () => selectedContacts.map((contact) => contact.phone).filter(Boolean),
+        [selectedContacts]
+    );
+
     const openPanel = (type: "numbers" | "groups" | "templates") => {
         setPanelType(type);
         setIsPanelOpen(true);
@@ -525,7 +568,15 @@ export default function ComposeIndex() {
                                 </CardDescription>
                             </div>
                             <div className="flex items-center gap-1.5">
-                                
+                                <Button
+                                    onClick={() => setIsContactPickerOpen(true)}
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-10 text-xs gap-1.5 border-border/80"
+                                >
+                                    <Users className="w-3.5 h-3.5" />
+                                    From Contacts
+                                </Button>
                                 <Button
                                     onClick={() => openPanel("numbers")}
                                     size="sm"
@@ -542,7 +593,7 @@ export default function ComposeIndex() {
                             {selectedContacts.length === 0 ? (
                                 <div className="h-64 border border-dashed border-border/80 rounded flex flex-col items-center justify-center text-center p-4">
                                     <div className="p-3 bg-muted/40 rounded-full text-muted-foreground/60 mb-2">
-                                        <img src="/bg/empty.png" className="w-15 h-12"/>
+                                        <img src="/bg/empty.png" className="w-15 h-12" />
                                     </div>
                                     <p className="text-xs  text-foreground">No recipients selected</p>
                                     <p className="text-[10px] text-muted-foreground mt-1 max-w-[180px]">
@@ -590,7 +641,7 @@ export default function ComposeIndex() {
                                 size="sm"
                                 className="w-full sm:w-auto h-10 text-xs font-semibold border-border/80"
                             >
-                                
+
                                 Import CSV File
                             </Button>
                         </div>
@@ -601,13 +652,33 @@ export default function ComposeIndex() {
                         <CardHeader className="pb-3 border-b border-border/10 flex flex-row items-center justify-between space-y-0">
                             <div>
                                 <CardTitle className="text-sm ">
-                                    Composing to {selectedContacts.length} contacts
+                                    Composing {channel === "whatsapp" ? "WhatsApp" : "SMS"} to {selectedContacts.length} contacts
                                 </CardTitle>
                                 <CardDescription className="text-[10px] mt-0.5">
                                     Draft message contents to send to recipients.
                                 </CardDescription>
                             </div>
                             <div className="flex items-center gap-1.5">
+                                <div className="flex rounded border border-border overflow-hidden text-xs h-10" role="tablist" aria-label="Message channel">
+                                    {(["sms", "whatsapp"] as const).map((value) => (
+                                        <button
+                                            key={value}
+                                            type="button"
+                                            role="tab"
+                                            aria-selected={channel === value}
+                                            onClick={() => setChannel(value)}
+                                            className={cn(
+                                                "px-3 flex items-center gap-1.5 transition-colors",
+                                                channel === value
+                                                    ? value === "whatsapp" ? "bg-emerald-600 text-white" : "bg-primary text-primary-foreground"
+                                                    : "bg-card text-muted-foreground hover:bg-muted/30"
+                                            )}
+                                        >
+                                            {value === "sms" ? <MessageSquare className="w-3.5 h-3.5" /> : <MessageCircle className="w-3.5 h-3.5" />}
+                                            {value === "sms" ? "SMS" : "WhatsApp"}
+                                        </button>
+                                    ))}
+                                </div>
                                 <Button
                                     onClick={() => openPanel("templates")}
                                     variant="outline"
@@ -634,7 +705,7 @@ export default function ComposeIndex() {
                             <div className="space-y-2">
                                 <div className="flex items-center justify-between gap-3">
                                     <Label htmlFor="sms-compose-text" className="text-xs font-semibold">Message Text</Label>
-                                    <div className="flex items-center gap-2">
+                                    <div className={cn("flex items-center gap-2", channel === "whatsapp" && "hidden")}>
                                         <Switch
                                             id="advanced-config"
                                             checked={showAdvancedConfig}
@@ -643,7 +714,7 @@ export default function ComposeIndex() {
                                         />
                                     </div>
                                 </div>
-                                {showAdvancedConfig ? (
+                                {showAdvancedConfig && channel === "sms" ? (
                                     <div className="p-3 bg-muted/15 border border-border/30 rounded flex flex-col md:flex-row md:items-center justify-between gap-4">
                                         <div className="space-y-1">
                                             <p className="text-[12px] font-semibold text-muted-foreground">Recipient Grouping</p>
@@ -673,17 +744,23 @@ export default function ComposeIndex() {
                                         </div>
                                     </div>
                                 ) : null}
-                                <div className="relative border border-border rounded overflow-hidden bg-card focus-within:ring-1 focus-within:ring-primary">
+                                <div className={cn(
+                                    "relative border border-border rounded overflow-hidden bg-card focus-within:ring-1",
+                                    channel === "whatsapp" ? "focus-within:ring-emerald-500" : "focus-within:ring-primary"
+                                )}>
                                     <textarea
                                         id="sms-compose-text"
                                         rows={8}
                                         value={messageText}
                                         onChange={(e) => setMessageText(e.target.value)}
                                         className="w-full p-4 text-xs bg-transparent focus:outline-none resize-none leading-normal"
-                                        placeholder="Compose your SMS broadcast text here..."
+                                        placeholder={channel === "whatsapp" ? "Compose your WhatsApp message here..." : "Compose your SMS broadcast text here..."}
                                     />
                                     {/* Textarea info footer */}
-                                    <div className="px-3 py-2 border-t border-border/20 bg-muted/5 flex items-center justify-between text-[10px] text-muted-foreground">
+                                    <div className={cn(
+                                        "px-3 py-2 border-t border-border/20 bg-muted/5 flex items-center justify-between text-[10px] text-muted-foreground",
+                                        channel === "whatsapp" && "hidden"
+                                    )}>
                                         <span className="font-semibold text-primary/90 flex items-center gap-1">
                                             <Layers className="w-3 h-3" />
                                             SMS Segment {smsDetails.segments}
@@ -700,14 +777,27 @@ export default function ComposeIndex() {
                                         </div>
                                     </div>
                                 </div>
-                                <p className="text-[10px] text-muted-foreground">
+                                {channel === "whatsapp" && (
+                                    <WhatsAppComposer
+                                        key={whatsAppRich.key}
+                                        initialRich={whatsAppRich.rich}
+                                        message={messageText.trim() === DEFAULT_MESSAGE_TEXT.trim() ? "" : messageText}
+                                        onMessageChange={setMessageText}
+                                        recipients={whatsAppRecipients}
+                                        onSent={handleWhatsAppSent}
+                                    />
+                                )}
+                                <p className={cn("text-[10px] text-muted-foreground", channel === "whatsapp" && "hidden")}>
                                     Wallet will reserve SMS credits first ({smsBalance.toLocaleString()} available), then cash balance if credits are not enough. Cash needed now: UGX {requiredCash.toLocaleString()}.
                                 </p>
                             </div>
                         </CardContent>
 
                         {/* Broadcast Dispatch Footer */}
-                        <div className="px-5 py-4 border-t border-border/10 bg-muted/15 flex items-center justify-between">
+                        <div className={cn(
+                            "px-5 py-4 border-t border-border/10 bg-muted/15 flex items-center justify-between",
+                            channel === "whatsapp" && "hidden"
+                        )}>
                             <div className="text-[10px]  text-muted-foreground uppercase">
                                 Dispatch to {selectedContacts.length} numbers
                             </div>
@@ -734,6 +824,13 @@ export default function ComposeIndex() {
                     </Card>
                 </div>
             </main>
+
+            <ContactPicker
+                open={isContactPickerOpen}
+                onOpenChange={setIsContactPickerOpen}
+                onConfirm={handleContactsPicked}
+                existingPhones={selectedContacts.map((c) => c.phone)}
+            />
 
             {/* --- SLIDING PANEL OVERLAY --- */}
             {isPanelOpen && (
@@ -1007,7 +1104,7 @@ export default function ComposeIndex() {
                                 <Slab color={["#32cd32", "#327fcd", "#cd32cd", "#cd8032"]} style={{ fontSize: "20px" }} />
                             ) : (
                                 <img src="/bg/done.png" className="w-10 h-10 text-emerald-500 " />
-                                
+
                             )}
                         </div>
 

@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { apollosmsApi, base44, SmsMessageResponse } from "@/api/apollosms";
+import AssistantLauncher from "@/components/ai/AssistantLauncher";
 import AppHeader from "@/components/Header/AppHeader";
 import SEO from "@/components/SEO";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -216,9 +217,9 @@ export default function Dashboard() {
         queryClient.invalidateQueries({ queryKey: formsQueryKey }),
         queryClient.invalidateQueries({ queryKey: smsDashboardQueryKey }),
       ]);
-      toast.success("Dashboard data updated!");
+      toast.success("Dashboard Updated!");
     } catch (err) {
-      toast.error("Failed to refresh dashboard data");
+      toast.error("Failed to refresh dashboard");
     } finally {
       setTimeout(() => {
         setIsRefreshing(false);
@@ -301,17 +302,6 @@ export default function Dashboard() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <Select value={dateRange} onValueChange={setDateRange}>
-                <SelectTrigger className="w-[130px] h-9 text-xs bg-background">
-                  <SelectValue placeholder="Date Range" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="today">Today</SelectItem>
-                  <SelectItem value="week">This Week</SelectItem>
-                  <SelectItem value="month">This Month</SelectItem>
-                  <SelectItem value="year">This Year</SelectItem>
-                </SelectContent>
-              </Select>
               <Button
                 size="sm"
                 onClick={handleRefresh}
@@ -613,6 +603,7 @@ export default function Dashboard() {
         </Card>
       </main>
 
+      <AssistantLauncher />
     </div>
   );
 }

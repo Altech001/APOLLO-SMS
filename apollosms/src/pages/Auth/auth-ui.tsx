@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import { cn } from "@/lib/utils";
 import { Eye, EyeOff } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -37,9 +38,9 @@ export function PasswordInput({
   );
 }
 
-export function SubmitButton({ children, isLoading }: { children: React.ReactNode; isLoading: boolean }) {
+export function SubmitButton({ children, isLoading, disabled }: { children: React.ReactNode; isLoading: boolean; disabled?: boolean }) {
   return (
-    <Button type="submit" disabled={isLoading} className="w-full h-10 mt-6 font-medium">
+    <Button type="submit" disabled={isLoading || disabled} className="w-full h-10 mt-6 font-medium">
       {children}
     </Button>
   );
@@ -76,4 +77,30 @@ export function GoogleButtonContainer({ children }: { children: (width: number) 
       {width > 0 ? children(width) : null}
     </div>
   );
+}
+
+/** Six-digit SMS code entry. */
+export function CodeInput({ value, onChange, disabled }: { value: string; onChange: (value: string) => void; disabled?: boolean }) {
+  return (
+    <div className="flex justify-center">
+      <InputOTP maxLength={6} value={value} onChange={onChange} disabled={disabled} inputMode="numeric" pattern="^[0-9]*$" autoFocus>
+        <InputOTPGroup>
+          {[0, 1, 2, 3, 4, 5].map((i) => (
+            <InputOTPSlot key={i} index={i} className="h-12 w-11 bg-card text-base" />
+          ))}
+        </InputOTPGroup>
+      </InputOTP>
+    </div>
+  );
+}
+
+/** Seconds left before a resend is allowed; call start() after each send. */
+export function useCooldown(seconds = 60) {
+  const [left, setLeft] = useState(0);
+  useEffect(() => {
+    if (left <= 0) return;
+    const timer = window.setTimeout(() => setLeft((n) => n - 1), 1000);
+    return () => window.clearTimeout(timer);
+  }, [left]);
+  return { left, start: () => setLeft(seconds) };
 }

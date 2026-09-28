@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#ffffff" />
+  <title>Offline · Lucosms</title>
+  <style>
+    :root { color-scheme: light dark; --bg: #ffffff; --fg: #18181b; --muted: #71717a; --accent: #6c54cf; }
+    @media (prefers-color-scheme: dark) { :root { --bg: #0b0b0f; --fg: #f4f4f5; --muted: #a1a1aa; } }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 24px 16px; background: var(--bg); color: var(--fg); font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+    main { max-width: 360px; text-align: center; }
+    img { width: 72px; height: 72px; border-radius: 18px; }
+    h1 { font-size: 20px; margin: 20px 0 8px; }
+    p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.5; }
+    button { margin-top: 24px; border: 0; border-radius: 999px; padding: 12px 28px; background: var(--accent); color: #fff; font-size: 14px; font-weight: 600; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <main>
+    <img src="/icons/icon-192.png" alt="Lucosms" />
+    <h1>You're not connected to the internet</h1>
+    <p>Check your Wi-Fi or mobile data, then try again. Your messages and contacts are safe.</p>
+    <button type="button" onclick="location.reload()">Try again</button>
+  </main>
+  <script>window.addEventListener("online", () => location.reload());</script>
+</body>
+</html>

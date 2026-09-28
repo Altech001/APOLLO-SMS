@@ -89,6 +89,30 @@ export interface LoginRequest {
 
 export interface ForgotPasswordRequest {
   email: string;
+  channel?: "email" | "sms";
+}
+
+export interface ForgotPasswordResponse {
+  message: string;
+  channel: "email" | "sms";
+  masked_phone?: string;
+  charged_ugx?: number;
+}
+
+/** Returned on signup and (with 403, code "verification_required") when an unverified user logs in. */
+export interface VerificationRequired {
+  email: string;
+  ticket: string;
+  has_phone: boolean;
+  masked_phone?: string;
+  sms_fee_ugx: number;
+}
+
+export interface SmsCodeSentResponse {
+  message: string;
+  masked_phone: string;
+  charged_ugx: number;
+  expires_in: number;
 }
 
 export interface ResetPasswordRequest {
@@ -167,12 +191,16 @@ export interface SMSTopupResponse {
   created_at: string;
 }
 
+export type MessageChannel = "sms" | "whatsapp";
+
 export interface SMSTemplateResponse {
   id: ID;
   user_id: ID;
   name: string;
   category: string;
+  channel: MessageChannel;
   body: string;
+  extras?: WhatsAppRich | null;
   created_at: string;
   updated_at: string;
   content: string;
@@ -184,6 +212,7 @@ export interface SMSTemplateResponse {
 export interface SMSTemplateRequest {
   name: string;
   category: string;
+  channel?: MessageChannel;
   body: string;
 }
 
@@ -363,8 +392,10 @@ export interface CreateCollectionRequest {
 export interface CreateCollectionResponse {
   reference: string;
   status: string;
+  purpose?: "sms" | "plan" | "whatsapp" | string;
   amount_ugx: number;
   sms_credits: number;
+  whatsapp_credits?: number;
   price_per_sms: number;
   raw_response?: Record<string, unknown>;
 }
@@ -452,6 +483,7 @@ export interface TemplateResponse {
   id: string;
   name: string;
   category: "Authentication" | "Marketing" | "Transactional" | "Alert" | string;
+  channel: MessageChannel;
   content: string;
   variables: string[];
   usage_count?: number;
@@ -541,13 +573,315 @@ type RequestOptions = RequestInit & {
   query?: Record<string, string | number | boolean | null | undefined>;
 };
 
+export type WhatsAppProvider = "whatsmeow" | "sandbox";
+
+export type WhatsAppAccountStatus = "pending" | "connected" | "disconnected" | "logged_out" | "banned";
+
+export interface WhatsAppAccountResponse {
+  id: ID;
+  provider: WhatsAppProvider;
+  display_name: string;
+  phone_number: string;
+  push_name: string;
+  status: WhatsAppAccountStatus | string;
+  online: boolean;
+  last_error: string;
+  banned_until: string | null;
+  linked_at: string | null;
+  last_connected_at: string | null;
+  sent_today: number;
+  daily_limit: number;
+  queued: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ConnectWhatsAppRequest {
+  provider: WhatsAppProvider;
+  display_name?: string;
+  /** Optional for whatsmeow: when set, an 8-character pairing code is returned alongside the QR code. */
+  phone_number?: string;
+}
+
+export interface WhatsAppPairingResponse {
+  account: WhatsAppAccountResponse;
+  status: "waiting" | "success" | "timeout" | "error" | "none";
+  qr_code: string;
+  pairing_code: string;
+  expires_at: string | null;
+  error: string;
+}
+
+export interface WhatsAppMessageRecord {
+  id: ID;
+  user_id: ID;
+  account_id: ID;
+  recipient: string;
+  body: string;
+  status: "queued" | "sending" | "sent" | "failed" | "cancelled" | string;
+  provider_message_id: string;
+  charged_from: "free" | "credit" | "";
+  error: string;
+  sent_at: string | null;
+  created_at: string;
+}
+
+export interface WhatsAppGroup {
+  jid: string;
+  name: string;
+  participant_count: number;
+  members: Array<{ phone: string; is_admin: boolean }>;
+  /** Members whose number WhatsApp keeps private; they can't be imported. */
+  hidden_count: number;
+}
+
+/** A (possibly cached) snapshot of a linked number's groups. */
+export interface WhatsAppGroupsResponse {
+  groups: WhatsAppGroup[];
+  /** When the list was last loaded from WhatsApp. */
+  fetched_at: string;
+  /** True when the server answered from its cache instead of WhatsApp. */
+  cached: boolean;
+}
+
+export interface WhatsAppButton {
+  type: "url" | "call" | "reply";
+  text: string;
+  value?: string;
+}
+
+/** Optional parts around a WhatsApp message body. Buttons are sent as tappable formatted lines. */
+export interface WhatsAppRich {
+  image_url?: string;
+  header?: string;
+  footer?: string;
+  buttons?: WhatsAppButton[];
+}
+
+export interface SendWhatsAppResponse {
+  queued: number;
+  sent: number;
+  failed: number;
+  charged_free: number;
+  charged_credits: number;
+  whatsapp_balance: number;
+  messages: WhatsAppMessageRecord[];
+}
+
+export interface BillingPlan {
+  id: ID;
+  code: string;
+  name: string;
+  description: string;
+  price_ugx: number;
+  duration_days: number;
+  sms_price_ugx: number;
+  whatsapp_credits: number;
+  daily_free_sms: number;
+  daily_free_whatsapp: number;
+  whatsapp_per_sms: number;
+  whatsapp_price_ugx: number;
+  features: string;
+  is_popular: boolean;
+  is_active: boolean;
+  sort_order: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export type BillingPlanRequest = Omit<BillingPlan, "id" | "created_at" | "updated_at">;
+
+export interface BillingSummary {
+  plan: BillingPlan;
+  subscription_id: ID | null;
+  subscription_expires_at: string | null;
+  sms_balance: number;
+  whatsapp_balance: number;
+  free_sms_remaining: number;
+  free_whatsapp_remaining: number;
+  sms_price_ugx: number;
+  whatsapp_price_ugx: number;
+  min_whatsapp_credit_order: number;
+}
+
+export interface SubscribeResponse {
+  activated: boolean;
+  collection?: CreateCollectionResponse;
+  summary?: BillingSummary;
+}
+
+export type AIWriteMode = "create" | "polish" | "elaborate" | "formalise" | "shorten";
+
+export interface AITemplateResponse {
+  name: string;
+  category: string;
+  channel: MessageChannel;
+  content: string;
+}
+
+export type AIChatActionType = "send_sms" | "send_whatsapp" | "send_personalized" | "send_from_file" | "create_template" | "generate_image";
+
+export type AIImageAspect = "square" | "landscape" | "portrait";
+
+/** Something the assistant proposes; the app runs it only after the user confirms. */
+export interface AIChatAction {
+  type: AIChatActionType;
+  /** send_sms / send_whatsapp: phone numbers or contact names, resolved against the user's contacts. */
+  recipients?: string[];
+  /** send_sms / send_whatsapp: contact group names. */
+  groups?: string[];
+  /** Text to send; for send_from_file it may contain {Column} placeholders. */
+  message?: string;
+  channel?: MessageChannel;
+  /** send_personalized: a different message per recipient. */
+  items?: Array<{ to: string; message: string }>;
+  /** send_from_file: attached spreadsheet name and its phone number column. */
+  attachment?: string;
+  phone_column?: string;
+  prompt?: string;
+  aspect?: AIImageAspect;
+  source?: "stock" | "ai";
+  query?: string;
+  header?: string;
+  footer?: string;
+  buttons?: WhatsAppButton[];
+  image_query?: string;
+  name?: string;
+  category?: string;
+  content?: string;
+}
+
+/** What the assistant is told about an attached file (extracted in the browser). */
+export interface AIChatAttachment {
+  name: string;
+  kind: "spreadsheet" | "document";
+  columns?: string[];
+  rows?: number;
+  text: string;
+}
+
+export interface AIChatMessage {
+  role: "user" | "assistant";
+  content: string;
+  attachments?: AIChatAttachment[];
+  actions?: AIChatAction[];
+}
+
+export interface AIChatResponse {
+  reply: string;
+  /** The model that answered; a fallback model may not share reasoning. */
+  model?: string;
+  thinking?: string;
+  plan?: string[];
+  actions: AIChatAction[];
+}
+
+export interface StockPhoto {
+  id: number;
+  alt: string;
+  width: number;
+  height: number;
+  avg_color: string;
+  page_url: string;
+  photographer: string;
+  photographer_url: string;
+  thumb: string;
+  preview: string;
+  full: string;
+}
+
+export interface StockSearchResponse {
+  query: string;
+  page: number;
+  has_more: boolean;
+  photos: StockPhoto[];
+}
+
+export interface AIImageResponse {
+  url: string;
+  prompt: string;
+  aspect: AIImageAspect;
+  width: number;
+  height: number;
+  seed: number;
+}
+
+/** A chat model the user can pick; the others take over automatically when it is busy. */
+export interface AIModelInfo {
+  id: string;
+  label: string;
+  description: string;
+  reasoning: boolean;
+  status: "available" | "busy" | "unavailable";
+}
+
+export interface AIConversationSummary {
+  id: number;
+  title: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AIConversation<TMessage = unknown> extends AIConversationSummary {
+  messages: TMessage[];
+}
+
+export interface BatchSendResponse {
+  accepted: number;
+  failed: number;
+  errors: string[];
+}
+
+export interface ContactImportSummary {
+  created: number;
+  updated: number;
+  skipped: number;
+  errors: string[];
+}
+
+// Backend contacts use numeric IDs; the UI works with string IDs and both name/phone field spellings.
+function normalizeContact(contact: any): ContactResponse {
+  const groupIds = (contact?.group_ids || contact?.groups || []).map(String);
+  return {
+    ...contact,
+    id: String(contact.id),
+    name: contact.name || "",
+    full_name: contact.name || "",
+    phone: contact.phone || "",
+    phone_number: contact.phone || "",
+    email: contact.email || null,
+    groups: groupIds,
+    group_ids: groupIds,
+  };
+}
+
+function normalizeContactGroup(group: any): ContactGroupResponse {
+  return { ...group, id: String(group.id), contact_count: Number(group.contact_count || 0) };
+}
+
+function toContactPayload(contact: { name: string; phone: string; email?: string | null; notes?: string; groups?: string[] }) {
+  return {
+    name: contact.name,
+    phone: contact.phone,
+    email: contact.email || "",
+    notes: contact.notes || "",
+    group_ids: contact.groups === undefined ? undefined : contact.groups.map(Number),
+  };
+}
+
 export class ApiError extends Error {
   status: number;
+  /** Machine-readable error code from the backend, e.g. "verification_required". */
+  code?: string;
+  /** Extra payload the backend attached to the error. */
+  data?: unknown;
 
-  constructor(message: string, status: number) {
+  constructor(message: string, status: number, code?: string, data?: unknown) {
     super(message);
     this.name = "ApiError";
     this.status = status;
+    this.code = code;
+    this.data = data;
   }
 }
 
@@ -587,6 +921,7 @@ function normalizeAuth(auth: any): AuthResponse {
 function normalizeTemplate(template: any): SMSTemplateResponse {
   return {
     ...template,
+    channel: template?.channel === "whatsapp" ? "whatsapp" : "sms",
     content: template?.content || template?.body || "",
     body: template?.body || template?.content || "",
     variables: template?.variables || [],
@@ -706,23 +1041,42 @@ function isJsonBody(body: BodyInit | null | undefined) {
   return body !== undefined && body !== null && !(body instanceof FormData);
 }
 
+export const OFFLINE_MESSAGE = "You're not connected to the internet. Check your connection and try again.";
+export const SERVER_DOWN_MESSAGE = "Requests can't be completed right now. Our servers are temporarily unavailable, so please try again shortly.";
+
 async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { auth = true, apiKey, query, headers, body, ...init } = options;
   const token = getStoredToken();
-  const res = await fetch(buildUrl(path, query), {
-    ...init,
-    headers: {
-      Accept: "application/json",
-      ...(isJsonBody(body) ? { "Content-Type": "application/json" } : {}),
-      ...(auth && token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(apiKey ? { "X-API-Key": apiKey } : {}),
-      ...headers,
-    },
-    body,
-  });
+  if (typeof navigator !== "undefined" && !navigator.onLine) {
+    throw new ApiError(OFFLINE_MESSAGE, 0, "offline");
+  }
+
+  let res: Response;
+  try {
+    res = await fetch(buildUrl(path, query), {
+      ...init,
+      headers: {
+        Accept: "application/json",
+        ...(isJsonBody(body) ? { "Content-Type": "application/json" } : {}),
+        ...(auth && token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(apiKey ? { "X-API-Key": apiKey } : {}),
+        ...headers,
+      },
+      body,
+    });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") throw error;
+    const offline = typeof navigator !== "undefined" && !navigator.onLine;
+    throw new ApiError(offline ? OFFLINE_MESSAGE : SERVER_DOWN_MESSAGE, 0, offline ? "offline" : "server_unreachable");
+  }
 
   const contentType = res.headers.get("content-type") || "";
-  const data = contentType.includes("application/json") ? await res.json() : await res.text();
+  const isJson = contentType.includes("application/json");
+  const data = isJson ? await res.json().catch(() => null) : await res.text().catch(() => "");
+
+  if (!res.ok && res.status >= 500 && (!isJson || !data)) {
+    throw new ApiError(SERVER_DOWN_MESSAGE, res.status, "server_unavailable");
+  }
 
   if (!res.ok) {
     const detail = data?.detail;
@@ -730,7 +1084,7 @@ async function apiRequest<T>(path: string, options: RequestOptions = {}): Promis
       ? detail.map((item: any) => item.msg).filter(Boolean).join(", ")
       : data?.error || data?.message || detail || data || "Request failed";
     if (res.status === 401) clearAuth();
-    throw new ApiError(String(message), res.status);
+    throw new ApiError(String(message), res.status, data?.code, data?.data);
   }
 
   if (data && typeof data === "object" && "success" in data && "data" in data) {
@@ -923,22 +1277,31 @@ export const apollosmsApi = {
       const user = normalizeUser(await apiRequest<UserResponse>("/users/me"));
       return saveUser(user);
     },
-    register: async (payload: { email: string; password: string; name?: string; full_name?: string }) =>
-      normalizeUser(await apiRequest<UserResponse>("/auth/register", {
+    register: async (payload: { email: string; password: string; name?: string; full_name?: string; phone?: string }) => {
+      const created = await apiRequest<UserResponse & { verification?: VerificationRequired }>("/auth/register", {
         method: "POST",
         auth: false,
         body: JSON.stringify({
           name: payload.name || payload.full_name || "",
           email: payload.email,
+          phone: payload.phone || "",
           password: payload.password,
         }),
-      })),
+      });
+      return { user: normalizeUser(created), verification: created.verification };
+    },
+    sendVerificationSms: (ticket: string) =>
+      apiRequest<SmsCodeSentResponse>("/auth/verify/sms/send", { method: "POST", auth: false, body: JSON.stringify({ ticket }) }),
+    confirmVerificationSms: async (payload: { ticket: string; code: string }) =>
+      normalizeAuth(await apiRequest<AuthResponse>("/auth/verify/sms/confirm", { method: "POST", auth: false, body: JSON.stringify(payload) })),
+    resetPasswordWithSms: (payload: { email: string; code: string; new_password: string }) =>
+      apiRequest<ApiMessage>("/auth/reset-password/sms", { method: "POST", auth: false, body: JSON.stringify(payload) }),
     verifyEmail: (token: string) =>
       apiRequest<ApiMessage>("/auth/verify-email", { method: "GET", auth: false, query: { token } }),
     login: async (payload: LoginRequest) =>
       normalizeAuth(await apiRequest<AuthResponse>("/auth/login", { method: "POST", auth: false, body: JSON.stringify(payload) })),
     forgotPassword: (payload: ForgotPasswordRequest) =>
-      apiRequest<ApiMessage>("/auth/forgot-password", { method: "POST", auth: false, body: JSON.stringify(payload) }),
+      apiRequest<ForgotPasswordResponse>("/auth/forgot-password", { method: "POST", auth: false, body: JSON.stringify(payload) }),
     resetPassword: (payload: ResetPasswordRequest) =>
       apiRequest<ApiMessage>("/auth/reset-password", { method: "POST", auth: false, body: JSON.stringify(payload) }),
     resendVerification: (payload: ResendVerificationRequest) =>
@@ -1024,22 +1387,26 @@ export const apollosmsApi = {
   smsTemplates: {
     list: async () => (await apiRequest<SMSTemplateResponse[]>("/sms-templates")).map(normalizeTemplate),
     get: async (id: ID) => normalizeTemplate(await apiRequest<SMSTemplateResponse>(`/sms-templates/${id}`)),
-    create: async (payload: SMSTemplateRequest | { name: string; category: string; content: string; variables?: string[] }) =>
+    create: async (payload: (SMSTemplateRequest | { name: string; category: string; channel?: MessageChannel; content: string; variables?: string[] }) & { extras?: WhatsAppRich }) =>
       normalizeTemplate(await apiRequest<SMSTemplateResponse>("/sms-templates", {
         method: "POST",
         body: JSON.stringify({
           name: payload.name,
           category: payload.category,
+          channel: payload.channel,
           body: "body" in payload ? payload.body : payload.content,
+          extras: payload.extras,
         }),
       })),
-    update: async (id: ID, payload: SMSTemplateRequest | { name: string; category: string; content: string; variables?: string[] }) =>
+    update: async (id: ID, payload: (SMSTemplateRequest | { name: string; category: string; channel?: MessageChannel; content: string; variables?: string[] }) & { extras?: WhatsAppRich }) =>
       normalizeTemplate(await apiRequest<SMSTemplateResponse>(`/sms-templates/${id}`, {
         method: "PUT",
         body: JSON.stringify({
           name: payload.name,
           category: payload.category,
+          channel: payload.channel,
           body: "body" in payload ? payload.body : payload.content,
+          extras: payload.extras,
         }),
       })),
     delete: (id: ID) => apiRequest<ApiMessage>(`/sms-templates/${id}`, { method: "DELETE" }),
@@ -1136,6 +1503,86 @@ export const apollosmsApi = {
       apiRequest<PaymentTransactionResponse>("/payments/withdrawals", { method: "POST", body: JSON.stringify(payload) }),
     marzPayWebhook: (payload: unknown) =>
       apiRequest<ApiMessage>("/payments/webhooks/marzpay", { method: "POST", auth: false, body: JSON.stringify(payload) }),
+  },
+  billing: {
+    plans: () => apiRequest<BillingPlan[]>("/billing/plans"),
+    summary: () => apiRequest<BillingSummary>("/billing/summary"),
+    subscribe: (payload: { plan_id: ID; phone_number?: string; method?: string }) =>
+      apiRequest<SubscribeResponse>("/billing/subscribe", {
+        method: "POST",
+        body: JSON.stringify({ ...payload, plan_id: Number(payload.plan_id) }),
+      }),
+    buyWhatsAppCredits: (payload: { credits: number; phone_number: string; method?: string }) =>
+      apiRequest<CreateCollectionResponse>("/billing/whatsapp-credits", { method: "POST", body: JSON.stringify(payload) }),
+    adminPlans: () => apiRequest<BillingPlan[]>("/billing/admin/plans"),
+    createPlan: (payload: BillingPlanRequest) =>
+      apiRequest<BillingPlan>("/billing/admin/plans", { method: "POST", body: JSON.stringify(payload) }),
+    updatePlan: (id: ID, payload: BillingPlanRequest) =>
+      apiRequest<BillingPlan>(`/billing/admin/plans/${id}`, { method: "PUT", body: JSON.stringify(payload) }),
+  },
+  ai: {
+    generateTemplate: (payload: {
+      prompt?: string;
+      content?: string;
+      mode?: AIWriteMode;
+      channel: MessageChannel;
+      category?: string;
+      tone?: string;
+    }) =>
+      apiRequest<AITemplateResponse>("/ai/templates/generate", { method: "POST", body: JSON.stringify(payload) }),
+    /** `model` is the preferred model ("" = Auto); the backend switches models automatically when one is busy. */
+    chat: (messages: AIChatMessage[], options?: { think?: boolean; images?: boolean; model?: string }) =>
+      apiRequest<AIChatResponse>("/ai/chat", {
+        method: "POST",
+        body: JSON.stringify({ messages, think: !!options?.think, images: options?.images ?? true, model: options?.model || "" }),
+      }),
+    models: () => apiRequest<AIModelInfo[]>("/ai/models"),
+    /** The user's saved assistant chats. A chat without a title is named automatically once answered. */
+    conversations: {
+      list: (search?: string) => apiRequest<AIConversationSummary[]>("/ai/conversations", { query: { search } }),
+      get: <T = unknown>(id: number) => apiRequest<AIConversation<T>>(`/ai/conversations/${id}`),
+      create: <T = unknown>(payload: { messages: T[]; title?: string }) =>
+        apiRequest<AIConversation<T>>("/ai/conversations", { method: "POST", body: JSON.stringify(payload) }),
+      update: <T = unknown>(id: number, payload: { messages?: T[]; title?: string }) =>
+        apiRequest<AIConversation<T>>(`/ai/conversations/${id}`, { method: "PUT", body: JSON.stringify(payload) }),
+      delete: (id: number) => apiRequest<ApiMessage>(`/ai/conversations/${id}`, { method: "DELETE" }),
+    },
+    searchStock: (query: string, aspect?: AIImageAspect, page = 1) =>
+      apiRequest<StockSearchResponse>("/ai/images/stock", { query: { query, aspect, page } }),
+    /** Draws an image with the NVIDIA image model; it is saved to storage and returned as a URL. */
+    generateImage: (payload: { prompt: string; aspect?: AIImageAspect; seed?: number }) =>
+      apiRequest<AIImageResponse>("/ai/images/generate", { method: "POST", body: JSON.stringify(payload) }),
+    /** Sends a different message to each recipient; the whole batch is balance-checked first. */
+    sendBatch: (payload: { channel: MessageChannel; account_id?: ID; items: Array<{ phone: string; message: string }> } & WhatsAppRich) =>
+      apiRequest<BatchSendResponse>("/messages/batch", {
+        method: "POST",
+        body: JSON.stringify({ ...payload, account_id: payload.account_id ? Number(payload.account_id) : 0 }),
+      }),
+  },
+  whatsapp: {
+    accounts: () => apiRequest<WhatsAppAccountResponse[]>("/whatsapp/accounts"),
+    connect: (payload: ConnectWhatsAppRequest) =>
+      apiRequest<WhatsAppPairingResponse>("/whatsapp/accounts", { method: "POST", body: JSON.stringify(payload) }),
+    pairing: (id: ID) => apiRequest<WhatsAppPairingResponse>(`/whatsapp/accounts/${id}/pairing`),
+    pair: (id: ID, payload?: { phone_number?: string }) =>
+      apiRequest<WhatsAppPairingResponse>(`/whatsapp/accounts/${id}/pair`, { method: "POST", body: JSON.stringify(payload || {}) }),
+    reconnect: (id: ID) => apiRequest<WhatsAppAccountResponse>(`/whatsapp/accounts/${id}/reconnect`, { method: "POST" }),
+    /** Served from the server cache unless `refresh` is set; forced refreshes are throttled per number. */
+    groups: (id: ID, query?: { refresh?: boolean }) =>
+      apiRequest<WhatsAppGroupsResponse>(`/whatsapp/accounts/${id}/groups`, { query }),
+    disconnect: (id: ID) => apiRequest<ApiMessage>(`/whatsapp/accounts/${id}`, { method: "DELETE" }),
+    send: (payload: { account_id: ID; phones: string[]; message: string } & WhatsAppRich) =>
+      apiRequest<SendWhatsAppResponse>("/whatsapp/send", {
+        method: "POST",
+        body: JSON.stringify({ ...payload, account_id: Number(payload.account_id) }),
+      }),
+    messages: (query?: { limit?: number }) => apiRequest<WhatsAppMessageRecord[]>("/whatsapp/messages", { query }),
+    uploadImage: (file: File) => {
+      const form = new FormData();
+      form.append("file", file);
+      return apiRequest<{ url: string }>("/whatsapp/media", { method: "POST", body: form });
+    },
+    cancelMessage: (id: ID) => apiRequest<ApiMessage>(`/whatsapp/messages/${id}`, { method: "DELETE" }),
   },
   apiSettings: {
     smsProviders: async () => normalizeSmsConfig(await apiRequest<SMSConfigResponse>("/sms-config")),
@@ -1240,9 +1687,9 @@ export const renultApi: any = {
   },
   templates: {
     list: async () => (await apollosmsApi.smsTemplates.list()).map(toTemplateResponse),
-    create: async (payload: { name: string; category: string; content: string; variables?: string[] }) =>
+    create: async (payload: { name: string; category: string; channel?: MessageChannel; content: string; variables?: string[] }) =>
       toTemplateResponse(await apollosmsApi.smsTemplates.create(payload)),
-    update: async (id: ID, payload: { name: string; category: string; content: string; variables?: string[] }) =>
+    update: async (id: ID, payload: { name: string; category: string; channel?: MessageChannel; content: string; variables?: string[] }) =>
       toTemplateResponse(await apollosmsApi.smsTemplates.update(id, payload)),
     use: async (id: ID) => toTemplateResponse(await apollosmsApi.smsTemplates.get(id)),
     delete: (id: ID) => apollosmsApi.smsTemplates.delete(id),
@@ -1301,60 +1748,83 @@ export const renultApi: any = {
     },
   },
   contactGroups: {
-    list: async () => {
-      const groups = await localContactGroups.list();
-      const contacts = await localContacts.list();
-      return groups.map((group) => ({
-        ...group,
-        contact_count: contacts.filter((contact) => (contact.groups || contact.group_ids || []).includes(group.id)).length,
-      }));
-    },
-    create: (payload: { name: string; description?: string; color?: string }) => localContactGroups.create(payload),
-    update: (id: string, payload: Partial<ContactGroupResponse>) => localContactGroups.update(id, payload),
-    delete: (id: string) => localContactGroups.delete(id),
+    list: async () => (await apiRequest<any[]>("/contact-groups")).map(normalizeContactGroup),
+    create: async (payload: { name: string; description?: string; color?: string }) =>
+      normalizeContactGroup(await apiRequest<any>("/contact-groups", { method: "POST", body: JSON.stringify(payload) })),
+    update: async (id: string, payload: Partial<ContactGroupResponse>) =>
+      normalizeContactGroup(await apiRequest<any>(`/contact-groups/${id}`, {
+        method: "PUT",
+        body: JSON.stringify({ name: payload.name, description: payload.description || "", color: payload.color || "" }),
+      })),
+    delete: (id: string) => apiRequest<ApiMessage>(`/contact-groups/${id}`, { method: "DELETE" }),
   },
   contacts: {
-    list: async (query?: { search?: string; group_id?: string }) => {
-      const search = query?.search?.toLowerCase();
-      return (await localContacts.list()).filter((contact) => {
-        const inGroup = !query?.group_id || (contact.groups || contact.group_ids || []).includes(query.group_id);
-        const matchesSearch = !search || [contact.name, contact.full_name, contact.phone, contact.phone_number, contact.email]
-          .filter(Boolean)
-          .some((value) => String(value).toLowerCase().includes(search));
-        return inGroup && matchesSearch;
+    list: async (query?: { search?: string; group_id?: string; limit?: number }) => {
+      const res = await apiRequest<{ contacts: any[]; total: number }>("/contacts", {
+        query: { search: query?.search, group_id: query?.group_id, limit: query?.limit || 5000 },
       });
+      return (res.contacts || []).map(normalizeContact);
     },
-    create: (payload: { name: string; phone: string; email?: string; groups?: string[] }) =>
-      localContacts.create({
-        name: payload.name,
-        full_name: payload.name,
-        phone: payload.phone,
-        phone_number: payload.phone,
-        email: payload.email || null,
-        groups: payload.groups || [],
-        group_ids: payload.groups || [],
-      }),
-    bulkCreate: async (payload: { contacts: Array<{ name: string; phone: string; email?: string; groups?: string[] }> }) =>
-      Promise.all(payload.contacts.map((contact) => renultApi.contacts.create(contact))),
-    update: (id: string, payload: Partial<{ name: string; phone: string; email: string; groups: string[] }>) =>
-      localContacts.update(id, {
-        ...payload,
-        full_name: payload.name,
-        phone_number: payload.phone,
-        group_ids: payload.groups,
-      }),
-    delete: (id: string) => localContacts.delete(id),
-    bulkDelete: async (ids: string[]) => {
-      await Promise.all(ids.map((id) => localContacts.delete(id)));
-      return { message: "Deleted" };
+    create: async (payload: { name: string; phone: string; email?: string; groups?: string[] }) =>
+      normalizeContact(await apiRequest<any>("/contacts", { method: "POST", body: JSON.stringify(toContactPayload(payload)) })),
+    /** Imports contacts (existing numbers are updated, not duplicated) and returns the refreshed list. */
+    bulkCreate: async (payload: { contacts: Array<{ name: string; phone: string; email?: string; groups?: string[] }>; group_ids?: string[] }) => {
+      const summary = await apiRequest<ContactImportSummary>("/contacts/bulk", {
+        method: "POST",
+        body: JSON.stringify({
+          contacts: payload.contacts.map(toContactPayload),
+          group_ids: (payload.group_ids || []).map(Number),
+        }),
+      });
+      return { summary, contacts: await renultApi.contacts.list() as ContactResponse[] };
     },
-    assignGroup: async (contactIds: string[], groupId: string) => {
-      const contacts = await localContacts.list();
-      await Promise.all(contacts.filter((contact) => contactIds.includes(contact.id)).map((contact) => {
-        const groups = Array.from(new Set([...(contact.groups || contact.group_ids || []), groupId]));
-        return localContacts.update(contact.id, { groups, group_ids: groups });
-      }));
-      return { message: "Contacts assigned" };
+    update: async (id: string, payload: Partial<{ name: string; phone: string; email: string; groups: string[] }>) =>
+      normalizeContact(await apiRequest<any>(`/contacts/${id}`, {
+        method: "PUT",
+        body: JSON.stringify(toContactPayload({ name: payload.name || "", phone: payload.phone || "", email: payload.email, groups: payload.groups })),
+      })),
+    delete: (id: string) => apiRequest<ApiMessage>(`/contacts/${id}`, { method: "DELETE" }),
+    bulkDelete: (ids: string[]) =>
+      apiRequest<ApiMessage>("/contacts/bulk-delete", { method: "POST", body: JSON.stringify({ contact_ids: ids.map(Number) }) }),
+    assignGroup: (contactIds: string[], groupId: string) =>
+      apiRequest<ApiMessage>("/contacts/assign-group", {
+        method: "POST",
+        body: JSON.stringify({ contact_ids: contactIds.map(Number), group_id: Number(groupId) }),
+      }),
+    unassignGroup: (contactIds: string[], groupId: string) =>
+      apiRequest<ApiMessage>("/contacts/unassign-group", {
+        method: "POST",
+        body: JSON.stringify({ contact_ids: contactIds.map(Number), group_id: Number(groupId) }),
+      }),
+    /** Contacts saved by the old browser-only version of this page, waiting to be moved to the account. */
+    browserSavedCount: async () => (await localContacts.list()).length,
+    /** Moves browser-saved contacts and groups into the account, then clears the browser copy. */
+    importFromBrowser: async () => {
+      const [oldGroups, oldContacts] = await Promise.all([localContactGroups.list(), localContacts.list()]);
+      const groupIdMap = new Map<string, string>();
+      for (const group of oldGroups) {
+        const created = await renultApi.contactGroups.create({ name: group.name, description: group.description || "", color: group.color || "" });
+        groupIdMap.set(group.id, created.id);
+      }
+      let summary: ContactImportSummary = { created: 0, updated: 0, skipped: 0, errors: [] };
+      for (let i = 0; i < oldContacts.length; i += 1000) {
+        const chunk = oldContacts.slice(i, i + 1000).map((contact) => ({
+          name: contact.name || contact.full_name || "",
+          phone: contact.phone || contact.phone_number || "",
+          email: contact.email || "",
+          groups: (contact.groups || contact.group_ids || []).map((id) => groupIdMap.get(id)).filter(Boolean) as string[],
+        }));
+        const { summary: part } = await renultApi.contacts.bulkCreate({ contacts: chunk });
+        summary = {
+          created: summary.created + part.created,
+          updated: summary.updated + part.updated,
+          skipped: summary.skipped + part.skipped,
+          errors: [...summary.errors, ...part.errors].slice(0, 20),
+        };
+      }
+      localStorage.removeItem("apollosms:contacts");
+      localStorage.removeItem("apollosms:contact-groups");
+      return summary;
     },
   },
   sms: {

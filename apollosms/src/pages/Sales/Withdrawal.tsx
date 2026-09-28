@@ -6,6 +6,10 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/lib/auth";
+import { useBillingSummary } from "@/hooks/use-billing-summary";
+import BillingPlans, { RedeemType } from "@/components/billing/BillingPlans";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import WhatsAppCreditsPurchase from "@/components/billing/WhatsAppCreditsPurchase";
 import { isPaymentComplete, isPaymentFailed, normalizePaymentStatus } from "@/lib/payment-status";
 import { cn } from "@/lib/utils";
 import { AnimatePresence, motion, Variants } from "framer-motion";
@@ -16,12 +20,14 @@ import {
     Check,
     Coins,
     Loader2,
+    MessageCircle,
+    MessageSquare,
     Phone,
     ShoppingCart,
     Verified
 } from "lucide-react";
 import { useEffect, useMemo, useState, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 
 const TIERS = [
@@ -57,6 +63,13 @@ export default function Withdrawal() {
         return () => window.removeEventListener("sidebar-collapse-change", handler);
     }, []);
 
+    const { summary: billingSummary } = useBillingSummary();
+    // The redeem dialog is driven by the URL (?redeem=sms|whatsapp) so other pages can open it directly.
+    const [searchParams, setSearchParams] = useSearchParams();
+    const redeemParam = searchParams.get("redeem");
+    const isRedeemOpen = redeemParam === "sms" || redeemParam === "whatsapp";
+    const redeemType: RedeemType = redeemParam === "whatsapp" ? "whatsapp" : "sms";
+    const setRedeemType = (type: RedeemType) => setSearchParams({ redeem: type }, { replace: true });
     const [walletBalance, setWalletBalance] = useState(0);
     const [topupPhone, setTopupPhone] = useState(user?.phone_number || "");
     const [isWalletLoading, setIsWalletLoading] = useState(true);
@@ -184,8 +197,14 @@ export default function Withdrawal() {
     // Custom bundle state
     const [customAmount, setCustomAmount] = useState("");
     const customNumeric = parseInt(customAmount.replace(/[^0-9]/g, ""), 10) || 0;
-    const customRate = useMemo(() => getRateForAmount(customNumeric), [customNumeric]);
+    // Plans with a fixed SMS price (e.g. Weekly 30 UGX, Yearly 29 UGX) override the standard tiers.
+    const planSmsPrice = billingSummary?.plan.sms_price_ugx || 0;
+    const customRate = useMemo(
+        () => (planSmsPrice > 0 ? planSmsPrice : getRateForAmount(customNumeric)),
+        [customNumeric, planSmsPrice]
+    );
     const customSmsCount = customNumeric > 0 ? Math.floor(customNumeric / customRate) : 0;
+    const bonusWhatsApp = customSmsCount * (billingSummary?.plan.whatsapp_per_sms || 0);
 
     useEffect(() => {
         let mounted = true;
@@ -296,17 +315,73 @@ export default function Withdrawal() {
         setStep(newStep);
     };
 
+    const closeRedeem = () => {
+        if (purchaseStage === "processing") {
+            if (!window.confirm("Stop waiting for this payment? If you approve it on your phone, your credits are still added.")) return;
+            handleCancelPayment();
+        }
+        if (step === 3) handleReset();
+        setSearchParams({}, { replace: true });
+    };
+
     return (
         <div className={cn("min-h-screen bg-background transition-all duration-300 flex flex-col", sidebarCollapsed ? "md:pl-[72px]" : "md:pl-[280px]")}>
-            <SEO title="Buy SMS Bundles" />
+            <SEO title="Buy SMS & WhatsApp Credits" />
             <AppHeader />
 
-            <main className="flex-1 flex flex-col items-center justify-center px-4 sm:px-6 py-12 relative overflow-hidden">
-                {/* Background decorative glows */}
-                <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-primary/10 rounded-full blur-3xl pointer-events-none" />
-                <div className="absolute bottom-1/4 left-1/3 w-72 h-72 bg-violet-500/5 rounded-full blur-3xl pointer-events-none" />
+            <main className="flex-1 flex flex-col items-center px-4 sm:px-6 py-8">
+                <div className="w-full max-w-7xl space-y-6">
+                    <BillingPlans showWhatsAppPurchase={false} onRedeem={setRedeemType} />
+                </div>
 
-                <div className="w-full max-w-md z-10 space-y-6">
+                <Dialog open={isRedeemOpen} onOpenChange={(open) => { if (!open) closeRedeem(); }}>
+                    <DialogContent className="sm:max-w-md max-h-[92vh] overflow-y-auto rounded p-5">
+                        <DialogHeader>
+                            <DialogTitle className="text-base">Redeem credits</DialogTitle>
+                            <DialogDescription className="text-xs">Buy SMS or WhatsApp messages with mobile money.</DialogDescription>
+                        </DialogHeader>
+                <div className="w-full space-y-5">
+                    {/* Redeem type switch */}
+                    <div className="grid grid-cols-2 gap-1 p-1 rounded border border-border/40 bg-card/50 backdrop-blur-sm">
+                        {([
+                            { value: "sms", label: "Buy SMS", icon: <MessageSquare className="w-4 h-4" /> },
+                            { value: "whatsapp", label: "Buy WhatsApp", icon: <MessageCircle className="w-4 h-4" /> },
+                        ] as const).map((option) => (
+                            <button
+                                key={option.value}
+                                type="button"
+                                onClick={() => setRedeemType(option.value)}
+                                disabled={purchaseStage === "processing"}
+                                className={cn(
+                                    "h-10 rounded text-xs font-bold flex items-center justify-center gap-1.5 transition-colors",
+                                    redeemType === option.value
+                                        ? option.value === "whatsapp" ? "bg-emerald-600 text-white" : "bg-primary text-primary-foreground"
+                                        : "text-muted-foreground hover:bg-muted/40"
+                                )}
+                            >
+                                {option.icon}
+                                {option.label}
+                            </button>
+                        ))}
+                    </div>
+
+                    {billingSummary && (
+                        <p className="text-[11px] text-center text-muted-foreground -mt-2">
+                            On the <b className="text-foreground">{billingSummary.plan.name}</b> plan:{" "}
+                            {redeemType === "sms"
+                                ? `SMS at UGX ${customRate} each${billingSummary.plan.whatsapp_per_sms ? `, +${billingSummary.plan.whatsapp_per_sms} WhatsApp bonus per SMS` : ""}`
+                                : `WhatsApp at UGX ${billingSummary.whatsapp_price_ugx} per message`}
+                            .{" "}
+                            <button type="button" onClick={closeRedeem} className="text-primary hover:underline">Change plan</button>
+                        </p>
+                    )}
+
+                    {redeemType === "whatsapp" ? (
+                        <Card className="relative overflow-hidden border border-border/40 rounded p-5">
+                            <WhatsAppCreditsPurchase />
+                        </Card>
+                    ) : (
+                    <>
                     {/* Timeline progress indicator */}
                     <div className="bg-card/50 backdrop-blur-sm border border-border/40 rounded p-4  relative">
                         <div className="flex items-center justify-between relative px-2">
@@ -367,7 +442,7 @@ export default function Withdrawal() {
                     </div>
 
                     {/* Main card wizard body */}
-                    <Card className="relative overflow-hidden border border-border/40 rounded  p-6 min-h-[380px] flex flex-col justify-between">
+                    <Card className="relative overflow-hidden border border-border/40 rounded p-5 min-h-[300px] flex flex-col justify-between">
                         <AnimatePresence mode="wait" custom={direction}>
                             {step === 1 && (
                                 <motion.div
@@ -415,9 +490,17 @@ export default function Withdrawal() {
                                                     <span className="font-bold text-foreground">{customNumeric.toLocaleString()} UGX</span>
                                                 </div>
                                                 <div className="flex justify-between text-xs">
-                                                    <span className="text-muted-foreground font-medium">Volume Rate</span>
+                                                    <span className="text-muted-foreground font-medium">
+                                                        {billingSummary?.plan.sms_price_ugx ? `${billingSummary.plan.name} plan rate` : "Volume Rate"}
+                                                    </span>
                                                     <span className="font-bold text-foreground">{customRate} UGX / SMS</span>
                                                 </div>
+                                                {bonusWhatsApp > 0 && (
+                                                    <div className="flex justify-between text-xs">
+                                                        <span className="text-muted-foreground font-medium">Bonus WhatsApp messages</span>
+                                                        <span className="font-bold text-emerald-600">+{bonusWhatsApp.toLocaleString()}</span>
+                                                    </div>
+                                                )}
                                                 <div className="h-px bg-border/20 my-1" />
                                                 <div className="flex justify-between items-center text-xs">
                                                     <span className="font-bold text-foreground">Estimated SMS Credits</span>
@@ -592,6 +675,12 @@ export default function Withdrawal() {
                                                 <span className="text-muted-foreground">SMS Credits Added</span>
                                                 <span className="font-black text-foreground">{customSmsCount.toLocaleString()} SMS</span>
                                             </div>
+                                            {bonusWhatsApp > 0 && (
+                                                <div className="flex justify-between">
+                                                    <span className="text-muted-foreground">Bonus WhatsApp</span>
+                                                    <span className="font-black text-emerald-600">+{bonusWhatsApp.toLocaleString()}</span>
+                                                </div>
+                                            )}
                                             <div className="flex justify-between">
                                                 <span className="text-muted-foreground">Amount Debited</span>
                                                 <span className="font-bold text-foreground">{customNumeric.toLocaleString()} UGX</span>
@@ -612,10 +701,10 @@ export default function Withdrawal() {
                                         <Button
                                             type="button"
                                             variant="outline"
-                                            onClick={() => navigate("/billings")}
+                                            onClick={() => navigate("/settings/billing")}
                                             className="w-full sm:flex-1 h-10 text-xs font-bold gap-1.5 border-border/60"
                                         >
-                                            View Recent Logs
+                                            View Billing History
                                             <ArrowUpRight className="w-3.5 h-3.5" />
                                         </Button>
                                         <Button
@@ -630,7 +719,11 @@ export default function Withdrawal() {
                             )}
                         </AnimatePresence>
                     </Card>
+                    </>
+                    )}
                 </div>
+                    </DialogContent>
+                </Dialog>
             </main>
         </div>
     );

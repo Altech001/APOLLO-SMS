@@ -37,22 +37,22 @@ const navItems: SettingsNavItem[] = [
     path: "/settings/password",
   },
   {
-    id: "api-keys",
-    label: "Developer API Keys",
-    icon: <Key className="w-4 h-4" />,
-    path: "/settings/api-keys",
-  },
-  {
-    id: "logs",
-    label: "Security Logs",
-    icon: <Logs className="w-4 h-4" />,
-    path: "/security-logs",
+    id: "billing",
+    label: "Billing & Plans",
+    icon: <CreditCard className="w-4 h-4" />,
+    path: "/settings/billing",
   },
   {
     id: "admin-settings",
-    label: "Admin Settings",
+    label: "Configurations",
     icon: <Settings className="w-4 h-4" />,
     path: "/settings/admin",
+  },
+  {
+    id: "admin-plans",
+    label: "Plan Editor",
+    icon: <Megaphone className="w-4 h-4" />,
+    path: "/settings/plans",
   }
 ];
 
@@ -69,7 +69,7 @@ export default function SettingsLayout({
   const location = useLocation();
   const { user } = useAuth();
   const visibleNavItems = useMemo(
-    () => navItems.filter((item) => item.id !== "admin-settings" || user?.role === "admin"),
+    () => navItems.filter((item) => !item.id.startsWith("admin-") || user?.role === "admin"),
     [user?.role],
   );
 

@@ -5,6 +5,7 @@ import { Route, BrowserRouter as Router, Routes } from 'react-router-dom';
 import { Toaster as SonnerToaster } from "sonner";
 import { AdminRoute, AuthProvider, ProtectedRoute } from './lib/auth';
 import PageNotFound from './lib/PageNotFound';
+import OfflineBanner from './components/OfflineBanner';
 
 import AirTimeIndex from './pages/AirTime/index';
 import ForgotPassword from './pages/Auth/ForgotPassword';
@@ -13,7 +14,10 @@ import Login from './pages/Auth/Login';
 import ResetPassword from './pages/Auth/ResetPassword';
 import SetPassword from './pages/Auth/SetPassword';
 import Signup from './pages/Auth/Signup';
+import VerifyAccount from './pages/Auth/VerifyAccount';
+import VerifyEmail from './pages/Auth/VerifyEmail';
 import BranchesPage from './pages/Branches';
+import ChatPage from './pages/ChatPage';
 import ComposeIndex from './pages/Compose/index';
 import Dashboard from './pages/Dashboard';
 import MyContactsIndex from './pages/MyContacts/index';
@@ -23,6 +27,7 @@ import SalesIndex from './pages/Sales/index';
 import ShareCreditsPage from './pages/ShareCredits';
 import Withdrawal from './pages/Sales/Withdrawal';
 import TemplatesIndex from './pages/Templates/index';
+import WhatsappMsgIndex from './pages/WhatsappMsg/index';
 
 /* ── settings sub-pages ── */
 import MyDetailsPage from "./pages/Settings/MyDetails";
@@ -33,6 +38,7 @@ import BillingPage from "./pages/Settings/Billing";
 import Campign from "./pages/Settings/Campign";
 import SettingsPage from "./pages/Settings/Settings";
 import APISettingsPage from "./pages/Settings/APISettings";
+import PlanEditorPage from "./pages/Settings/PlanEditor";
 import SecurityLogsPage from "./pages/Settings/SecurityLogs";
 
 const queryClient = new QueryClient();
@@ -51,6 +57,8 @@ const AppRoutes = () => {
         <Route path="/signup" element={<Signup />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/verify-account" element={<VerifyAccount />} />
+        <Route path="/verify-email" element={<VerifyEmail />} />
         <Route path="/set-password" element={<SetPassword />} />
         <Route path="/auth/google/callback" element={<GoogleCallback />} />
         <Route path="/google/callback" element={<GoogleCallback />} />
@@ -61,6 +69,8 @@ const AppRoutes = () => {
         <Route path="/recents-sms" element={protect(<SalesIndex />)} />
         <Route path="/templates" element={protect(<TemplatesIndex />)} />
         <Route path="/compose" element={protect(<ComposeIndex />)} />
+        <Route path="/chat" element={protect(<ChatPage />)} />
+        <Route path="/whatsapp" element={protect(<WhatsappMsgIndex />)} />
         <Route path="/withdraw" element={protect(<Withdrawal />)} />
         <Route path="/sms-tp" element={protect(<Withdrawal />)} />
         <Route path="/airtime" element={protect(<AirTimeIndex />)} />
@@ -76,6 +86,7 @@ const AppRoutes = () => {
         <Route path="/settings/billing" element={protect(<BillingPage />)} />
         <Route path="/billing" element={protect(<BillingPage />)} />
         <Route path="/settings/admin" element={<AdminRoute><APISettingsPage /></AdminRoute>} />
+        <Route path="/settings/plans" element={<AdminRoute><PlanEditorPage /></AdminRoute>} />
         <Route path="/settings/notifications" element={protect(<SettingsPage />)} />
         <Route path="/settings/support" element={protect(<Campign />)} />
         <Route path="/security-logs" element={protect(<SecurityLogsPage />)} />
@@ -97,6 +108,7 @@ function App() {
             <AppRoutes />
           </AuthProvider>
         </Router>
+        <OfflineBanner />
         <Toaster />
         <SonnerToaster richColors position="top-center" className="rounded-none shadow-none" />
       </QueryClientProvider>

@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
@@ -18,6 +19,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
+	"gorm.io/gorm"
 )
 
 // AuthService handles authentication, registration, password resets and verification logic.
@@ -29,6 +31,8 @@ type AuthService struct {
 	cfg          *config.Config
 	notifService *NotificationService
 	redisService *RedisService
+	db           *gorm.DB          // set by SetSMS; used for SMS code charging
+	smsService   *SMSConfigService // set by SetSMS; sends verification / reset codes
 }
 
 // NewAuthService creates a new AuthService instance.
@@ -53,23 +57,33 @@ func NewAuthService(
 }
 
 // Register registers a new user, hashes password, generates verification token, and sends email.
-func (s *AuthService) Register(req *models.RegisterRequest, ipAddress, userAgent string) (*models.User, error) {
+func (s *AuthService) Register(req *models.RegisterRequest, ipAddress, userAgent string) (*models.User, *models.VerificationRequiredResponse, error) {
+	req.Email = strings.TrimSpace(req.Email)
 	// Check if email already taken
 	existing, _ := s.userRepo.FindByEmail(req.Email)
 	if existing != nil {
-		return nil, errors.New("Email address already taken")
+		return nil, nil, errors.New("Email address already taken")
+	}
+
+	phone := ""
+	if strings.TrimSpace(req.Phone) != "" {
+		normalized, err := NormalizePhone(req.Phone)
+		if err != nil {
+			return nil, nil, err
+		}
+		phone = normalized
 	}
 
 	// Hash password
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 	if err != nil {
-		return nil, fmt.Errorf("failed to hash password: %w", err)
+		return nil, nil, fmt.Errorf("failed to hash password: %w", err)
 	}
 
 	// Generate verification token
 	token, err := s.generateSecureToken()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	expiresAt := time.Now().Add(24 * time.Hour) // Token valid for 24 hours
@@ -77,6 +91,7 @@ func (s *AuthService) Register(req *models.RegisterRequest, ipAddress, userAgent
 	user := &models.User{
 		Name:                  req.Name,
 		Email:                 req.Email,
+		Phone:                 phone,
 		Password:              string(hashedPassword),
 		IsVerified:            false,
 		VerificationToken:     token,
@@ -84,15 +99,43 @@ func (s *AuthService) Register(req *models.RegisterRequest, ipAddress, userAgent
 	}
 
 	if err := s.userRepo.Create(user); err != nil {
-		return nil, fmt.Errorf("failed to save user: %w", err)
+		return nil, nil, fmt.Errorf("failed to save user: %w", err)
 	}
 
-	// Log security event
+	s.logSecurityEvent(user.ID, "Register", ipAddress, userAgent)
+
+	// Send verification email asynchronously; failures are logged and the user can resend or use SMS.
+	emailBody, err := email.GetVerificationTemplate(user.Name, s.verifyEmailURL(token))
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to render verification email: %w", err)
+	}
+	s.emailSender.SendAsync(user.Email, "Verify Your Email Address", emailBody)
+
+	s.notifService.Notify(user.ID, "Account Created", "Welcome to Luco SMS! Please verify your account.", "info")
+	s.cacheUserIndex(user)
+
+	info, err := s.verificationInfo(user)
+	if err != nil {
+		return nil, nil, err
+	}
+	return user, &info, nil
+}
+
+// verifyEmailURL points at the web app's verify page when FRONTEND_URL is set, else the backend page.
+func (s *AuthService) verifyEmailURL(token string) string {
+	if s.cfg.FrontendURL != "" {
+		return fmt.Sprintf("%s/verify-email?token=%s", s.cfg.FrontendURL, token)
+	}
+	return s.cfg.PublicURL(fmt.Sprintf("/api/v1/auth/verify-email?token=%s", token))
+}
+
+// logSecurityEvent records an auth event with IP geolocation in the background.
+func (s *AuthService) logSecurityEvent(userID uint, action, ipAddress, userAgent string) {
 	go func() {
 		details, _ := s.ipgeoClient.GetDetails(ipAddress)
 		logEntry := &models.UserSecurityLog{
-			UserID:    user.ID,
-			Action:    "Register",
+			UserID:    userID,
+			Action:    action,
 			IPAddress: ipAddress,
 			UserAgent: userAgent,
 			Device:    ipgeo.ParseUserAgent(userAgent),
@@ -105,23 +148,6 @@ func (s *AuthService) Register(req *models.RegisterRequest, ipAddress, userAgent
 		}
 		_ = s.securityRepo.CreateSecurityLog(logEntry)
 	}()
-
-	// Send verification email
-	verifyURL := s.cfg.PublicURL(fmt.Sprintf("/api/v1/auth/verify-email?token=%s", token))
-	emailBody, err := email.GetVerificationTemplate(user.Name, verifyURL)
-	if err != nil {
-		return nil, fmt.Errorf("failed to render verification email: %w", err)
-	}
-
-	// Send asynchronously to avoid blocking the request
-	go func() {
-		_ = s.emailSender.Send(user.Email, "Verify Your Email Address", emailBody)
-	}()
-
-	s.notifService.Notify(user.ID, "Account Created", "Welcome to Luco SMS! Please verify your email address.", "info")
-	s.cacheUserIndex(user)
-
-	return user, nil
 }
 
 // VerifyEmail verifies user's email via the verification token.
@@ -185,11 +211,24 @@ func (s *AuthService) Login(req *models.LoginRequest, ipAddress, userAgent strin
 		return nil, "", errors.New("Invalid email or password")
 	}
 
-	// Check email verification status
+	// Unverified accounts are sent to the verify screen with a ticket instead of a session.
 	if !user.IsVerified {
-		return nil, "", errors.New("Please verify your email before logging in")
+		info, err := s.verificationInfo(user)
+		if err != nil {
+			return nil, "", err
+		}
+		return nil, "", &VerificationRequiredError{Info: info}
 	}
 
+	tokenString, err := s.startSession(user, ipAddress, userAgent)
+	if err != nil {
+		return nil, "", err
+	}
+	return user, tokenString, nil
+}
+
+// startSession creates a database session for a verified user and returns its JWT.
+func (s *AuthService) startSession(user *models.User, ipAddress, userAgent string) (string, error) {
 	// Fetch IP Geolocation details
 	details, _ := s.ipgeoClient.GetDetails(ipAddress)
 	device := ipgeo.ParseUserAgent(userAgent)
@@ -227,7 +266,7 @@ func (s *AuthService) Login(req *models.LoginRequest, ipAddress, userAgent strin
 	}
 
 	if err := s.securityRepo.CreateSession(session); err != nil {
-		return nil, "", fmt.Errorf("failed to create session: %w", err)
+		return "", fmt.Errorf("failed to create session: %w", err)
 	}
 	s.cacheUserIndex(user)
 	s.cacheSessionIndex(user, session)
@@ -251,12 +290,7 @@ func (s *AuthService) Login(req *models.LoginRequest, ipAddress, userAgent strin
 	s.notifService.Notify(user.ID, "New Login Detected", fmt.Sprintf("Logged in successfully from IP: %s (%s)", ipAddress, device), "info")
 
 	// Generate JWT Token containing user metadata and session token ID
-	tokenString, err := s.generateJWT(user, tokenID)
-	if err != nil {
-		return nil, "", err
-	}
-
-	return user, tokenString, nil
+	return s.generateJWT(user, tokenID)
 }
 
 // Logout revokes the current JWT-backed session.
@@ -342,17 +376,35 @@ func normalizeIndexValue(value string) string {
 }
 
 // ForgotPassword generates a reset token and sends reset link via email.
-func (s *AuthService) ForgotPassword(req *models.ForgotPasswordRequest, ipAddress, userAgent string) error {
-	user, err := s.userRepo.FindByEmail(req.Email)
+func (s *AuthService) ForgotPassword(req *models.ForgotPasswordRequest, ipAddress, userAgent string) (*models.ForgotPasswordResponse, error) {
+	generic := &models.ForgotPasswordResponse{
+		Message: "If the account exists, a password reset link has been sent to your email",
+		Channel: models.AuthChannelEmail,
+	}
+	user, err := s.userRepo.FindByEmail(strings.TrimSpace(req.Email))
 	if err != nil {
 		// Return success anyway for security to prevent user enumeration
-		return nil
+		return generic, nil
+	}
+
+	if req.Channel == models.AuthChannelSMS {
+		sent, err := s.sendAuthCode(user, models.AuthPurposeReset)
+		if err != nil {
+			return nil, err
+		}
+		s.logSecurityEvent(user.ID, "Password Reset SMS Request", ipAddress, userAgent)
+		return &models.ForgotPasswordResponse{
+			Message:     sent.Message,
+			Channel:     models.AuthChannelSMS,
+			MaskedPhone: sent.MaskedPhone,
+			ChargedUGX:  sent.ChargedUGX,
+		}, nil
 	}
 
 	// Generate reset token
 	token, err := s.generateSecureToken()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	expiresAt := time.Now().Add(1 * time.Hour) // Reset token valid for 1 hour
@@ -361,39 +413,57 @@ func (s *AuthService) ForgotPassword(req *models.ForgotPasswordRequest, ipAddres
 	user.PasswordResetTokenExpiresAt = &expiresAt
 
 	if err := s.userRepo.Update(user); err != nil {
-		return fmt.Errorf("failed to generate reset token: %w", err)
+		return nil, fmt.Errorf("failed to generate reset token: %w", err)
 	}
 
-	// Log security event
-	go func() {
-		details, _ := s.ipgeoClient.GetDetails(ipAddress)
-		logEntry := &models.UserSecurityLog{
-			UserID:    user.ID,
-			Action:    "Password Reset Request",
-			IPAddress: ipAddress,
-			UserAgent: userAgent,
-			Device:    ipgeo.ParseUserAgent(userAgent),
-		}
-		if details != nil {
-			logEntry.Location = fmt.Sprintf("%s, %s, %s %s", details.City, details.StateProv, details.CountryName, details.CountryEmoji)
-			logEntry.ISP = details.ISP
-			logEntry.ConnectionTy = details.ConnectionTy
-			logEntry.CountryFlag = details.CountryFlag
-		}
-		_ = s.securityRepo.CreateSecurityLog(logEntry)
-	}()
+	s.logSecurityEvent(user.ID, "Password Reset Request", ipAddress, userAgent)
 
 	// Send password reset email
 	resetURL := s.cfg.PublicURL(fmt.Sprintf("/api/v1/auth/reset-password?token=%s", token))
 	emailBody, err := email.GetPasswordResetTemplate(user.Name, resetURL)
 	if err != nil {
-		return fmt.Errorf("failed to render reset email: %w", err)
+		return nil, fmt.Errorf("failed to render reset email: %w", err)
 	}
 
-	go func() {
-		_ = s.emailSender.Send(user.Email, "Reset Your Password", emailBody)
-	}()
+	// Sent synchronously so the user learns immediately when the email could not go out.
+	if err := s.emailSender.Send(user.Email, "Reset Your Password", emailBody); err != nil {
+		log.Printf("❌ Password reset email to %s failed: %v", user.Email, err)
+		return nil, errors.New("We couldn't send the reset email right now. Please try again shortly or use the SMS option")
+	}
 
+	return generic, nil
+}
+
+// ResetPasswordWithSMSCode resets the password using the code sent to the registered phone.
+func (s *AuthService) ResetPasswordWithSMSCode(req *models.ResetPasswordSMSRequest, ipAddress, userAgent string) error {
+	if len(req.NewPassword) < 6 {
+		return errors.New("Password must be at least 6 characters")
+	}
+	user, err := s.userRepo.FindByEmail(strings.TrimSpace(req.Email))
+	if err != nil {
+		return errors.New("This code has expired. Please request a new one")
+	}
+	if err := s.checkAuthCode(user.ID, models.AuthPurposeReset, req.Code); err != nil {
+		return err
+	}
+
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return fmt.Errorf("failed to hash password: %w", err)
+	}
+	user.Password = string(hashedPassword)
+	user.PasswordResetToken = ""
+	user.PasswordResetTokenExpiresAt = nil
+	// The code proved control of the registered phone, which is what SMS verification checks too.
+	user.IsVerified = true
+	if err := s.userRepo.Update(user); err != nil {
+		return fmt.Errorf("failed to reset password: %w", err)
+	}
+
+	s.logSecurityEvent(user.ID, "Password Reset Success (SMS)", ipAddress, userAgent)
+	s.notifService.Notify(user.ID, "Password Reset Successful", "Your password was reset with a code sent to your phone.", "warning")
+	_ = s.securityRepo.RevokeAllOtherSessions(user.ID, "")
+	s.cacheUserIndex(user)
 	return nil
 }
 
@@ -464,7 +534,7 @@ func (s *AuthService) ResetPassword(req *models.ResetPasswordRequest, ipAddress,
 
 // ResendVerification generates a new token and sends a new verification email.
 func (s *AuthService) ResendVerification(req *models.ResendVerificationRequest, ipAddress, userAgent string) error {
-	user, err := s.userRepo.FindByEmail(req.Email)
+	user, err := s.userRepo.FindByEmail(strings.TrimSpace(req.Email))
 	if err != nil {
 		return errors.New("no account found with this email address")
 	}
@@ -506,16 +576,15 @@ func (s *AuthService) ResendVerification(req *models.ResendVerificationRequest, 
 		_ = s.securityRepo.CreateSecurityLog(logEntry)
 	}()
 
-	// Send verification email
-	verifyURL := s.cfg.PublicURL(fmt.Sprintf("/api/v1/auth/verify-email?token=%s", token))
-	emailBody, err := email.GetVerificationTemplate(user.Name, verifyURL)
+	// Send verification email synchronously so failures reach the user.
+	emailBody, err := email.GetVerificationTemplate(user.Name, s.verifyEmailURL(token))
 	if err != nil {
 		return fmt.Errorf("failed to render verification email: %w", err)
 	}
-
-	go func() {
-		_ = s.emailSender.Send(user.Email, "Verify Your Email Address", emailBody)
-	}()
+	if err := s.emailSender.Send(user.Email, "Verify Your Email Address", emailBody); err != nil {
+		log.Printf("❌ Verification email to %s failed: %v", user.Email, err)
+		return errors.New("We couldn't send the verification email right now. Please try again shortly or use the SMS option")
+	}
 
 	return nil
 }
