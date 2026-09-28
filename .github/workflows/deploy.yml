@@ -43,7 +43,7 @@ jobs:
       - name: Build and restart on VPS
         run: |
           ssh -i ~/.ssh/vps.pem "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
-            "APP_DIR=${APP_DIR} RESTART_CMD='${{ vars.RESTART_CMD }}' bash ${APP_DIR}/scripts/deploy.sh"
+            "APP_DIR=${APP_DIR} bash ${APP_DIR}/scripts/deploy.sh"
 
       - name: Clean up key
         if: always()

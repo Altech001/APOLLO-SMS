@@ -5,7 +5,7 @@ Every push to `main` automatically:
 1. Copies the repo to the VPS (`~/APOLLO-SMS`) over SSH using your `.pem` key
 2. Rebuilds the frontend (`apollosms/dist`) on the VPS
 3. Rebuilds the Go backend binary (`backend/bin/app`) on the VPS
-4. Restarts the backend
+4. Restarts the `apollosms-api` service and reloads nginx
 
 Files on the VPS that are **never overwritten**: `.env` files, `node_modules`, `apollosms/dist` (rebuilt instead), `backend/bin` (rebuilt instead). Files that exist only on the VPS are not deleted.
 
@@ -34,16 +34,9 @@ cat ~/Downloads/lucosms.pem
 
 Paste everything, including the `-----BEGIN ...-----` and `-----END ...-----` lines.
 
-## 2. Optional variables
+## 2. Optional variable
 
-Under the **Variables** tab (same page):
-
-| Name          | Default         | Purpose                                                   |
-| ------------- | --------------- | --------------------------------------------------------- |
-| `APP_DIR`     | `~/APOLLO-SMS`  | App folder on the VPS                                     |
-| `RESTART_CMD` | *(auto-detect)* | Custom command to restart the backend, e.g. `pm2 restart api` |
-
-Don't use single quotes (`'`) inside `RESTART_CMD`.
+Under the **Variables** tab (same page) you can set `APP_DIR` if the app is not in `~/APOLLO-SMS` on the VPS.
 
 ## 3. Make sure the VPS can build
 
@@ -63,61 +56,51 @@ Your `.env` files must already be on the VPS:
 - `~/APOLLO-SMS/backend/.env`
 - `~/APOLLO-SMS/apollosms/.env` (Vite reads `VITE_*` values at build time)
 
-## 4. How the backend is restarted
+## 4. What runs on the VPS
 
-`scripts/deploy.sh` tries, in order:
-
-1. `RESTART_CMD` variable, if set
-2. A systemd service named `apollosms`
-3. A pm2 process named `apollosms`
-
-If none exist, the deploy fails with a message. To find out how your backend is currently running:
+`scripts/deploy.sh` runs the same commands you run by hand:
 
 ```bash
-pm2 list                                  # pm2?
-systemctl list-units --type=service | grep -i apollo   # systemd?
-ps aux | grep -i bin/                     # plain process?
-```
+# frontend
+cd ~/APOLLO-SMS/apollosms
+pnpm install --frozen-lockfile
+NODE_OPTIONS="--max-old-space-size=2048" pnpm run build
 
-### Recommended: run the backend as a systemd service
-
-If you started the backend manually (e.g. `./bin/app &` or `nohup`), stop it and set up a service so it restarts cleanly and survives reboots:
-
-```bash
-sudo tee /etc/systemd/system/apollosms.service > /dev/null <<'EOF'
-[Unit]
-Description=Apollo SMS backend
-After=network.target
-
-[Service]
-User=ubuntu
-WorkingDirectory=/home/ubuntu/APOLLO-SMS/backend
-EnvironmentFile=/home/ubuntu/APOLLO-SMS/backend/.env
-ExecStart=/home/ubuntu/APOLLO-SMS/backend/bin/app
-Restart=always
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-sudo systemctl daemon-reload
-sudo systemctl enable --now apollosms
-sudo systemctl status apollosms
-```
-
-The `ubuntu` user on EC2 has passwordless `sudo` by default, so `sudo systemctl restart` works from the Action.
-
-### Using pm2 instead
-
-```bash
+# backend
 cd ~/APOLLO-SMS/backend
-pm2 start ./bin/app --name apollosms
-pm2 save
+go build -buildvcs=false -ldflags="-s -w" -o bin/app ./cmd/api
+
+# restart
+sudo systemctl restart apollosms-api
+sudo systemctl reload nginx
 ```
 
-## 5. Frontend
+The backend is built to `bin/app.new` first and then renamed, so the running binary is never half-written. If `apollosms-api` is not running after the restart, the deploy fails and prints the last 30 log lines.
 
-The frontend is rebuilt in place into `~/APOLLO-SMS/apollosms/dist`. If nginx (or another web server) serves that folder, the new version is live as soon as the build finishes — no restart needed.
+## 5. pnpm lockfile integrity
+
+pnpm 11 on the VPS refuses packages that have no checksum in `pnpm-lock.yaml`. `xlsx` is installed from a URL (`cdn.sheetjs.com`), so its entry has no `integrity` field and the install fails with `ERR_PNPM_MISSING_TARBALL_INTEGRITY`.
+
+Fix it once, locally, then commit the lockfile. Either regenerate the lockfile with a pnpm version that records the checksum:
+
+```bash
+cd apollosms
+pnpm add -g pnpm@latest
+pnpm install
+git add pnpm-lock.yaml
+```
+
+or add the checksum yourself. Compute it from the tarball:
+
+```bash
+curl -sL https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz | openssl dgst -sha512 -binary | base64 -w0
+```
+
+and edit the `xlsx@https://cdn.sheetjs.com/...` entry in `pnpm-lock.yaml`:
+
+```yaml
+    resolution: {integrity: sha512-<value from above>, tarball: https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz}
+```
 
 ## 6. Deploy
 
@@ -137,5 +120,6 @@ Watch progress in **GitHub → Actions → Deploy to VPS**. You can also trigger
 | `ssh-keyscan` / connection timeout | EC2 security group must allow port 22 from anywhere (GitHub runner IPs change) |
 | `go: command not found` | Install Go on the VPS or add its path to `PATH` in `scripts/deploy.sh` |
 | `pnpm: command not found` / `node` missing | Install Node on the VPS, or add its path in `scripts/deploy.sh` |
-| `No restart method found` | Set up the systemd service above or set `RESTART_CMD` |
+| `ERR_PNPM_MISSING_TARBALL_INTEGRITY` | See section 5 |
+| `sudo: a password is required` | The `ubuntu` user needs passwordless sudo (default on EC2) |
 | Frontend using wrong API URL | Update `~/APOLLO-SMS/apollosms/.env` on the VPS and push again |
