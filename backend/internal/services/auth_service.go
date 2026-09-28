@@ -129,6 +129,13 @@ func (s *AuthService) verifyEmailURL(token string) string {
 	return s.cfg.PublicURL(fmt.Sprintf("/api/v1/auth/verify-email?token=%s", token))
 }
 
+func (s *AuthService) resetPasswordURL(token string) string {
+	if s.cfg.FrontendURL != "" {
+		return fmt.Sprintf("%s/reset-password?token=%s", s.cfg.FrontendURL, token)
+	}
+	return s.cfg.PublicURL(fmt.Sprintf("/api/v1/auth/reset-password?token=%s", token))
+}
+
 // logSecurityEvent records an auth event with IP geolocation in the background.
 func (s *AuthService) logSecurityEvent(userID uint, action, ipAddress, userAgent string) {
 	go func() {
@@ -419,7 +426,7 @@ func (s *AuthService) ForgotPassword(req *models.ForgotPasswordRequest, ipAddres
 	s.logSecurityEvent(user.ID, "Password Reset Request", ipAddress, userAgent)
 
 	// Send password reset email
-	resetURL := s.cfg.PublicURL(fmt.Sprintf("/api/v1/auth/reset-password?token=%s", token))
+	resetURL := s.resetPasswordURL(token)
 	emailBody, err := email.GetPasswordResetTemplate(user.Name, resetURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to render reset email: %w", err)
