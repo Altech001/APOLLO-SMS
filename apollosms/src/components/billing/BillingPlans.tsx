@@ -1,14 +1,15 @@
-import { apollosmsApi, BillingPlan, CreateCollectionResponse } from "@/api/apollosms";
+import { apollosmsApi, BillingPlan } from "@/api/apollosms";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import PaymentMethodPicker from "@/components/billing/PaymentMethodPicker";
+import { checkoutPath, PaymentMethod } from "@/lib/checkout";
 import { notifyBillingChange, useBillingSummary } from "@/hooks/use-billing-summary";
-import { formatUgandanPhone, useCollectionPayment } from "@/hooks/use-collection-payment";
-import { useAuth } from "@/lib/auth";
+import { useUsdRate } from "@/hooks/use-usd-rate";
 import { cn } from "@/lib/utils";
-import { Check, CheckCircle2, Coins, Loader2, MessageCircle, MessageSquare, Sparkles, XCircle } from "lucide-react";
+import { ArrowRight, Check, MessageCircle } from "lucide-react";
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -19,6 +20,11 @@ const periodLabel = (plan: BillingPlan) =>
     plan.duration_days <= 0 ? "forever" : PERIOD_LABEL[plan.duration_days] || `${plan.duration_days} days`;
 
 const formatUGX = (value: number) => `UGX ${value.toLocaleString()}`;
+
+const CURRENCY_KEY = "apollosms:display-currency";
+type DisplayCurrency = "ugx" | "usd";
+
+const UGX_AMOUNT = /UGX\s*(\d[\d,]*(?:\.\d+)?)|(\d[\d,]*(?:\.\d+)?)\s*UGX/gi;
 
 type Purchase =
     | { kind: "plan"; plan: BillingPlan }
@@ -34,21 +40,35 @@ interface BillingPlansProps {
 }
 
 export default function BillingPlans({ showWhatsAppPurchase = true, onRedeem }: BillingPlansProps) {
-    const { user } = useAuth();
     const navigate = useNavigate();
     const redeem = (type: RedeemType) => (onRedeem ? onRedeem(type) : navigate(`/sms-tp?redeem=${type}`));
-    const { summary, isLoading: summaryLoading, refresh } = useBillingSummary();
+    const { summary, isLoading: summaryLoading } = useBillingSummary();
     const [plans, setPlans] = useState<BillingPlan[]>([]);
     const [plansLoading, setPlansLoading] = useState(true);
     const [purchase, setPurchase] = useState<Purchase | null>(null);
-    const [phone, setPhone] = useState(user?.phone_number || "");
     const [whatsAppQty, setWhatsAppQty] = useState("");
     const [switchingFree, setSwitchingFree] = useState(false);
-
-    const payment = useCollectionPayment((collection: CreateCollectionResponse) => {
-        toast.success(collection.purpose === "plan" ? "Plan activated" : "WhatsApp credits added");
-        refresh();
+    const [method, setMethod] = useState<PaymentMethod>("mobile_money");
+    const { formatUsd } = useUsdRate();
+    const [currency, setCurrencyState] = useState<DisplayCurrency>(() => {
+        try {
+            return localStorage.getItem(CURRENCY_KEY) === "ugx" ? "ugx" : "usd";
+        } catch {
+            return "usd";
+        }
     });
+    const setCurrency = (next: DisplayCurrency) => {
+        setCurrencyState(next);
+        try {
+            localStorage.setItem(CURRENCY_KEY, next);
+        } catch {
+            /* storage blocked */
+        }
+    };
+    const localizeFeature = (text: string) =>
+        currency === "usd"
+            ? text.replace(UGX_AMOUNT, (_, a, b) => formatUsd(Number(String(a ?? b).replace(/,/g, ""))))
+            : text;
 
     useEffect(() => {
         apollosmsApi.billing.plans()
@@ -56,10 +76,6 @@ export default function BillingPlans({ showWhatsAppPurchase = true, onRedeem }: 
             .catch((error) => toast.error(error instanceof Error ? error.message : "Unable to load plans"))
             .finally(() => setPlansLoading(false));
     }, []);
-
-    useEffect(() => {
-        if (!phone && user?.phone_number) setPhone(user.phone_number);
-    }, [phone, user?.phone_number]);
 
     useEffect(() => {
         if (summary && !whatsAppQty) {
@@ -73,33 +89,20 @@ export default function BillingPlans({ showWhatsAppPurchase = true, onRedeem }: 
     const minOrder = summary?.min_whatsapp_credit_order || 0;
 
     const openPurchase = (next: Purchase) => {
-        payment.reset();
+        setMethod("mobile_money");
         setPurchase(next);
     };
 
-    const closePurchase = () => {
-        if (payment.stage === "waiting" && !window.confirm("Stop waiting for this payment? If you approve it on your phone, your account still updates.")) {
-            return;
-        }
-        payment.reset();
-        setPurchase(null);
-    };
+    const closePurchase = () => setPurchase(null);
 
     const handlePay = () => {
         if (!purchase) return;
-        if (!phone.trim()) {
-            toast.error("Enter the mobile money number to charge");
-            return;
-        }
-        const phoneNumber = formatUgandanPhone(phone.trim());
-        payment.start(async () => {
-            if (purchase.kind === "plan") {
-                const res = await apollosmsApi.billing.subscribe({ plan_id: purchase.plan.id, phone_number: phoneNumber });
-                if (!res.collection) throw new Error("The payment could not be started");
-                return res.collection;
-            }
-            return apollosmsApi.billing.buyWhatsAppCredits({ credits: purchase.credits, phone_number: phoneNumber });
-        });
+        navigate(checkoutPath(
+            method,
+            purchase.kind === "plan"
+                ? { purpose: "plan", amountUgx: purchase.plan.price_ugx, planId: purchase.plan.id, label: `${purchase.plan.name} plan` }
+                : { purpose: "whatsapp", amountUgx: purchase.credits * purchase.price, credits: purchase.credits, label: "WhatsApp credits" }
+        ));
     };
 
     const handleSwitchToFree = async (plan: BillingPlan) => {
@@ -158,20 +161,36 @@ export default function BillingPlans({ showWhatsAppPurchase = true, onRedeem }: 
 
             {/* Plan cards */}
             <div>
-                <div className="gap-2 flex justify-between">
-                    <div className="mb-4">
+                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 mb-6">
+                    <div>
                         <h2 className="text-sm font-bold text-foreground">Plans</h2>
                         <p className="text-xs text-muted-foreground mt-0.5">
                             Paid plans are prepaid for their period. Buying your current plan again extends it.
                         </p>
                     </div>
-                    <div>
-                        <Button onClick={() => redeem("sms")} type="submit">Reddem Credits</Button>
+                    <div className="flex items-center gap-2 shrink-0">
+                        <div className="flex rounded-full border border-border/60 p-0.5 text-xs font-semibold" role="group" aria-label="Currency">
+                            {(["usd", "ugx"] as const).map((c) => (
+                                <button
+                                    key={c}
+                                    type="button"
+                                    onClick={() => setCurrency(c)}
+                                    aria-pressed={currency === c}
+                                    className={cn(
+                                        "h-8 px-3 rounded-full transition-colors",
+                                        currency === c ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+                                    )}
+                                >
+                                    {c.toUpperCase()}
+                                </button>
+                            ))}
+                        </div>
+                        <Button onClick={() => redeem("sms")} type="button">Redeem Credits</Button>
                     </div>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-                    {plansLoading && Array.from({ length: 4 }).map((_, i) => (
-                        <div key={i} className="h-80 rounded border border-border/30 bg-muted/20 animate-pulse" />
+                <div className="flex flex-wrap justify-center gap-4">
+                    {plansLoading && Array.from({ length: 3 }).map((_, i) => (
+                        <div key={i} className="h-80 w-full sm:w-[calc(50%-0.5rem)] xl:w-[300px] rounded border border-border/30 bg-muted/20 animate-pulse" />
                     ))}
                     {plans.map((plan) => {
                         const isCurrent = currentPlan?.id === plan.id;
@@ -181,7 +200,7 @@ export default function BillingPlans({ showWhatsAppPurchase = true, onRedeem }: 
                             <div
                                 key={plan.id}
                                 className={cn(
-                                    "relative rounded border p-5 flex flex-col bg-card",
+                                    "relative rounded border p-5 flex flex-col bg-card w-full sm:w-[calc(50%-0.5rem)] xl:w-[300px]",
                                     plan.is_popular ? "border-primary shadow-md" : "border-border/40",
                                     isCurrent && "ring-2 ring-emerald-500/60"
                                 )}
@@ -200,15 +219,22 @@ export default function BillingPlans({ showWhatsAppPurchase = true, onRedeem }: 
                                 <p className="text-[11px] text-muted-foreground mt-1 min-h-[32px]">{plan.description}</p>
 
                                 <div className="mt-4">
-                                    <span className="text-2xl font-black text-foreground">{isFree ? "Free" : formatUGX(plan.price_ugx)}</span>
+                                    <span className="text-2xl font-black text-foreground tabular-nums">
+                                        {isFree ? "Free" : currency === "usd" ? formatUsd(plan.price_ugx) : formatUGX(plan.price_ugx)}
+                                    </span>
                                     {!isFree && <span className="text-xs text-muted-foreground"> / {periodLabel(plan)}</span>}
+                                    {!isFree && (
+                                        <p className="text-xs text-muted-foreground mt-0.5 tabular-nums">
+                                            ≈ {currency === "usd" ? formatUGX(plan.price_ugx) : `${formatUsd(plan.price_ugx)} USD`}
+                                        </p>
+                                    )}
                                 </div>
 
                                 <ul className="mt-4 space-y-2 flex-1">
                                     {features.map((feature) => (
                                         <li key={feature} className="flex items-start gap-2 text-xs text-foreground/90">
                                             <Check className="w-3.5 h-3.5 text-emerald-600 mt-0.5 shrink-0" />
-                                            <span>{feature}</span>
+                                            <span>{localizeFeature(feature)}</span>
                                         </li>
                                     ))}
                                 </ul>
@@ -266,7 +292,7 @@ export default function BillingPlans({ showWhatsAppPurchase = true, onRedeem }: 
                             />
                         </div>
                         <div className="text-xs text-muted-foreground pb-2.5 whitespace-nowrap">
-                            × {formatUGX(summary?.whatsapp_price_ugx || 0)} = <b className="text-foreground">{formatUGX(whatsAppTotal)}</b>
+                            × {formatUGX(summary?.whatsapp_price_ugx || 0)} = <b className="text-foreground">{formatUGX(whatsAppTotal)}</b> <span>(≈ {formatUsd(whatsAppTotal)})</span>
                         </div>
                         <Button className="h-10 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white" onClick={handleBuyWhatsApp}>
                             Buy credits
@@ -289,60 +315,23 @@ export default function BillingPlans({ showWhatsAppPurchase = true, onRedeem }: 
                         </DialogDescription>
                     </DialogHeader>
 
-                    {payment.stage === "waiting" || payment.stage === "starting" ? (
-                        <div className="py-6 text-center space-y-3">
-                            <Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" />
-                            <p className="text-sm">{payment.stage === "starting" ? "Starting payment…" : "Approve the payment on your phone"}</p>
-                            <p className="text-[11px] text-muted-foreground">
-                                We sent a mobile money prompt for {formatUGX(purchaseTotal)}. Status: {payment.status}
-                            </p>
+                    <div className="space-y-3 py-2">
+                        <PaymentMethodPicker value={method} onChange={setMethod} />
+                        <div className="flex justify-between items-baseline text-sm border-t border-border/30 pt-3">
+                            <span className="text-muted-foreground">Total</span>
+                            <span className="text-right">
+                                <span className="font-bold block">{method === "card" ? formatUsd(purchaseTotal) : formatUGX(purchaseTotal)}</span>
+                                <span className="text-[11px] text-muted-foreground">{method === "card" ? formatUGX(purchaseTotal) : `≈ ${formatUsd(purchaseTotal)}`}</span>
+                            </span>
                         </div>
-                    ) : payment.stage === "completed" ? (
-                        <div className="py-6 text-center space-y-3">
-                            <CheckCircle2 className="w-9 h-9 mx-auto text-emerald-600" />
-                            <p className="text-sm">Payment received</p>
-                            <p className="text-[11px] text-muted-foreground">
-                                {purchase?.kind === "plan" ? "Your plan is active." : "Your WhatsApp credits were added."}
-                            </p>
-                        </div>
-                    ) : (
-                        <div className="space-y-3 py-2">
-                            {payment.stage === "failed" && (
-                                <div className="flex items-start gap-2 text-xs text-rose-600 bg-rose-500/10 rounded p-2">
-                                    <XCircle className="w-4 h-4 shrink-0" />
-                                    <span>{payment.error}</span>
-                                </div>
-                            )}
-                            <div className="space-y-1.5">
-                                <Label htmlFor="billing-phone" className="text-xs font-semibold">Mobile money number</Label>
-                                <Input
-                                    id="billing-phone"
-                                    value={phone}
-                                    onChange={(e) => setPhone(e.target.value)}
-                                    placeholder="0700000000"
-                                    className="h-10 text-sm font-mono"
-                                />
-                            </div>
-                            <div className="flex justify-between text-sm border-t border-border/30 pt-3">
-                                <span className="text-muted-foreground">Total</span>
-                                <span className="font-bold">{formatUGX(purchaseTotal)}</span>
-                            </div>
-                        </div>
-                    )}
+                    </div>
 
                     <DialogFooter className="gap-2">
-                        {payment.stage === "completed" ? (
-                            <Button className="h-10 text-xs" onClick={() => { payment.reset(); setPurchase(null); }}>Done</Button>
-                        ) : (
-                            <>
-                                <Button variant="outline" className="h-10 text-xs" onClick={closePurchase}>Cancel</Button>
-                                {(payment.stage === "idle" || payment.stage === "failed") && (
-                                    <Button className="h-10 text-xs" onClick={handlePay}>
-                                        {payment.stage === "failed" ? "Try again" : `Pay ${formatUGX(purchaseTotal)}`}
-                                    </Button>
-                                )}
-                            </>
-                        )}
+                        <Button variant="outline" className="h-10 text-xs" onClick={closePurchase}>Cancel</Button>
+                        <Button className="h-10 text-xs gap-1.5" onClick={handlePay}>
+                            Continue
+                            <ArrowRight className="w-3.5 h-3.5" />
+                        </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>

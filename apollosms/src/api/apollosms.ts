@@ -24,6 +24,8 @@ const USER_DATA_CACHE_KEYS = [
   "apollosms:tasks",
   "apollosms:documents",
   "apollosms:cash-balance",
+  "apollosms:admin-profit",
+  "apollosms:admin-provider-balances",
   "selected-workspace",
 ] as const;
 
@@ -386,7 +388,7 @@ export interface SMSDashboardStatsResponse {
 
 export interface CreateCollectionRequest {
   amount_ugx: number;
-  phone_number: string;
+  phone_number?: string;
   method: string;
   description?: string;
 }
@@ -399,6 +401,7 @@ export interface CreateCollectionResponse {
   sms_credits: number;
   whatsapp_credits?: number;
   price_per_sms: number;
+  redirect_url?: string;
   raw_response?: Record<string, unknown>;
 }
 
@@ -1608,7 +1611,7 @@ export const apollosmsApi = {
         method: "POST",
         body: JSON.stringify({ ...payload, plan_id: Number(payload.plan_id) }),
       }),
-    buyWhatsAppCredits: (payload: { credits: number; phone_number: string; method?: string }) =>
+    buyWhatsAppCredits: (payload: { credits: number; phone_number?: string; method?: string }) =>
       apiRequest<CreateCollectionResponse>("/billing/whatsapp-credits", { method: "POST", body: JSON.stringify(payload) }),
     adminPlans: () => apiRequest<BillingPlan[]>("/billing/admin/plans"),
     createPlan: (payload: BillingPlanRequest) =>

@@ -1,17 +1,38 @@
 import { AdminAdjustBalanceRequest, apollosmsApi, UserResponse } from "@/api/apollosms";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { BadgeCheck, Loader2, MessageCircle, Minus, Plus, RefreshCw, Search, ShieldAlert, Wallet } from "lucide-react";
-import { useMemo, useState } from "react";
+import {
+    BadgeCheck,
+    ChevronLeft,
+    ChevronRight,
+    Loader2,
+    MessageCircle,
+    Minus,
+    MoreHorizontal,
+    Plus,
+    RefreshCw,
+    Search,
+    ShieldOff,
+    Users,
+    Wallet,
+} from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import SettingsLayout from "./SettingsLayout";
 
 const usersQueryKey = ["apollosms", "admin-users"] as const;
+const PAGE_SIZE = 3;
 
 type Filter = "all" | "verified" | "unverified" | "admin";
 
@@ -24,6 +45,13 @@ const FILTERS: Array<{ id: Filter; label: string }> = [
 
 const formatDate = (value?: string) => (value ? new Date(value).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }) : "—");
 
+const pageNumbers = (page: number, total: number): Array<number | "…"> => {
+    if (total <= 3) return Array.from({ length: total }, (_, i) => i + 1);
+    if (page <= 3) return [1, 2, 3, 4, "…", total];
+    if (page >= total - 2) return [1, "…", total - 3, total - 2, total - 1, total];
+    return [1, "…", page - 1, page, page + 1, "…", total];
+};
+
 export default function UsersAdminPage() {
     const queryClient = useQueryClient();
     const { data: users = [], isLoading, isFetching, refetch } = useQuery({
@@ -32,6 +60,7 @@ export default function UsersAdminPage() {
     });
     const [search, setSearch] = useState("");
     const [filter, setFilter] = useState<Filter>("all");
+    const [page, setPage] = useState(1);
     const [busyId, setBusyId] = useState<string | null>(null);
     const [adjusting, setAdjusting] = useState<UserResponse | null>(null);
 
@@ -53,6 +82,13 @@ export default function UsersAdminPage() {
             .sort((a, b) => (b.created_at || "").localeCompare(a.created_at || ""));
     }, [users, search, filter]);
 
+    const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+    const currentPage = Math.min(page, totalPages);
+    const pageStart = (currentPage - 1) * PAGE_SIZE;
+    const pageUsers = filtered.slice(pageStart, pageStart + PAGE_SIZE);
+
+    useEffect(() => setPage(1), [search, filter]);
+
     const stats = useMemo(() => ({
         total: users.length,
         unverified: users.filter((u) => !u.is_verified).length,
@@ -73,119 +109,192 @@ export default function UsersAdminPage() {
         }
     };
 
+    const renderActions = (user: UserResponse) => {
+        const busy = busyId === String(user.id);
+        return (
+            <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground" disabled={busy} aria-label="User actions">
+                        {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <MoreHorizontal className="w-4 h-4" />}
+                    </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-44">
+                    <DropdownMenuItem className="text-xs gap-2" onClick={() => setAdjusting(user)}>
+                        <Wallet className="w-3.5 h-3.5" />
+                        Adjust balance
+                    </DropdownMenuItem>
+                    <DropdownMenuItem className="text-xs gap-2" onClick={() => toggleVerified(user)}>
+                        {user.is_verified ? <ShieldOff className="w-3.5 h-3.5" /> : <BadgeCheck className="w-3.5 h-3.5" />}
+                        {user.is_verified ? "Remove verification" : "Verify user"}
+                    </DropdownMenuItem>
+                </DropdownMenuContent>
+            </DropdownMenu>
+        );
+    };
+
+    const avatar = (user: UserResponse) => (
+        <div className="w-8 h-8 rounded-full bg-muted text-foreground/70 flex items-center justify-center text-xs font-semibold shrink-0 overflow-hidden">
+            {user.profile_image ? <img src={user.profile_image} alt="" className="w-full h-full object-cover" /> : (user.name || user.email).charAt(0).toUpperCase()}
+        </div>
+    );
+
+    const status = (user: UserResponse) => (
+        <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+            <span className={cn("w-1.5 h-1.5 rounded-full", user.is_verified ? "bg-emerald-500" : "bg-amber-500")} />
+            {user.is_verified ? "Verified" : "Unverified"}
+        </span>
+    );
+
     return (
-        <SettingsLayout title="Users">
-            <div className="max-w-6xl mx-auto px-4 sm:px-8 py-6 sm:py-8 space-y-5">
-                <div className="flex items-start justify-between gap-3">
+        <SettingsLayout title="Users" showNav={false}>
+            <div className="max-w-5xl mx-auto px-4 sm:px-8 py-6 sm:py-10 space-y-6">
+                <div className="flex items-center justify-between gap-3">
                     <div>
-                        <h1 className="text-base font-bold text-foreground">Users</h1>
-                        <p className="text-xs text-muted-foreground mt-0.5">Verify accounts and credit or debit SMS and WhatsApp balances.</p>
+                        <h1 className="text-lg font-semibold text-foreground">Users</h1>
+                        <p className="text-xs text-muted-foreground mt-0.5">Verify accounts and manage credit balances.</p>
                     </div>
-                    <Button size="sm" variant="outline" className="h-9 text-xs gap-1.5 shrink-0" onClick={() => refetch()} disabled={isFetching}>
-                        <RefreshCw className={cn("w-3.5 h-3.5", isFetching && "animate-spin")} />
-                        <span className="hidden sm:inline">Refresh</span>
+                    <Button size="icon" variant="ghost" className="h-9 w-9 text-muted-foreground" onClick={() => refetch()} disabled={isFetching} aria-label="Refresh">
+                        <RefreshCw className={cn("w-4 h-4", isFetching && "animate-spin")} />
                     </Button>
                 </div>
 
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
+                <dl className="grid grid-cols-2 sm:grid-cols-4 gap-y-4 border-y border-border/60 py-4">
                     {[
-                        { label: "Users", value: stats.total },
+                        { label: "Total users", value: stats.total },
                         { label: "Unverified", value: stats.unverified },
-                        { label: "SMS credits held", value: stats.sms },
-                        { label: "WhatsApp credits held", value: stats.whatsapp },
+                        { label: "SMS credits", value: stats.sms },
+                        { label: "WhatsApp credits", value: stats.whatsapp },
                     ].map((s) => (
-                        <div key={s.label} className="rounded border border-border/60 bg-card p-3">
-                            <p className="text-[11px] text-muted-foreground">{s.label}</p>
-                            <p className="text-lg font-bold tabular-nums">{s.value.toLocaleString()}</p>
+                        <div key={s.label} className="px-1 sm:px-4 sm:border-l sm:first:border-l-0 sm:first:pl-0 border-border/60">
+                            <dt className="text-[11px] text-muted-foreground">{s.label}</dt>
+                            <dd className="text-xl font-semibold tabular-nums mt-0.5">{s.value.toLocaleString()}</dd>
                         </div>
                     ))}
-                </div>
+                </dl>
 
-                <div className="flex flex-col sm:flex-row gap-2">
-                    <div className="relative flex-1">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                        <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search name, email or phone" className="h-10 pl-9 text-sm" />
-                    </div>
-                    <div className="flex rounded border border-border overflow-x-auto text-xs h-10 shrink-0">
+                <div className="flex flex-col-reverse sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                         {FILTERS.map((f) => (
                             <button
                                 key={f.id}
                                 type="button"
                                 onClick={() => setFilter(f.id)}
-                                className={cn("px-3 flex-1 sm:flex-none whitespace-nowrap", filter === f.id ? "bg-primary text-primary-foreground" : "bg-card text-muted-foreground hover:bg-muted/30")}
+                                className={cn(
+                                    "h-8 px-3 rounded text-xs font-medium whitespace-nowrap transition-colors",
+                                    filter === f.id ? "bg-primary text-background" : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                                )}
                             >
                                 {f.label}
                             </button>
                         ))}
                     </div>
+                    <div className="relative sm:w-72">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                        <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search users" className="h-9 pl-8 text-sm" />
+                    </div>
                 </div>
 
-                {isLoading ? (
-                    <div className="py-20 text-center"><Loader2 className="w-6 h-6 animate-spin mx-auto text-primary" /></div>
-                ) : filtered.length === 0 ? (
-                    <div className="py-16 text-center text-sm text-muted-foreground border border-dashed border-border rounded">No users match.</div>
-                ) : (
-                    <div className="rounded border border-border/60 bg-card divide-y divide-border/50">
-                        <div className="hidden md:grid grid-cols-[minmax(0,2fr)_110px_110px_110px_auto] gap-3 px-4 py-2.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
-                            <span>User</span>
-                            <span>Status</span>
-                            <span className="text-right">SMS</span>
-                            <span className="text-right">WhatsApp</span>
-                            <span className="text-right w-[196px]">Actions</span>
+                <div className="rounded border border-primary/40 bg-card overflow-hidden">
+                    {isLoading ? (
+                        <div className="py-20 text-center"><Loader2 className="w-5 h-5 animate-spin mx-auto text-muted-foreground" /></div>
+                    ) : filtered.length === 0 ? (
+                        <div className="py-16 text-center">
+                            <Users className="w-6 h-6 mx-auto text-muted-foreground/50" />
+                            <p className="text-sm font-medium mt-3">No users found</p>
+                            <p className="text-xs text-muted-foreground mt-1">Try a different search or filter.</p>
                         </div>
-                        {filtered.map((user) => {
-                            const busy = busyId === String(user.id);
-                            return (
-                                <div key={user.id} className="px-4 py-3 grid grid-cols-1 md:grid-cols-[minmax(0,2fr)_110px_110px_110px_auto] gap-2 md:gap-3 md:items-center">
-                                    <div className="min-w-0 flex items-center gap-3">
-                                        <div className="w-9 h-9 rounded-full bg-primary/10 text-primary flex items-center justify-center text-sm font-bold shrink-0 overflow-hidden">
-                                            {user.profile_image ? <img src={user.profile_image} alt="" className="w-full h-full object-cover" /> : (user.name || user.email).charAt(0).toUpperCase()}
-                                        </div>
-                                        <div className="min-w-0">
-                                            <p className="text-sm font-semibold truncate flex items-center gap-1.5">
-                                                {user.name || "Unnamed"}
-                                                {user.role === "admin" && <Badge variant="secondary" className="text-[10px] px-1.5 py-0">Admin</Badge>}
-                                            </p>
+                    ) : (
+                        <>
+                            <Table className="hidden md:table">
+                                <TableHeader>
+                                    <TableRow className="hover:bg-transparent border-primary/20">
+                                        <TableHead className="h-10 text-[11px] font-medium text-muted-foreground pl-4">User</TableHead>
+                                        <TableHead className="h-10 text-[11px] font-medium text-muted-foreground">Status</TableHead>
+                                        <TableHead className="h-10 text-[11px] font-medium text-muted-foreground text-right">SMS</TableHead>
+                                        <TableHead className="h-10 text-[11px] font-medium text-muted-foreground text-right">WhatsApp</TableHead>
+                                        <TableHead className="h-10 text-[11px] font-medium text-muted-foreground">Joined</TableHead>
+                                        <TableHead className="h-10 w-12" />
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {pageUsers.map((user) => (
+                                        <TableRow key={user.id} className="border-border/50 hover:bg-muted/30">
+                                            <TableCell className="py-3 pl-4">
+                                                <div className="flex items-center gap-3 min-w-0">
+                                                    {avatar(user)}
+                                                    <div className="min-w-0">
+                                                        <p className="text-sm font-medium truncate flex items-center gap-1.5">
+                                                            {user.name || "Unnamed"}
+                                                            {user.role === "admin" && <span className="text-[10px] font-medium text-muted-foreground border border-border rounded px-1">Admin</span>}
+                                                        </p>
+                                                        <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+                                                    </div>
+                                                </div>
+                                            </TableCell>
+                                            <TableCell className="py-3">{status(user)}</TableCell>
+                                            <TableCell className="py-3 text-right text-sm tabular-nums">{user.sms_balance.toLocaleString()}</TableCell>
+                                            <TableCell className="py-3 text-right text-sm tabular-nums">{(user.whatsapp_balance || 0).toLocaleString()}</TableCell>
+                                            <TableCell className="py-3 text-xs text-muted-foreground whitespace-nowrap">{formatDate(user.created_at)}</TableCell>
+                                            <TableCell className="py-3 pr-3 text-right">{renderActions(user)}</TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+
+                            <ul className="md:hidden divide-y divide-border/50">
+                                {pageUsers.map((user) => (
+                                    <li key={user.id} className="flex items-center gap-3 px-4 py-3">
+                                        {avatar(user)}
+                                        <div className="min-w-0 flex-1">
+                                            <p className="text-sm font-medium truncate">{user.name || "Unnamed"}</p>
                                             <p className="text-xs text-muted-foreground truncate">{user.email}</p>
-                                            <p className="text-[11px] text-muted-foreground truncate">{user.phone || "No phone"} · Joined {formatDate(user.created_at)}</p>
+                                            <div className="flex items-center gap-2 mt-1 text-[11px] text-muted-foreground">
+                                                {status(user)}
+                                                <span>·</span>
+                                                <span className="tabular-nums">{user.sms_balance.toLocaleString()} SMS</span>
+                                                <span>·</span>
+                                                <span className="tabular-nums">{(user.whatsapp_balance || 0).toLocaleString()} WA</span>
+                                            </div>
                                         </div>
-                                    </div>
+                                        {renderActions(user)}
+                                    </li>
+                                ))}
+                            </ul>
 
-                                    <div className="flex flex-wrap items-center gap-2 md:block">
-                                        {user.is_verified ? (
-                                            <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-600"><BadgeCheck className="w-3.5 h-3.5" />Verified</span>
+                            <div className="flex items-center justify-between gap-3 px-4 py-3 border-t border-border/60">
+                                <p className="text-xs text-muted-foreground tabular-nums">
+                                    {pageStart + 1}–{pageStart + pageUsers.length} of {filtered.length}
+                                </p>
+                                <div className="flex items-center gap-1">
+                                    <Button variant="ghost" size="icon" className="h-8 w-8" disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)} aria-label="Previous page">
+                                        <ChevronLeft className="w-4 h-4" />
+                                    </Button>
+                                    {pageNumbers(currentPage, totalPages).map((n, i) =>
+                                        n === "…" ? (
+                                            <span key={`gap-${i}`} className="hidden sm:inline w-6 text-center text-xs text-muted-foreground">…</span>
                                         ) : (
-                                            <span className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-600"><ShieldAlert className="w-3.5 h-3.5" />Unverified</span>
-                                        )}
-                                        <span className="md:hidden text-[11px] text-muted-foreground">
-                                            · {user.sms_balance.toLocaleString()} SMS · {(user.whatsapp_balance || 0).toLocaleString()} WhatsApp
-                                        </span>
-                                    </div>
-
-                                    <span className="hidden md:block text-sm text-right tabular-nums">{user.sms_balance.toLocaleString()}</span>
-                                    <span className="hidden md:block text-sm text-right tabular-nums">{(user.whatsapp_balance || 0).toLocaleString()}</span>
-
-                                    <div className="grid grid-cols-2 md:flex gap-2 md:justify-end">
-                                        <Button
-                                            size="sm"
-                                            variant={user.is_verified ? "outline" : "default"}
-                                            className="h-8 text-xs gap-1.5 md:w-[92px]"
-                                            disabled={busy}
-                                            onClick={() => toggleVerified(user)}
-                                        >
-                                            {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <BadgeCheck className="w-3.5 h-3.5" />}
-                                            {user.is_verified ? "Unverify" : "Verify"}
-                                        </Button>
-                                        <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5 md:w-[96px]" onClick={() => setAdjusting(user)}>
-                                            <Wallet className="w-3.5 h-3.5" />
-                                            Balance
-                                        </Button>
-                                    </div>
+                                            <button
+                                                key={n}
+                                                type="button"
+                                                onClick={() => setPage(n)}
+                                                className={cn(
+                                                    "hidden sm:inline-flex h-8 min-w-8 px-2 items-center justify-center rounded-md text-xs tabular-nums transition-colors",
+                                                    n === currentPage ? "bg-foreground text-background font-medium" : "text-muted-foreground hover:bg-muted/50"
+                                                )}
+                                            >
+                                                {n}
+                                            </button>
+                                        )
+                                    )}
+                                    <span className="sm:hidden text-xs text-muted-foreground tabular-nums px-1">{currentPage} / {totalPages}</span>
+                                    <Button variant="ghost" size="icon" className="h-8 w-8" disabled={currentPage === totalPages} onClick={() => setPage(currentPage + 1)} aria-label="Next page">
+                                        <ChevronRight className="w-4 h-4" />
+                                    </Button>
                                 </div>
-                            );
-                        })}
-                    </div>
-                )}
+                            </div>
+                        </>
+                    )}
+                </div>
             </div>
 
             <AdjustBalanceDialog

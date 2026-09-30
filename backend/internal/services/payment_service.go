@@ -10,6 +10,7 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -184,7 +185,11 @@ func (s *PaymentService) startCollection(payment *models.PaymentTransaction) (*m
 
 	payment.Status = models.PaymentStatusProcessing
 	payment.RawPayload = marshalRaw(rawResp)
+	redirectURL := ""
 	if txData, ok := rawResp["data"].(map[string]interface{}); ok {
+		if val, ok := txData["redirect_url"].(string); ok {
+			redirectURL = val
+		}
 		if transaction, ok := txData["transaction"].(map[string]interface{}); ok {
 			if val, ok := transaction["uuid"].(string); ok {
 				payment.TransactionUUID = val
@@ -193,6 +198,12 @@ func (s *PaymentService) startCollection(payment *models.PaymentTransaction) (*m
 				payment.Status = val
 			}
 		}
+	}
+	if payment.Method == "card" && redirectURL == "" {
+		payment.Status = models.PaymentStatusFailed
+		_ = s.db.Save(payment).Error
+		s.cachePayment(payment)
+		return nil, errors.New("MarzPay did not return a card payment page")
 	}
 	if err := s.db.Save(payment).Error; err != nil {
 		return nil, fmt.Errorf("failed to update payment record: %w", err)
@@ -207,6 +218,7 @@ func (s *PaymentService) startCollection(payment *models.PaymentTransaction) (*m
 		SMSCredits:      payment.SMSCredits,
 		WhatsAppCredits: payment.WhatsAppCredits,
 		PricePerSMS:     payment.PricePerSMS,
+		RedirectURL:     redirectURL,
 		RawResponse:     rawResp,
 	}, nil
 }
@@ -224,7 +236,7 @@ func (s *PaymentService) sendMarzCollection(payment *models.PaymentTransaction) 
 	if payment.Description != "" {
 		_ = writer.WriteField("description", payment.Description)
 	}
-	if callbackURL := s.marzCallbackURL(); callbackURL != "" {
+	if callbackURL := s.marzCallbackURLFor(payment); callbackURL != "" {
 		_ = writer.WriteField("callback_url", callbackURL)
 	}
 	if err := writer.Close(); err != nil {
@@ -586,6 +598,14 @@ func (s *PaymentService) marzCallbackURL() string {
 		return ""
 	}
 	return s.cfg.PublicURL("/api/v1/payments/webhooks/marzpay")
+}
+
+// Card customers are sent to callback_url after paying, so it must be a page in the web app.
+func (s *PaymentService) marzCallbackURLFor(payment *models.PaymentTransaction) string {
+	if payment.Method == "card" && s.cfg.FrontendURL != "" {
+		return s.cfg.FrontendURL + "/checkout/card/return?reference=" + url.QueryEscape(payment.Reference)
+	}
+	return s.marzCallbackURL()
 }
 
 func (s *PaymentService) cachePayment(payment *models.PaymentTransaction) {

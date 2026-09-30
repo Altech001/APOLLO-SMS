@@ -94,6 +94,7 @@ type CreateCollectionResponse struct {
 	SMSCredits      int                    `json:"sms_credits"`
 	WhatsAppCredits int                    `json:"whatsapp_credits"`
 	PricePerSMS     int                    `json:"price_per_sms"`
+	RedirectURL     string                 `json:"redirect_url,omitempty"`
 	RawResponse     map[string]interface{} `json:"raw_response,omitempty"`
 }
 

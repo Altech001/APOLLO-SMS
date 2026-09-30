@@ -42,6 +42,9 @@ import PlanEditorPage from "./pages/Settings/PlanEditor";
 import SecurityLogsPage from "./pages/Settings/SecurityLogs";
 import UsersAdminPage from "./pages/Settings/Users";
 import ProfitPage from "./pages/Admin/Profit";
+import CardCheckout from "./pages/Checkout/CardCheckout";
+import CardReturn from "./pages/Checkout/CardReturn";
+import MobileMoneyCheckout from "./pages/Checkout/MobileMoneyCheckout";
 
 const queryClient = new QueryClient();
 
@@ -75,6 +78,9 @@ const AppRoutes = () => {
         <Route path="/whatsapp" element={protect(<WhatsappMsgIndex />)} />
         <Route path="/withdraw" element={protect(<Withdrawal />)} />
         <Route path="/sms-tp" element={protect(<Withdrawal />)} />
+        <Route path="/checkout/card" element={protect(<CardCheckout />)} />
+        <Route path="/checkout/card/return" element={protect(<CardReturn />)} />
+        <Route path="/checkout/mobile-money" element={protect(<MobileMoneyCheckout />)} />
         <Route path="/airtime" element={protect(<AirTimeIndex />)} />
         <Route path="/branches" element={protect(<BranchesPage />)} />
         <Route path="/notifications" element={protect(<NotificationsPage />)} />

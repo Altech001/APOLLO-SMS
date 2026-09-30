@@ -9,7 +9,6 @@ import {
   Megaphone,
   Settings,
   User,
-  Users,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useEffect, useMemo, useState } from "react";
@@ -44,12 +43,6 @@ const navItems: SettingsNavItem[] = [
     path: "/settings/billing",
   },
   {
-    id: "admin-users",
-    label: "Users",
-    icon: <Users className="w-4 h-4" />,
-    path: "/settings/users",
-  },
-  {
     id: "admin-settings",
     label: "Configurations",
     icon: <Settings className="w-4 h-4" />,
@@ -66,11 +59,13 @@ const navItems: SettingsNavItem[] = [
 interface SettingsLayoutProps {
   children: React.ReactNode;
   title?: string;
+  showNav?: boolean;
 }
 
 export default function SettingsLayout({
   children,
   title = "Settings",
+  showNav = true,
 }: SettingsLayoutProps) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -108,7 +103,7 @@ export default function SettingsLayout({
 
       <div className="flex h-[calc(100dvh-57px)] overflow-hidden">
         {/* ── settings sidebar ── */}
-        <aside className="hidden lg:flex flex-col w-[250px] shrink-0 border-r border-border/50 bg-card overflow-y-auto">
+        {showNav && <aside className="hidden lg:flex flex-col w-[250px] shrink-0 border-r border-border/50 bg-card overflow-y-auto">
           <div className="px-4 pt-6 pb-2">
           </div>
 
@@ -156,10 +151,10 @@ export default function SettingsLayout({
               })}
             </div>
           </nav>
-        </aside>
+        </aside>}
 
         <main className="flex-1 overflow-y-auto min-h-0">
-          <nav className="lg:hidden sticky top-0 z-10 bg-background/95 backdrop-blur border-b border-border/50">
+          {showNav && <nav className="lg:hidden sticky top-0 z-10 bg-background/95 backdrop-blur border-b border-border/50">
             <div className="flex gap-1.5 overflow-x-auto px-4 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {visibleNavItems.map((item) => {
                 const active = isActive(item.path);
@@ -178,7 +173,7 @@ export default function SettingsLayout({
                 );
               })}
             </div>
-          </nav>
+          </nav>}
           {children}
         </main>
       </div>
