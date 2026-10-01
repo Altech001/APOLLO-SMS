@@ -15,9 +15,9 @@ import {
     FileText,
     Layers,
     MessageCircle,
-    MessageSquare,
+    MessageCircleMore,
+    PersonStanding,
     Plus,
-    RefreshCw,
     Send,
     Trash2,
     Users,
@@ -558,8 +558,8 @@ export default function ComposeIndex() {
                 {/* 2-Column Grid */}
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
                     {/* Left Column - Contacts Selector */}
-                    <Card className="lg:col-span-1 border-border/10 shadow-sm rounded flex flex-col lg:min-h-[480px]">
-                        <CardHeader className="p-4 pb-3 border-b border-border/10 flex flex-col sm:flex-row lg:flex-col xl:flex-row sm:items-center lg:items-stretch xl:items-center justify-between gap-3 space-y-0">
+                    <Card className="lg:col-span-1 border-primary/40 shadow-sm rounded flex flex-col lg:min-h-[480px]">
+                        <CardHeader className="p-4 pb-3 border-b border-primary/40 flex flex-col sm:flex-row lg:flex-col xl:flex-row sm:items-center lg:items-stretch xl:items-center justify-between gap-3 space-y-0">
                             <div>
                                 <CardTitle className="text-sm ">
                                     Contacts ({selectedContacts.length})
@@ -575,8 +575,8 @@ export default function ComposeIndex() {
                                     variant="outline"
                                     className="h-10 text-xs gap-1.5 border-border/80"
                                 >
-                                    <Users className="w-3.5 h-3.5" />
-                                    From Contacts
+                                    <PersonStanding className="w-3.5 h-3.5" />
+                                    Contacts
                                 </Button>
                                 <Button
                                     onClick={() => openPanel("numbers")}
@@ -632,7 +632,7 @@ export default function ComposeIndex() {
                         </CardContent>
 
                         {/* Left Column Footer */}
-                        <div className="p-3 sm:p-4 border-t border-border/10 bg-muted/5 flex flex-col sm:flex-row items-center justify-between gap-3">
+                        <div className="p-3 sm:p-4 border-t border-primary/50 bg-muted/5 flex flex-col sm:flex-row items-center justify-between gap-3">
                             <span className="text-[12px] font-semibold text-muted-foreground">
                                 {selectedContacts.length} contacts selected
                             </span>
@@ -649,8 +649,8 @@ export default function ComposeIndex() {
                     </Card>
 
                     {/* Right Column - Message Composer */}
-                    <Card className="lg:col-span-2 border-border/20 rounded shadow-sm flex flex-col justify-between">
-                        <CardHeader className="p-4 pb-3 border-b border-border/10 flex flex-col xl:flex-row xl:items-center justify-between gap-3 space-y-0">
+                    <Card className="lg:col-span-2 border-primary/50 rounded shadow-none flex flex-col justify-between">
+                        <CardHeader className="p-4 pb-3 border-b border-primary/50 flex flex-col xl:flex-row xl:items-center justify-between gap-3 space-y-0">
                             <div>
                                 <CardTitle className="text-sm ">
                                     Composing {channel === "whatsapp" ? "WhatsApp" : "SMS"} to {selectedContacts.length} contacts
@@ -660,7 +660,7 @@ export default function ComposeIndex() {
                                 </CardDescription>
                             </div>
                             <div className="flex flex-wrap sm:flex-nowrap items-center gap-1.5">
-                                <div className="flex w-full sm:w-auto rounded border border-border overflow-hidden text-xs h-10" role="tablist" aria-label="Message channel">
+                                <div className="flex w-full sm:w-auto rounded-full border border-primary/50 overflow-hidden text-xs h-10" role="tablist" aria-label="Message channel">
                                     {(["sms", "whatsapp"] as const).map((value) => (
                                         <button
                                             key={value}
@@ -675,7 +675,7 @@ export default function ComposeIndex() {
                                                     : "bg-card text-muted-foreground hover:bg-muted/30"
                                             )}
                                         >
-                                            {value === "sms" ? <MessageSquare className="w-3.5 h-3.5" /> : <MessageCircle className="w-3.5 h-3.5" />}
+                                            {value === "sms" ? <MessageCircleMore className="w-3.5 h-3.5" /> : <MessageCircle className="w-3.5 h-3.5" />}
                                             {value === "sms" ? "SMS" : "WhatsApp"}
                                         </button>
                                     ))}
@@ -853,7 +853,7 @@ export default function ComposeIndex() {
                     <div>
                         <h3 className="text-sm  text-foreground flex items-center gap-1.5">
                             {panelType === "numbers" && <Plus className="w-4 h-4 text-primary" />}
-                            {panelType === "groups" && <Users className="w-4 h-4 text-primary" />}
+                            {panelType === "groups" && <PersonStanding className="w-4 h-4 text-primary" />}
                             {panelType === "templates" && <FileText className="w-4 h-4 text-primary" />}
                             {panelType === "numbers" && "Bulk Number Import"}
                             {panelType === "groups" && "Upload CSV File"}

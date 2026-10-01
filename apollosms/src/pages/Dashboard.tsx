@@ -277,12 +277,12 @@ export default function Dashboard() {
       <SEO title="Dashboard" />
       <AppHeader onCreateForm={createForm} />
 
-      <main className="max-w-screen mx-auto px-4 sm:px-6 py-4">
+      <main className="max-w-screen mx-auto px-4 sm:px-6 py-2 no-scrollbar ">
         {/* form */}
         <div className="mb-4">
           <div className="flex flex-col gap-3 mb-4 xl:flex-row xl:items-center xl:justify-between">
             <div className="flex min-w-0 items-center gap-3">
-              <Avatar className="h-10 w-10 border border-primary/40 bg-card ring-2 ring-primary/15">
+              {/* <Avatar className="h-10 w-10 border border-primary/40 bg-card ring-2 ring-primary/15">
                 <AvatarImage
                   src={dicebearBotttsAvatar(user?.full_name || user?.name, user?.email)}
                   alt={user?.full_name || user?.name || "User"}
@@ -290,7 +290,7 @@ export default function Dashboard() {
                 <AvatarFallback className="bg-primary/10 text-xs font-black text-primary">
                   {userInitials(user?.full_name || user?.name, user?.email)}
                 </AvatarFallback>
-              </Avatar>
+              </Avatar> */}
               <div className="min-w-0">
                 {/* <h2 className="truncate text-sm font-black text-foreground">Dashboard</h2> */}
                 <div className="mt-1 flex max-w-full items-center gap-1.5 overflow-x-auto pb-1">
@@ -533,7 +533,7 @@ export default function Dashboard() {
         </div>
 
         {/* Recent Sent Messages Section */}
-        <Card className="bg-card border border-primary/30 shadow-none mb-8 rounded">
+        {/* <Card className="bg-card border border-primary/30 shadow-none mb-8 rounded">
           <CardHeader className="pb-3 flex flex-row items-center justify-between">
             <div>
               <CardTitle className="text-sm font-bold flex items-center gap-2">
@@ -600,7 +600,7 @@ export default function Dashboard() {
               </Table>
             </div>
           </CardContent>
-        </Card>
+        </Card> */}
       </main>
 
       <AssistantLauncher />

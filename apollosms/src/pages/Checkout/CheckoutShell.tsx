@@ -37,7 +37,7 @@ export default function CheckoutShell({ title, subtitle, order, currency, childr
 
             <main className="flex-1 px-4 sm:px-6 py-6 sm:py-10">
                 <div className="max-w-4xl mx-auto space-y-6">
-                    <button type="button" onClick={() => navigate(-1)} className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground">
+                    <button type="button" onClick={() => navigate(-1)} className="border p-4 rounded-full inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground">
                         <ArrowLeft className="w-3.5 h-3.5" />
                         Back
                     </button>
