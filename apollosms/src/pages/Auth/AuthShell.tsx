@@ -129,12 +129,12 @@ export default function AuthShell({ title, subtitle, seoTitle, path, children, f
           </div>
         </div>
 
-        <div className="w-full max-w-[380px] flex flex-col items-center z-10 pb-16">
-          <Link to="/" className="mx-auto w-12 h-12 flex items-center justify-center mb-3 lg:hidden">
+        <div className="w-full max-w-[380px] flex flex-col items-start z-10 pb-16">
+          <Link to="/" className="mx-auto w-12 h-12 flex items-start mb-3 lg:hidden">
             <img src="/icons/mini.png" alt="Renult" className="w-10 h-10 object-contain" />
           </Link>
-          <div className="text-center mb-6">
-            <h1 className="text-[22px] text-foreground mb-1 archivo-black-regular font-extrabold">{title}</h1>
+          <div className="text-left mb-6">
+            <h1 className="text-[22px] text-foreground mb-1 archivo-black-regular ">{title}</h1>
             <p className="text-[13px] text-muted-foreground barlow-medium">{subtitle}</p>
           </div>
           {children}

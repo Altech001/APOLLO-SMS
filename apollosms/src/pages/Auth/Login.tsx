@@ -63,7 +63,7 @@ export default function Login() {
   };
 
   return (
-    <AuthShell title="Sign In to Chris-SMS"subtitle="" seoTitle="Log In" path="/login">
+    <AuthShell title="Sign In to Chris-SMS" subtitle="Your are welcome Back." seoTitle="Log In" path="/login">
       <div className="w-full">
         <form className="space-y-2" onSubmit={handleSubmit} autoComplete="on">
           <AuthInput type="email" name="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="arethix@sms.xyz" autoComplete="username email" autoFocus />
