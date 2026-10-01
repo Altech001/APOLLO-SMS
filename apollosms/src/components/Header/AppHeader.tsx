@@ -307,7 +307,7 @@ export default function AppHeader({ onCreateForm }: AppHeaderProps) {
                   <span className="font-medium text-sm text-foreground">Profile</span>
                 </DropdownMenuItem>
                 <DropdownMenuItem
-                  onClick={() => navigate("/settings/security")}
+                  onClick={() => navigate("/settings/password")}
                   className="rounded px-2 py-2.5 cursor-pointer focus:bg-muted/60 transition-all gap-3"
                 >
                   <Lock className="w-4 h-4 text-muted-foreground" />

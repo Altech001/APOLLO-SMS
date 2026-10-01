@@ -53,11 +53,6 @@ const primaryNavItems: NavItem[] = [
         icon: <img src="/icons/ai.webp" className="w-5 h-5" />,
         path: "/chat",
     },
-    {
-        label: "Recent History",
-        icon: <History className="w-5 h-5" />,
-        path: "/recents-sms",
-    },
 
 ];
 
@@ -69,8 +64,13 @@ const supportNavItems: NavItem[] = [
     },
     {
         label: "Connect WhatsApp",
-        icon: <MessageCircle className="w-5 h-5" />,
+        icon: <img src="/logo/whatsapp.png" className="w-6 h-6" />,
         path: "/whatsapp",
+    },
+    {
+        label: "Recent History",
+        icon: <History className="w-5 h-5" />,
+        path: "/recents-sms",
     },
 ];
 
@@ -283,7 +283,7 @@ export default function SideBar({ isOpen, onClose }: SideBarProps) {
             >
                 <div className="flex items-center p-[10px] border-b border-border/30 space-x-4 ">
                     <div className="p-1">
-                        <img src="/bg/logo.png" alt="Logo" className="w-10 h-7" />
+                        <img src="/logo/letter.png" alt="Logo" className="w-8 h-8" />
                     </div>
                     <span className={`text-lg font-bold tracking-tight text-foreground ${isCollapsed ? "hidden" : ""}`}>
                         CHRIS-SMS

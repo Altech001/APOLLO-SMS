@@ -58,7 +58,7 @@ export function CircleFlag({ country, className }: { country: string; className?
   return (
     <span
       className={cn(
-        "inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted ring-1 ring-border",
+        "inline-flex shrink-0 items-center justify-center overflow-hidden rounded bg-muted ring-1 ring-border",
         className ?? "h-5 w-5",
       )}
       aria-hidden
@@ -66,7 +66,7 @@ export function CircleFlag({ country, className }: { country: string; className?
       {src && !failed ? (
         <img src={src} alt="" loading="lazy" className="h-full w-full object-cover" onError={() => setFailed(true)} />
       ) : (
-        <span className="text-[8px] font-bold text-muted-foreground">{country}</span>
+        <span className="text-[8px] text-muted-foreground">{country}</span>
       )}
     </span>
   );

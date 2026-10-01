@@ -117,7 +117,7 @@ export default function ForgotPassword() {
               aria-checked={channel === id}
               onClick={() => setChannel(id)}
               className={cn(
-                "flex items-center gap-2 rounded-lg border bg-card p-3 text-left transition-colors",
+                "flex items-center gap-2 rounded border bg-card p-3 text-left transition-colors",
                 channel === id ? "border-primary ring-2 ring-primary/20" : "border-border hover:bg-muted/50",
               )}
             >

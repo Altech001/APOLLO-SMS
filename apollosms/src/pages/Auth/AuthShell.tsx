@@ -3,6 +3,7 @@ import { Helmet } from "react-helmet-async";
 import { Link } from "react-router-dom";
 import { Sun, Moon, Monitor } from "lucide-react";
 import { useEffect, useState } from "react";
+import PexelsMasonry from "@/components/auth/PexelsMasonry";
 
 interface AuthShellProps {
   title: string;
@@ -50,16 +51,29 @@ export default function AuthShell({ title, subtitle, seoTitle, path, children, f
 
       {/* Left branding panel */}
       <div className="hidden lg:flex lg:w-1/2 relative flex-col justify-between overflow-hidden bg-[#303030] p-10 text-white">
-        <img
-          src="/bg/bg-bg.jpg"
-          alt=""
-          className="absolute inset-0 w-screen h-full object-cover pointer-events-none select-none blur-[1px]"
+        <PexelsMasonry
+          fallback={
+            <img
+              src="/bg/empty.png"
+              alt=""
+              className="absolute inset-0 w-screen h-full object-contain pointer-events-none select-none blur-[1px]"
+            />
+          }
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-[#1b1b1b]/70 to-[#1b1b1b]/35" />
 
         <div className="relative text-[14px] text-white/55 font-medium barlow-semibold">
           Privacy© {new Date().getFullYear()}
         </div>
+
+        <a
+          href="https://www.pexels.com"
+          target="_blank"
+          rel="noreferrer"
+          className="absolute bottom-3 left-10 z-10 text-[10px] text-white/35 hover:text-white/60 barlow-medium"
+        >
+          Photos provided by Pexels
+        </a>
 
         <div className="relative z-10 flex items-center justify-between w-full">
           <div></div>
@@ -116,9 +130,9 @@ export default function AuthShell({ title, subtitle, seoTitle, path, children, f
         </div>
 
         <div className="w-full max-w-[380px] flex flex-col items-center z-10 pb-16">
-          {/* <Link to="/" className="mx-auto w-12 h-12 flex items-center justify-center mb-3 lg:hidden">
+          <Link to="/" className="mx-auto w-12 h-12 flex items-center justify-center mb-3 lg:hidden">
             <img src="/icons/mini.png" alt="Renult" className="w-10 h-10 object-contain" />
-          </Link> */}
+          </Link>
           <div className="text-center mb-6">
             <h1 className="text-[22px] text-foreground mb-1 archivo-black-regular font-extrabold">{title}</h1>
             <p className="text-[13px] text-muted-foreground barlow-medium">{subtitle}</p>
