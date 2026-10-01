@@ -7,6 +7,7 @@ import {
   Key,
   Logs,
   Megaphone,
+  PersonStanding,
   Settings,
   User,
 } from "lucide-react";
@@ -26,8 +27,8 @@ interface SettingsNavItem {
 const navItems: SettingsNavItem[] = [
   {
     id: "my-details",
-    label: "My Profile",
-    icon: <User className="w-4 h-4" />,
+    label: "My Account",
+    icon: <PersonStanding className="w-4 h-4" />,
     path: "/settings",
   },
   {
@@ -38,7 +39,7 @@ const navItems: SettingsNavItem[] = [
   },
   {
     id: "billing",
-    label: "Billing & Plans",
+    label: "Transcations",
     icon: <CreditCard className="w-4 h-4" />,
     path: "/settings/billing",
   },
@@ -116,7 +117,7 @@ export default function SettingsLayout({
                     key={item.id}
                     onClick={() => navigate(item.path)}
                     className={`
-                      group flex items-center gap-2.5 px-3 py-2 m-0.5 rounded  text-sm font-medium
+                      group flex items-center gap-2.5 px-3 py-2 m-0.5 rounded  text-sm
                       transition-all duration-150 cursor-pointer w-full text-left
                       ${active
                         ? "bg-primary text-white border border-border/10 "

@@ -164,7 +164,7 @@ export default function BillingPage() {
         <div className="space-y-4">
           {/* Filters Bar */}
           <div className="flex flex-wrap items-center justify-between gap-2 py-2">
-            <div className="flex items-center rounded border border-primary p-1">
+            <div className="flex items-center rounded-none border-b border-primary">
               <Button
                 variant="ghost"
                 size="sm"
@@ -173,7 +173,7 @@ export default function BillingPage() {
                   setDateRange(undefined);
                 }}
                 className={cn(
-                  "h-9 text-sm px-2.5 font-medium rounded transition-all",
+                  "h-9 text-sm px-2.5  rounded-none transition-all",
                   filter === "all"
                     ? "bg-primary text-white shadow-sm"
                     : "text-muted-foreground hover:text-foreground hover:bg-transparent"
@@ -189,7 +189,7 @@ export default function BillingPage() {
                   setDateRange(undefined);
                 }}
                 className={cn(
-                  "h-9 text-sm px-2.5 font-medium rounded transition-all",
+                  "h-9 text-sm px-2.5  rounded-none transition-all",
                   filter === "today"
                     ? "bg-primary text-white shadow-sm"
                     : "text-muted-foreground hover:text-foreground hover:bg-transparent"
@@ -205,7 +205,7 @@ export default function BillingPage() {
                   setDateRange(undefined);
                 }}
                 className={cn(
-                  "h-9 text-sm px-2.5 font-medium rounded transition-all",
+                  "h-9 text-sm px-2.5  rounded-none transition-all",
                   filter === "week"
                     ? "bg-primary text-white shadow-sm"
                     : "text-muted-foreground hover:text-foreground hover:bg-transparent"
@@ -221,7 +221,7 @@ export default function BillingPage() {
                   setDateRange(undefined);
                 }}
                 className={cn(
-                  "h-9 text-sm px-2.5 font-medium rounded transition-all",
+                  "h-9 text-sm px-2.5  rounded-none transition-all",
                   filter === "month"
                     ? "bg-primary text-white shadow-sm"
                     : "text-muted-foreground hover:text-foreground hover:bg-transparent"
@@ -334,7 +334,7 @@ export default function BillingPage() {
                   paginatedTransactions.map((tx) => (
                     <TableRow key={tx.id} className="cursor-pointer hover:bg-muted/30 group transition-colors">
                       <TableCell className="font-mono text-xs font-semibold text-primary">{tx.id}</TableCell>
-                      <TableCell className="text-xs text-muted-foreground font-medium">
+                      <TableCell className="text-xs text-muted-foreground ">
                         {format(new Date(tx.date), "MMM d, yyyy 'at' h:mm a")}
                       </TableCell>
                       <TableCell className="text-foreground font-semibold text-xs">{tx.description}</TableCell>
