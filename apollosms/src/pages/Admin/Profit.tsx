@@ -293,7 +293,9 @@ function BalanceStrip({ balances, loading }: { balances?: ProviderBalance[]; loa
                             ) : b.balance === null ? (
                                 <p className="text-[11px] text-amber-600 mt-1.5 line-clamp-2">{b.error || "Balance unavailable"}</p>
                             ) : (
-                                <p className="text-xl font-bold tabular-nums mt-1">{b.currency} {Math.round(b.balance).toLocaleString()}</p>
+                                <p className="text-xl font-bold tabular-nums mt-1">{b.provider === "julysms"
+                                    ? `${Math.round(b.balance).toLocaleString()} SMS`
+                                    : `${b.currency} ${Math.round(b.balance).toLocaleString()}`}</p>
                             )}
                             <div className="flex items-center justify-between gap-2 mt-2">
                                 <span className="text-[10px] text-muted-foreground">{b.threshold > 0 ? `Alert below ${Math.round(b.threshold).toLocaleString()}` : "No alert set"}</span>
