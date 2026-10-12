@@ -286,7 +286,7 @@ export default function SideBar({ isOpen, onClose }: SideBarProps) {
                         <img src="/logo/letter.png" alt="Logo" className="w-8 h-8" />
                     </div>
                     <span className={`text-lg font-bold tracking-tight text-foreground ${isCollapsed ? "hidden" : ""}`}>
-                        CHRIS-SMS
+                        TINOVA AI
                     </span>
                 </div>
 
