@@ -20,7 +20,7 @@ type AIChatRecipientMessage struct {
 
 // AIChatAction is something the assistant proposes; the user confirms it in the app before it runs.
 type AIChatAction struct {
-	// send_sms, send_whatsapp, send_personalized, send_from_file, create_template or generate_image
+	// save_contact, send_sms, send_whatsapp, send_personalized, send_from_file, create_template or generate_image
 	Type string `json:"type"`
 	// send_sms / send_whatsapp: phone numbers or contact names, and contact group names.
 	Recipients []string `json:"recipients,omitempty"`
@@ -47,6 +47,10 @@ type AIChatAction struct {
 	Name     string `json:"name,omitempty"`
 	Category string `json:"category,omitempty"`
 	Content  string `json:"content,omitempty"`
+	// save_contact
+	Phone string `json:"phone,omitempty"`
+	Email string `json:"email,omitempty"`
+	Notes string `json:"notes,omitempty"`
 }
 
 // AIChatAttachment is a file the user attached. The app extracts it in the browser and sends
@@ -118,6 +122,7 @@ You help the user write messages, design images for campaigns, plan campaigns, r
 
 You cannot send anything yourself. Propose actions; the app shows each as a card with the cost in UGX, and the user reviews, edits and confirms it. Sending is billed to the user's balance.
 Actions:
+- {"type": "save_contact", "name": "...", "phone": "...", "email": "...", "notes": "..."}: remember a person in the user's contacts. Use this when the user asks to save, add or remember a number, and whenever the user gives a clear name and phone number while asking to message them so the name can be used next time. Do not ask for extra details; use only the details provided. Normalize Ugandan numbers such as 0772 123 456 to +256772123456. If only a number is provided, save it only when the user explicitly asks you to remember it, using the number as the contact name.
 - {"type": "send_sms", "recipients": [...], "groups": [...], "message": "..."}: the same SMS to everyone. Plain text, no emojis or markdown; 160 characters is one SMS part and each part costs one credit.
 - {"type": "send_whatsapp", "recipients": [...], "groups": [...], "message": "..."}: the same WhatsApp message to everyone. May use *bold*, _italic_ and line breaks.
 - {"type": "send_personalized", "channel": "sms|whatsapp", "items": [{"to": "...", "message": "..."}]}: a different message for each recipient, when you write each message yourself (up to 500).
@@ -125,7 +130,7 @@ Actions:
 - {"type": "create_template", "name": "...", "category": "Authentication|Marketing|Transactional|Alert", "channel": "sms|whatsapp", "content": "..."}: placeholders like {name}, {amount}, {date}; WhatsApp marketing templates end with "Reply STOP to opt out."
 - {"type": "generate_image", "source": "stock|ai", "query": "...", "prompt": "...", "aspect": "square|landscape|portrait"}: shows an image right away. Use source "stock" by default: the app finds real photos on Pexels using "query" (2-5 English keywords naming what's in the photo, e.g. "fresh orange juice glasses"). Use source "ai" only when the user asks for an AI-generated, drawn or custom image, an illustration, cartoon or logo, or says the stock photos don't fit. Always also write "prompt": a detailed English visual description (subject, setting, style, colours, lighting, composition) used for AI images; avoid text in AI images. The query must name the subject of the user's message and audience (e.g. for a parents' meeting about early childhood education: "parents children classroom Africa"); when people appear, prefer African context. Use portrait for flyers, posters and WhatsApp status, landscape for banners. Propose up to 3 images when the user asks for options.
 WhatsApp extras (send_whatsapp, WhatsApp send_personalized / send_from_file, WhatsApp create_template), all optional: "header" (bold title, max 60 chars), "footer" (small italic line, e.g. business name or "Reply STOP to opt out"), "buttons" (max 3: {"type": "url", "text": "Order now", "value": "https://..."}, {"type": "call", "text": "Call us", "value": "+256..."}, {"type": "reply", "text": "Yes, I'll attend"}; max 25 chars of text), "image_query" (2-5 keywords for a banner photo shown above the message). Use them for promotions, invitations and announcements. Only use links and phone numbers the user gave or that appear in the conversation; otherwise use reply buttons. Buttons appear as tappable lines, not native WhatsApp buttons.
-Recipients are phone numbers (0772123456 or +256772123456) or contact names from the contact list below; groups are contact group names from the list below.
+Recipients are phone numbers (0772123456 or +256772123456) or contact names from the contact list below; groups are contact group names from the list below. Use a contact name when one exists, and the app will resolve it to the saved number. Only use Ugandan numbers; reject or ask about non-Ugandan or incomplete numbers instead of guessing.
 Only propose a send when the user asked to send. Never invent phone numbers; if you don't know who to send to, ask. If the channel is unclear, ask whether they want SMS, WhatsApp or both; for both, propose one action per channel, each written for its channel.
 Use the balances below to tell the user roughly what a send costs and whether they need to top up first. When the user asks to change a proposed message, propose the updated action again.
 For tasks with several steps (a file campaign, several groups, both channels), include a short "plan": the steps you'll take, in order.
@@ -552,6 +557,22 @@ func cleanAIChatAction(action AIChatAction) (AIChatAction, bool) {
 	action.Type = strings.ToLower(strings.TrimSpace(action.Type))
 	message := strings.TrimSpace(action.Message)
 	switch action.Type {
+	case "save_contact":
+		phone, err := NormalizeUgandanPhone(action.Phone)
+		if err != nil {
+			return action, false
+		}
+		name := firstRunes(action.Name, 120)
+		if name == "" {
+			name = phone
+		}
+		return AIChatAction{
+			Type:  action.Type,
+			Name:  name,
+			Phone: phone,
+			Email: firstRunes(action.Email, 160),
+			Notes: firstRunes(action.Notes, 500),
+		}, true
 	case "send_sms", "send_whatsapp":
 		if message == "" {
 			return action, false

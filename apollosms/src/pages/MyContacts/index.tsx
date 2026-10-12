@@ -15,6 +15,7 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { normalizeUgandanPhone } from "@/lib/phone";
 import {
     Edit,
     FolderPlus,
@@ -82,8 +83,8 @@ export default function MyContactsIndex() {
     const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem("sidebar-collapsed") === "true");
 
     useEffect(() => {
-        const handler = (e: any) => {
-            setSidebarCollapsed(e.detail.collapsed);
+        const handler = (e: Event) => {
+            setSidebarCollapsed((e as CustomEvent<{ collapsed: boolean }>).detail.collapsed);
         };
         window.addEventListener("sidebar-collapse-change", handler);
         return () => window.removeEventListener("sidebar-collapse-change", handler);
@@ -331,9 +332,15 @@ export default function MyContactsIndex() {
             return;
         }
 
+        const normalizedPhone = normalizeUgandanPhone(contactFormPhone);
+        if (!normalizedPhone) {
+            toast.error("Enter a complete Ugandan number, e.g. 0772 123 456");
+            return;
+        }
+
         const payload = {
             name: contactFormName.trim(),
-            phone: contactFormPhone.trim(),
+            phone: normalizedPhone,
             email: contactFormEmail.trim(),
             groups: contactFormGroups,
         };
@@ -1035,9 +1042,15 @@ export default function MyContactsIndex() {
                                         placeholder="e.g. +256 701 234567"
                                         value={contactFormPhone}
                                         onChange={(e) => setContactFormPhone(e.target.value)}
+                                        onBlur={() => {
+                                            const normalized = normalizeUgandanPhone(contactFormPhone);
+                                            if (normalized) setContactFormPhone(normalized);
+                                        }}
+                                        inputMode="tel"
                                         className="h-10 text-xs bg-card"
                                         required
                                     />
+                                    <p className="text-[10px] text-muted-foreground">Accepts 0772 123 456, 772123456, or +256772123456. Other countries and incomplete numbers are blocked.</p>
                                 </div>
 
                                 <div className="space-y-2">

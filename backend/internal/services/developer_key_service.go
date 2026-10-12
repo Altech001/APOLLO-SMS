@@ -134,12 +134,25 @@ func (s *DeveloperKeyService) ValidateKey(rawKey string) (*models.DeveloperKey, 
 func (s *DeveloperKeyService) EnqueueGatewaySMS(user *models.User, req *models.GatewaySendSMSRequest) (*models.GatewaySendSMSResponse, error) {
 	// Determine all unique recipients
 	phonesMap := make(map[string]bool)
-	if phone := strings.TrimSpace(req.Phone); phone != "" {
+	addPhone := func(raw string) error {
+		if strings.TrimSpace(raw) == "" {
+			return nil
+		}
+		phone, err := NormalizeUgandanPhone(raw)
+		if err != nil {
+			return fmt.Errorf("invalid recipient %q: %w", raw, err)
+		}
 		phonesMap[phone] = true
+		return nil
+	}
+	if phone := strings.TrimSpace(req.Phone); phone != "" {
+		if err := addPhone(phone); err != nil {
+			return nil, err
+		}
 	}
 	for _, p := range req.Phones {
-		if phone := strings.TrimSpace(p); phone != "" {
-			phonesMap[phone] = true
+		if err := addPhone(p); err != nil {
+			return nil, err
 		}
 	}
 

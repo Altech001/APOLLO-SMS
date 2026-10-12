@@ -1,4 +1,5 @@
 import { AIChatAttachment, BillingSummary, ContactGroupResponse, ContactResponse, MessageChannel } from "@/api/apollosms";
+import { normalizeUgandanPhone } from "@/lib/phone";
 
 /* ───────────────────────── attached files ───────────────────────── */
 
@@ -113,7 +114,7 @@ export const toAttachment = (file: ChatFile): AIChatAttachment => ({
 
 /* ───────────────────────── recipients ───────────────────────── */
 
-export const looksLikePhone = (value: string) => value.replace(/\D/g, "").length >= 9 && !/[a-z]/i.test(value);
+export const looksLikePhone = (value: string) => normalizeUgandanPhone(value) !== null;
 
 /** Picks the column most likely to hold phone numbers, preferring the one the AI named. */
 export function guessPhoneColumn(columns: string[], rows: Array<Record<string, string>>, preferred?: string): string | undefined {
@@ -149,11 +150,12 @@ export interface ResolvedRecipient {
 }
 
 const contactName = (c: ContactResponse) => (c.name || c.full_name || "").trim();
-const contactPhone = (c: ContactResponse) => c.phone || c.phone_number || "";
+const contactPhone = (c: ContactResponse) => normalizeUgandanPhone(c.phone || c.phone_number || "") || "";
 
 /** Turns a phone number or contact name into a phone number using the user's contacts. */
 export function resolveRecipient(value: string, contacts: ContactResponse[]): ResolvedRecipient {
-    if (looksLikePhone(value)) return { label: value, phone: value };
+    const normalized = normalizeUgandanPhone(value);
+    if (normalized) return { label: value, phone: normalized };
     const needle = value.trim().toLowerCase();
     const exact = contacts.filter((c) => contactName(c).toLowerCase() === needle);
     const matches = exact.length ? exact : contacts.filter((c) => contactName(c).toLowerCase().includes(needle));

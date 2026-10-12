@@ -30,11 +30,7 @@ func NewContactService(db *gorm.DB) *ContactService {
 
 // normalizeContactPhone stores numbers in one international format (+256700000000) so they dedupe.
 func normalizeContactPhone(phone string) (string, error) {
-	digits, err := normalizeWhatsAppPhone(phone)
-	if err != nil {
-		return "", err
-	}
-	return "+" + digits, nil
+	return NormalizeUgandanPhone(phone)
 }
 
 func isUniqueViolation(err error) bool {

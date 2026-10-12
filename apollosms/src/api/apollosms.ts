@@ -1,4 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { normalizeUgandanPhone } from "@/lib/phone";
+
 const configuredApiUrl =
   import.meta.env.VITE_APOLLOSMS_API_URL ||
   import.meta.env.VITE_API_URL ||
@@ -806,7 +808,7 @@ export interface AITemplateResponse {
   content: string;
 }
 
-export type AIChatActionType = "send_sms" | "send_whatsapp" | "send_personalized" | "send_from_file" | "create_template" | "generate_image";
+export type AIChatActionType = "save_contact" | "send_sms" | "send_whatsapp" | "send_personalized" | "send_from_file" | "create_template" | "generate_image";
 
 export type AIImageAspect = "square" | "landscape" | "portrait";
 
@@ -836,6 +838,9 @@ export interface AIChatAction {
   name?: string;
   category?: string;
   content?: string;
+  phone?: string;
+  email?: string;
+  notes?: string;
 }
 
 /** What the assistant is told about an attached file (extracted in the browser). */
@@ -949,7 +954,7 @@ function normalizeContactGroup(group: any): ContactGroupResponse {
 function toContactPayload(contact: { name: string; phone: string; email?: string | null; notes?: string; groups?: string[] }) {
   return {
     name: contact.name,
-    phone: contact.phone,
+    phone: normalizeUgandanPhone(contact.phone) || contact.phone.trim(),
     email: contact.email || "",
     notes: contact.notes || "",
     group_ids: contact.groups === undefined ? undefined : contact.groups.map(Number),
@@ -1535,11 +1540,13 @@ export const apollosmsApi = {
   },
   sms: {
     send: (payload: SendSMSRequest | { recipients: Array<{ phone: string }>; message: string }) => {
-      const phones = "recipients" in payload ? payload.recipients.map((recipient) => recipient.phone).filter(Boolean) : payload.phones;
+      const rawPhones = "recipients" in payload ? payload.recipients.map((recipient) => recipient.phone).filter(Boolean) : payload.phones;
+      const phones = rawPhones?.map((phone) => normalizeUgandanPhone(phone) || phone);
+      const phone = "phone" in payload && payload.phone ? normalizeUgandanPhone(payload.phone) || payload.phone : undefined;
       return apiRequest<GatewaySendSMSResponse>("/sms-config/send", {
         method: "POST",
         body: JSON.stringify({
-          phone: "phone" in payload ? payload.phone : undefined,
+          phone,
           phones,
           message: payload.message,
         }),
@@ -1554,7 +1561,11 @@ export const apollosmsApi = {
         method: "POST",
         auth: false,
         apiKey,
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          ...payload,
+          phone: payload.phone ? normalizeUgandanPhone(payload.phone) || payload.phone : undefined,
+          phones: payload.phones?.map((phone) => normalizeUgandanPhone(phone) || phone),
+        }),
       }),
   },
   smsPricing: {
@@ -1673,7 +1684,11 @@ export const apollosmsApi = {
     send: (payload: { account_id: ID; phones: string[]; message: string } & WhatsAppRich) =>
       apiRequest<SendWhatsAppResponse>("/whatsapp/send", {
         method: "POST",
-        body: JSON.stringify({ ...payload, account_id: Number(payload.account_id) }),
+        body: JSON.stringify({
+          ...payload,
+          account_id: Number(payload.account_id),
+          phones: payload.phones.map((phone) => normalizeUgandanPhone(phone) || phone),
+        }),
       }),
     messages: (query?: { limit?: number }) => apiRequest<WhatsAppMessageRecord[]>("/whatsapp/messages", { query }),
     uploadImage: (file: File) => {

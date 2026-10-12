@@ -9,6 +9,7 @@ import {
     ContactGroupResponse,
     ContactResponse,
     MessageChannel,
+    renultApi,
     WhatsAppAccountResponse,
     WhatsAppRich,
 } from "@/api/apollosms";
@@ -31,13 +32,13 @@ import {
     fillTemplate,
     formatUGX,
     guessPhoneColumn,
-    looksLikePhone,
     resolveGroups,
     resolveRecipient,
     ResolvedRecipient,
     smsParts,
     topUpPath,
 } from "./chat-utils";
+import { normalizeUgandanPhone } from "@/lib/phone";
 
 export type ChatActionStatus = "pending" | "done" | "dismissed";
 
@@ -70,6 +71,8 @@ interface ChatActionCardProps extends ChatActionContext {
 export default function ChatActionCard({ action, onChange, ...context }: ChatActionCardProps) {
     const status = action.status || "pending";
     switch (action.type) {
+        case "save_contact":
+            return <ContactCard action={action} status={status} onChange={onChange} />;
         case "create_template":
             return <TemplateCard action={action} status={status} onChange={onChange} />;
         case "generate_image":
@@ -80,6 +83,70 @@ export default function ChatActionCard({ action, onChange, ...context }: ChatAct
         default:
             return <SendCard action={action} status={status} context={context} onChange={onChange} />;
     }
+}
+
+function ContactCard({ action, status, onChange }: {
+    action: ChatActionState;
+    status: ChatActionStatus;
+    onChange: (next: ChatActionState) => void;
+}) {
+    const queryClient = useQueryClient();
+    const [name, setName] = useState(action.name || "");
+    const [phone, setPhone] = useState(action.phone || "");
+    const [email, setEmail] = useState(action.email || "");
+    const [saving, setSaving] = useState(false);
+    const editable = status === "pending";
+    const normalized = normalizeUgandanPhone(phone);
+
+    const save = async () => {
+        if (!name.trim()) return toast.error("Add a name for this contact");
+        if (!normalized) return toast.error("Enter a complete Ugandan number, e.g. 0772 123 456");
+        setSaving(true);
+        try {
+            const { summary } = await renultApi.contacts.bulkCreate({
+                contacts: [{ name: name.trim(), phone: normalized, email: email.trim() }],
+            });
+            await Promise.all([
+                queryClient.invalidateQueries({ queryKey: ["apollosms", "contacts", "ai-chat"] }),
+                queryClient.invalidateQueries({ queryKey: ["apollosms", "contacts"] }),
+            ]);
+            const result = summary.updated ? "Contact updated" : "Contact saved";
+            toast.success(`${name.trim()} is now in your contacts`);
+            onChange({ ...action, name: name.trim(), phone: normalized, email: email.trim(), status: "done", result });
+        } catch (error) {
+            toast.error(error instanceof Error ? error.message : "Unable to save contact");
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    return (
+        <CardShell
+            tone="template"
+            status={status}
+            result={action.result}
+            icon={<Users className="w-4 h-4" />}
+            title="Save contact"
+        >
+            <div className="grid gap-2 sm:grid-cols-2">
+                <input value={name} onChange={(e) => setName(e.target.value)} disabled={!editable} placeholder="Name" className="h-8 rounded border border-border bg-muted/20 px-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary/40" />
+                <input value={phone} onChange={(e) => setPhone(e.target.value)} disabled={!editable} placeholder="0772 123 456" className="h-8 rounded border border-border bg-muted/20 px-2 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-primary/40" />
+                <input value={email} onChange={(e) => setEmail(e.target.value)} disabled={!editable} placeholder="Email (optional)" className="h-8 rounded border border-border bg-muted/20 px-2 text-xs sm:col-span-2 focus:outline-none focus:ring-2 focus:ring-primary/40" />
+            </div>
+            <p className={cn("text-[11px]", normalized ? "text-muted-foreground" : "text-rose-600")}>
+                {normalized ? `Will be saved as ${normalized}. You can use ${name.trim() || "this name"} next time.` : "Use a complete Ugandan number. Numbers from other countries are blocked."}
+            </p>
+            {editable && (
+                <div className="flex items-center justify-end gap-2">
+                    <Button type="button" variant="ghost" size="sm" onClick={() => onChange({ ...action, status: "dismissed" })}>Dismiss</Button>
+                    <Button type="button" size="sm" onClick={save} disabled={saving || !name.trim() || !normalized} className="gap-1.5">
+                        {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                        Save contact
+                    </Button>
+                </div>
+            )}
+        </CardShell>
+    );
 }
 
 type Tone = "sms" | "whatsapp" | "template";
@@ -382,8 +449,9 @@ function BatchCard({ action, status, context, onChange }: {
         return file.rows.map((row) => {
             const raw = row[column] || "";
             const { text, missing } = fillTemplate(template, row);
-            const problem = !looksLikePhone(raw) ? "no phone number" : missing.length ? `unknown {${missing.join("}, {")}}` : undefined;
-            return { to: raw || "—", phone: looksLikePhone(raw) ? raw : undefined, message: text, problem };
+            const phone = normalizeUgandanPhone(raw) || undefined;
+            const problem = !phone ? "invalid or incomplete Ugandan number" : missing.length ? `unknown {${missing.join("}, {")}}` : undefined;
+            return { to: raw || "—", phone, message: text, problem };
         });
     }, [fromFile, items, context.contacts, file, column, template]);
 

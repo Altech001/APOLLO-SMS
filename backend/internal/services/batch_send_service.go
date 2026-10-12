@@ -65,8 +65,14 @@ func (s *BatchSendService) Send(userID uint, req *BatchSendRequest) (*BatchSendR
 	var order []string
 	groups := map[string][]string{}
 	seen := map[string]bool{}
+	invalid := []string{}
 	for _, item := range req.Items {
-		phone, message := strings.TrimSpace(item.Phone), strings.TrimSpace(item.Message)
+		phone, err := NormalizeUgandanPhone(item.Phone)
+		message := strings.TrimSpace(item.Message)
+		if err != nil {
+			invalid = append(invalid, fmt.Sprintf("%s: %v", strings.TrimSpace(item.Phone), err))
+			continue
+		}
 		if phone == "" || message == "" || seen[phone+"\x00"+message] {
 			continue
 		}
@@ -89,6 +95,12 @@ func (s *BatchSendService) Send(userID uint, req *BatchSendRequest) (*BatchSendR
 		chunkSize = s.cfg.WhatsAppMaxRecipients
 	}
 	res := &BatchSendResponse{Errors: []string{}}
+	res.Failed = len(invalid)
+	for _, err := range invalid {
+		if len(res.Errors) < 10 {
+			res.Errors = append(res.Errors, err)
+		}
+	}
 	addError := func(msg string) {
 		if len(res.Errors) < 10 {
 			res.Errors = append(res.Errors, msg)

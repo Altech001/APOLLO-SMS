@@ -10,7 +10,6 @@ import (
 	"backend/internal/config"
 	"backend/internal/models"
 	"backend/internal/repository"
-	"backend/pkg/validator"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -59,8 +58,8 @@ func NewWhatsAppService(db *gorm.DB, billing *BillingService, repo *repository.W
 
 // normalizeWhatsAppPhone returns the international digits-only format WhatsApp expects (e.g. 256700000000).
 func normalizeWhatsAppPhone(phone string) (string, error) {
-	formatted := FormatPhoneNumber(phone, "africastalking")
-	if !validator.IsValidPhone(formatted) {
+	formatted, err := NormalizeUgandanPhone(phone)
+	if err != nil {
 		return "", fmt.Errorf("invalid phone number: %s", phone)
 	}
 	return strings.TrimPrefix(formatted, "+"), nil

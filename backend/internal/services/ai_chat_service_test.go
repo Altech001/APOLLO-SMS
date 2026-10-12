@@ -55,6 +55,16 @@ func TestParseAIChatBatchActions(t *testing.T) {
 	}
 }
 
+func TestParseAIChatSaveContactAction(t *testing.T) {
+	out, err := parseAIChat(`{"reply":"I will remember James for next time.","actions":[{"type":"save_contact","name":"James","phone":"0772 123 456"}]}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Actions) != 1 || out.Actions[0].Type != "save_contact" || out.Actions[0].Name != "James" || out.Actions[0].Phone != "+256772123456" {
+		t.Fatalf("contact action not normalized: %+v", out.Actions)
+	}
+}
+
 func TestParseAIChatImageAction(t *testing.T) {
 	out, err := parseAIChat(`{"reply": "Here are two options", "actions": [
 		{"type": "generate_image", "prompt": "A bright flyer of fresh mangoes on a market stall", "aspect": "flyer"},
