@@ -356,7 +356,7 @@ export default function WhatsappMsgIndex() {
                                                         id="wa-name"
                                                         value={connectForm.display_name}
                                                         onChange={(e) => updateConnectForm("display_name", e.target.value)}
-                                                        placeholder="e.g. TINOVA Support"
+                                                        placeholder="e.g. TINORA Support"
                                                         className="h-9 text-xs"
                                                     />
                                                 </div>

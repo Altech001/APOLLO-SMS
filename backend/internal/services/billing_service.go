@@ -26,7 +26,7 @@ func defaultBillingPlans() []models.BillingPlan {
 	return []models.BillingPlan{
 		{
 			Code: models.PlanCodeFree, Name: "Free", SortOrder: 0, IsActive: true,
-			Description:       "Try TINOVA AI with a daily free allowance.",
+			Description:       "Try TINORA AI with a daily free allowance.",
 			DailyFreeSMS:      5,
 			DailyFreeWhatsApp: 10,
 			WhatsAppPriceUGX:  10,

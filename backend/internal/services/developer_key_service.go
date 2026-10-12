@@ -51,7 +51,7 @@ func NewDeveloperKeyService(
 	}
 }
 
-// GenerateRandomKey creates a random secure API key prefixed with tinova_live_.
+// GenerateRandomKey creates a random secure API key prefixed with tinora_live_.
 // SetBilling enables plan-based free SMS allowances when queueing SMS.
 func (s *DeveloperKeyService) SetBilling(billing *BillingService) {
 	s.billing = billing
@@ -62,7 +62,7 @@ func GenerateRandomKey() (string, error) {
 	if _, err := rand.Read(bytes); err != nil {
 		return "", err
 	}
-	return "tinova_live_" + hex.EncodeToString(bytes), nil
+	return "tinora_live_" + hex.EncodeToString(bytes), nil
 }
 
 // HashKey computes SHA-256 hash of the API key.
@@ -79,7 +79,7 @@ func (s *DeveloperKeyService) CreateKey(userID uint, req *models.CreateDeveloper
 	}
 
 	hash := HashKey(rawKey)
-	masked := "tinova_live_****" + rawKey[len(rawKey)-6:]
+	masked := "tinora_live_****" + rawKey[len(rawKey)-6:]
 
 	key := &models.DeveloperKey{
 		UserID:    userID,

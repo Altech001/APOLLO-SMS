@@ -3,7 +3,7 @@ import { useLocation } from "react-router-dom";
 import { BRAND_DESCRIPTION, BRAND_KEYWORDS, BRAND_NAME, SITE_URL } from "@/constants/brand";
 
 interface SEOProps {
-    /** Page title – will be appended with the TINOVA AI brand. */
+    /** Page title – will be appended with the TINORA AI brand. */
     title?: string;
     /** Meta description – keep under 160 characters */
     description?: string;

@@ -1,4 +1,4 @@
-const CACHE = "tinova-ai-shell-v1";
+const CACHE = "tinora-ai-shell-v1";
 const OFFLINE_URL = "/offline.html";
 const PRECACHE = [OFFLINE_URL, "/icons/icon-192.png"];
 

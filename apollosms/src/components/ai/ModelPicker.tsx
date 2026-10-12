@@ -68,7 +68,7 @@ export default function ModelPicker({ value, onChange }: ModelPickerProps) {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" side="top" className="w-72">
                 <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
-                    If a model is busy, TINOVA AI switches to the next one automatically.
+                    If a model is busy, TINORA AI switches to the next one automatically.
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onSelect={() => onChange("")} className="flex items-start gap-2.5 py-2 cursor-pointer">

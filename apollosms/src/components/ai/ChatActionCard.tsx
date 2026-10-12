@@ -717,7 +717,7 @@ function StockImageView({ action, onChange, allowAI }: { action: ChatActionState
         try {
             const res = await apollosmsApi.ai.searchStock(text.trim(), aspect, page);
             if (page === 1 && res.photos.length === 0) {
-                if (!stock) return switchToAI("No matching stock photos, so TINOVA AI generated one.");
+                if (!stock) return switchToAI("No matching stock photos, so TINORA AI generated one.");
                 return toast.info("No photos found. Try other words.");
             }
             const photos = page === 1 ? res.photos : [...(stock?.photos || []), ...res.photos.filter((p) => !stock?.photos.some((q) => q.id === p.id))];
@@ -728,7 +728,7 @@ function StockImageView({ action, onChange, allowAI }: { action: ChatActionState
             });
             setEditing(false);
         } catch {
-                if (!stock) switchToAI("Stock photos weren't available, so TINOVA AI generated one.");
+                if (!stock) switchToAI("Stock photos weren't available, so TINORA AI generated one.");
             else toast.error("Couldn't load more photos right now");
         } finally {
             setIsSearching(false);
@@ -992,7 +992,7 @@ function AIImageView({ action, onChange }: { action: ChatActionState; onChange: 
             <div className="flex flex-wrap items-center gap-1.5">
                 {image && (
                     <>
-                        <Button type="button" size="sm" variant="outline" onClick={() => downloadImage(image.url, `tinova-ai-${fileSlug(prompt)}.${image.url.endsWith(".png") ? "png" : "jpg"}`)} disabled={isDrawing} className="h-8 text-xs gap-1.5">
+                        <Button type="button" size="sm" variant="outline" onClick={() => downloadImage(image.url, `tinora-ai-${fileSlug(prompt)}.${image.url.endsWith(".png") ? "png" : "jpg"}`)} disabled={isDrawing} className="h-8 text-xs gap-1.5">
                             <Download className="w-3.5 h-3.5" />
                             Download
                         </Button>

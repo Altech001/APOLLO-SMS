@@ -118,7 +118,7 @@ func Seed(db *gorm.DB) error {
 	users := []models.User{
 		{
 			Name:       "System Administrator",
-			Email:      "admin@tinova.ai",
+			Email:      "admin@tinora.ai",
 			Password:   string(adminPassword),
 			Role:       "admin",
 			SMSBalance: 1000,
@@ -126,7 +126,7 @@ func Seed(db *gorm.DB) error {
 		},
 		{
 			Name:       "Regular User",
-			Email:      "user@tinova.ai",
+			Email:      "user@tinora.ai",
 			Password:   string(userPassword),
 			Role:       "user",
 			SMSBalance: 20,

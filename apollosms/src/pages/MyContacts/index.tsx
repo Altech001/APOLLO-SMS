@@ -969,7 +969,7 @@ export default function MyContactsIndex() {
                                                 <span className="text-muted-foreground text-[10px]">Today, 10:14 AM</span>
                                             </div>
                                             <p className="text-muted-foreground leading-relaxed line-clamp-2">
-                                                Hey {activeContact.name.split(" ")[0]}, your verification code for TINOVA AI is 4920.
+                                                Hey {activeContact.name.split(" ")[0]}, your verification code for TINORA AI is 4920.
                                             </p>
                                         </div>
                                         <div className="p-3 bg-muted/10 text-xs">
@@ -978,7 +978,7 @@ export default function MyContactsIndex() {
                                                 <span className="text-muted-foreground text-[10px]">Jun 03, 14:10 PM</span>
                                             </div>
                                             <p className="text-muted-foreground leading-relaxed line-clamp-2">
-                                                Welcome to TINOVA AI, {activeContact.name.split(" ")[0]}! We're thrilled to have you.
+                                                Welcome to TINORA AI, {activeContact.name.split(" ")[0]}! We're thrilled to have you.
                                             </p>
                                         </div>
                                     </div>

@@ -11,7 +11,7 @@ import AuthShell from "./AuthShell";
 import { AuthInput, PasswordInput, SubmitButton } from "./auth-ui";
 import { isVerificationRequired, saveVerification } from "./verification-state";
 
-const REMEMBER_LOGIN_KEY = "tinova-ai:remember-login-email";
+const REMEMBER_LOGIN_KEY = "tinora-ai:remember-login-email";
 const LEGACY_REMEMBER_LOGIN_KEY = "lucosms:remember-login-email";
 
 export default function Login() {
@@ -65,7 +65,7 @@ export default function Login() {
   };
 
   return (
-    <AuthShell title="Sign in to TINOVA AI" subtitle="Welcome back." seoTitle="Log In" path="/login">
+    <AuthShell title="Sign in to TINORA AI" subtitle="Welcome back." seoTitle="Log In" path="/login">
       <div className="w-full">
         <form className="space-y-2" onSubmit={handleSubmit} autoComplete="on">
           <AuthInput type="email" name="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" autoComplete="username email" autoFocus />
@@ -92,7 +92,7 @@ export default function Login() {
       </div>
       <div className="mt-8 text-center">
         <p className="text-[13px] text-muted-foreground font-medium barlow-semibold">
-          New to TINOVA AI? <Link to="/signup" className="text-foreground hover:text-primary hover:underline">Create an account</Link>
+          New to TINORA AI? <Link to="/signup" className="text-foreground hover:text-primary hover:underline">Create an account</Link>
         </p>
       </div>
     </AuthShell>

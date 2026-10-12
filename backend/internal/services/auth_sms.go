@@ -266,7 +266,7 @@ func (s *AuthService) sendAuthCode(user *models.User, purpose string) (*models.S
 	if purpose == models.AuthPurposeReset {
 		label = "password reset"
 	}
-	message := fmt.Sprintf("Your TINOVA AI %s code is %s. It expires in %d minutes. Never share this code.", label, code, int(authCodeTTL.Minutes()))
+	message := fmt.Sprintf("Your TINORA AI %s code is %s. It expires in %d minutes. Never share this code.", label, code, int(authCodeTTL.Minutes()))
 
 	resp, sendErr := s.smsService.SendSMS(&models.SendSMSRequest{Phone: user.Phone, Message: message})
 	if sendErr != nil {

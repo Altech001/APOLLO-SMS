@@ -243,7 +243,7 @@ const buildSmsLogsReportHtml = (records: SmsRecord[], generatedBy?: string) => {
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>TINOVA AI Sent Messages Report</title>
+  <title>TINORA AI Sent Messages Report</title>
   <style>
     @page { size: A4; margin: 14mm; }
     * { box-sizing: border-box; }
@@ -275,9 +275,9 @@ const buildSmsLogsReportHtml = (records: SmsRecord[], generatedBy?: string) => {
 <body>
   <div class="header">
     <div class="brand">
-      <img class="logo" src="${logoUrl}" alt="TINOVA AI logo" />
+      <img class="logo" src="${logoUrl}" alt="TINORA AI logo" />
       <div>
-        <h1>TINOVA AI Sent Messages Report</h1>
+        <h1>TINORA AI Sent Messages Report</h1>
         <div class="muted">All sent-message records exported from the database</div>
       </div>
     </div>
@@ -322,7 +322,7 @@ const buildSmsLogsReportHtml = (records: SmsRecord[], generatedBy?: string) => {
   </table>
 
   <div class="footer">
-    <span>TINOVA AI | ${escapeHtml(siteUrl)}</span>
+    <span>TINORA AI | ${escapeHtml(siteUrl)}</span>
     <span>Reference export from database records</span>
   </div>
 </body>

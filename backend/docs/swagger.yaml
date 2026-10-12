@@ -86,7 +86,7 @@ definitions:
       last_used_at:
         type: string
       masked_key:
-        description: e.g., "tinova_live_****1234"
+        description: e.g., "tinora_live_****1234"
         type: string
       name:
         type: string
@@ -490,7 +490,7 @@ info:
     name: Private
     url: https://apollosms.vercel.app
   termsOfService: http://swagger.io/terms/
-  title: TINOVA AI API
+  title: TINORA AI API
   version: "1.0"
 paths:
   /auth/change-password:

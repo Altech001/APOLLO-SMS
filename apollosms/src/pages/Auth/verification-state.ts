@@ -1,7 +1,7 @@
 import type { VerificationRequired } from "@/api/apollosms";
 
 // The verify screen survives a refresh by keeping the (short-lived) ticket for this tab only.
-const KEY = "tinova-ai:pending-verification";
+const KEY = "tinora-ai:pending-verification";
 const LEGACY_KEY = "lucosms:pending-verification";
 
 export function saveVerification(info: VerificationRequired) {

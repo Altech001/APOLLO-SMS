@@ -1,4 +1,4 @@
-# TINOVA AI API
+# TINORA AI API
 
 Backend service for SMS delivery and customer management, built with Go + Fiber.
 
@@ -150,4 +150,4 @@ POST /api/v1/payments/withdrawals
 
 ## License
 
-Private — Bliss ISP / TINOVA AI internal project.
+Private — Bliss ISP / TINORA AI internal project.

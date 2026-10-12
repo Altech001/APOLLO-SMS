@@ -15,7 +15,7 @@ import (
 	fiberSwagger "github.com/swaggo/fiber-swagger"
 )
 
-// @title           TINOVA AI API
+// @title           TINORA AI API
 // @version         1.0
 // @description     Backend service for SMS delivery and customer management.
 // @termsOfService  http://swagger.io/terms/
@@ -57,7 +57,7 @@ func main() {
 
 	// Create Fiber app
 	app := fiber.New(fiber.Config{
-		AppName:      "TINOVA AI API",
+		AppName:      "TINORA AI API",
 		ErrorHandler: middleware.ErrorHandler,
 		BodyLimit:    8 << 20, // room for 5 MB image uploads plus multipart overhead
 	})

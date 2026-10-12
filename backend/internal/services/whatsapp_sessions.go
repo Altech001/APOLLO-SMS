@@ -98,7 +98,7 @@ func newWhatsAppSessionManager(db *gorm.DB, billing *BillingService, repo *repos
 	}
 
 	// Shown to users under WhatsApp → Linked devices.
-	store.SetOSInfo("TINOVA AI", [3]uint32{1, 0, 0})
+	store.SetOSInfo("TINORA AI", [3]uint32{1, 0, 0})
 
 	return &whatsAppSessionManager{
 		container: container,

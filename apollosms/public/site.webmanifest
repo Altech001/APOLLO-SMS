@@ -1,8 +1,8 @@
 {
   "id": "/",
-  "name": "TINOVA AI - SMS & WhatsApp Messaging",
-  "short_name": "TINOVA AI",
-  "description": "Send bulk SMS and WhatsApp messages, manage contacts and templates, and run campaigns with TINOVA AI.",
+  "name": "TINORA AI - SMS & WhatsApp Messaging",
+  "short_name": "TINORA AI",
+  "description": "Send bulk SMS and WhatsApp messages, manage contacts and templates, and run campaigns with TINORA AI.",
   "lang": "en",
   "dir": "ltr",
   "start_url": "/?source=pwa",
@@ -23,7 +23,7 @@
   ],
   "shortcuts": [
     {
-      "name": "TINOVA AI Assistant",
+      "name": "TINORA AI Assistant",
       "short_name": "AI Chat",
       "url": "/chat?source=shortcut",
       "icons": [{ "src": "/icons/icon-96.png", "sizes": "96x96", "type": "image/png" }]

@@ -1939,7 +1939,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "masked_key": {
-                    "description": "e.g., \"tinova_live_****1234\"",
+                    "description": "e.g., \"tinora_live_****1234\"",
                     "type": "string"
                 },
                 "name": {
@@ -2544,7 +2544,7 @@ var SwaggerInfo = &swag.Spec{
 	Host:             "localhost:8000",
 	BasePath:         "/api/v1",
 	Schemes:          []string{},
-	Title:            "TINOVA AI API",
+	Title:            "TINORA AI API",
 	Description:      "Backend service for SMS delivery and customer management.",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,
