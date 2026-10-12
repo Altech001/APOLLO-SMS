@@ -21,6 +21,7 @@ import WhatsAppRichEditor from "@/components/whatsapp/WhatsAppRichEditor";
 import { buttonProblem, isRichEmpty } from "@/components/whatsapp/whatsapp-rich";
 import { notifyBillingChange } from "@/hooks/use-billing-summary";
 import { cn } from "@/lib/utils";
+import { Nimo } from "@luco01/nimo";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, Check, ChevronLeft, ChevronRight, Download, ExternalLink, FileSpreadsheet, FileText, ImageIcon, Images, Link2, Loader2, MessageCircle, MessageCircleMore, MessageSquare, Pencil, Plus, RefreshCw, Save, Search, Send, Sparkles, Users, Wallet, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -62,6 +63,7 @@ export interface ChatActionContext {
 
 const TEMPLATE_CATEGORIES = ["Authentication", "Marketing", "Transactional", "Alert"];
 const BATCH_CHUNK = 200;
+const nimo = new Nimo({ apiKey: import.meta.env.VITE_NIMO_API_KEY || undefined });
 
 interface ChatActionCardProps extends ChatActionContext {
     action: ChatActionState;
@@ -72,7 +74,7 @@ export default function ChatActionCard({ action, onChange, ...context }: ChatAct
     const status = action.status || "pending";
     switch (action.type) {
         case "save_contact":
-            return <ContactCard action={action} status={status} onChange={onChange} />;
+            return <ContactCard action={action} status={status} context={context} onChange={onChange} />;
         case "create_template":
             return <TemplateCard action={action} status={status} onChange={onChange} />;
         case "generate_image":
@@ -85,34 +87,91 @@ export default function ChatActionCard({ action, onChange, ...context }: ChatAct
     }
 }
 
-function ContactCard({ action, status, onChange }: {
+type NimoVerification = "idle" | "checking" | "verified" | "not_found" | "unavailable";
+
+function ContactCard({ action, status, context, onChange }: {
     action: ChatActionState;
     status: ChatActionStatus;
+    context: ChatActionContext;
     onChange: (next: ChatActionState) => void;
 }) {
     const queryClient = useQueryClient();
     const [name, setName] = useState(action.name || "");
     const [phone, setPhone] = useState(action.phone || "");
     const [email, setEmail] = useState(action.email || "");
+    const [notes, setNotes] = useState(action.notes || "");
+    const [groupNames, setGroupNames] = useState<string[]>(action.contact_groups || []);
+    const [draftGroup, setDraftGroup] = useState("");
     const [saving, setSaving] = useState(false);
+    const [verification, setVerification] = useState<NimoVerification>("idle");
     const editable = status === "pending";
     const normalized = normalizeUgandanPhone(phone);
+    const nameIsMissing = !name.trim() || Boolean(normalizeUgandanPhone(name.trim()));
+    const missingGroups = groupNames.filter((nameValue) => !context.groups.some((group) => group.name.trim().toLowerCase() === nameValue.trim().toLowerCase()));
+
+    const addGroups = () => {
+        const values = draftGroup.split(/[,;\n]/).map((value) => value.trim()).filter(Boolean);
+        if (values.length) {
+            setGroupNames((current) => [...current, ...values.filter((value) => !current.some((existing) => existing.toLowerCase() === value.toLowerCase()))]);
+        }
+        setDraftGroup("");
+    };
+
+    const verifyNumberName = async (phoneValue: string) => {
+        const number = normalizeUgandanPhone(phoneValue);
+        if (!number) return null;
+        setVerification("checking");
+        try {
+            const result = await nimo.verify(number.replace(/^\+/, ""));
+            const verifiedName = String(result.status || "").toLowerCase() === "verified" ? result.full_name?.trim() : "";
+            setVerification(verifiedName ? "verified" : "not_found");
+            return verifiedName || null;
+        } catch {
+            // Nimo is a helpful lookup, not a reason to prevent a valid contact from being saved.
+            setVerification("unavailable");
+            return null;
+        }
+    };
+
+    const handlePhoneBlur = async () => {
+        if (!nameIsMissing || !normalized) return;
+        const verifiedName = await verifyNumberName(normalized);
+        if (verifiedName) setName(verifiedName);
+    };
 
     const save = async () => {
-        if (!name.trim()) return toast.error("Add a name for this contact");
         if (!normalized) return toast.error("Enter a complete Ugandan number, e.g. 0772 123 456");
         setSaving(true);
         try {
+            let contactName = name.trim();
+            if (!contactName || normalizeUgandanPhone(contactName)) {
+                const verifiedName = await verifyNumberName(normalized);
+                contactName = verifiedName || normalized;
+                setName(contactName);
+            }
+
+            const groupIds: string[] = [];
+            for (const groupName of groupNames) {
+                const existing = context.groups.find((group) => group.name.trim().toLowerCase() === groupName.trim().toLowerCase());
+                if (existing) {
+                    groupIds.push(existing.id);
+                } else {
+                    const created = await renultApi.contactGroups.create({ name: groupName.trim() });
+                    groupIds.push(created.id);
+                }
+            }
             const { summary } = await renultApi.contacts.bulkCreate({
-                contacts: [{ name: name.trim(), phone: normalized, email: email.trim() }],
+                contacts: [{ name: contactName, phone: normalized, email: email.trim(), notes: notes.trim(), groups: groupIds }],
             });
             await Promise.all([
                 queryClient.invalidateQueries({ queryKey: ["apollosms", "contacts", "ai-chat"] }),
                 queryClient.invalidateQueries({ queryKey: ["apollosms", "contacts"] }),
+                queryClient.invalidateQueries({ queryKey: ["apollosms", "contact-groups", "ai-chat"] }),
+                queryClient.invalidateQueries({ queryKey: ["apollosms", "contact-groups"] }),
             ]);
             const result = summary.updated ? "Contact updated" : "Contact saved";
-            toast.success(`${name.trim()} is now in your contacts`);
-            onChange({ ...action, name: name.trim(), phone: normalized, email: email.trim(), status: "done", result });
+            toast.success(`${contactName} is now in your contacts${groupNames.length ? ` and ${groupNames.join(", ")} group${groupNames.length === 1 ? "" : "s"}` : ""}`);
+            onChange({ ...action, name: contactName, phone: normalized, email: email.trim(), notes: notes.trim(), contact_groups: groupNames, status: "done", result });
         } catch (error) {
             toast.error(error instanceof Error ? error.message : "Unable to save contact");
         } finally {
@@ -129,17 +188,45 @@ function ContactCard({ action, status, onChange }: {
             title="Save contact"
         >
             <div className="grid gap-2 sm:grid-cols-2">
-                <input value={name} onChange={(e) => setName(e.target.value)} disabled={!editable} placeholder="Name" className="h-8 rounded border border-border bg-muted/20 px-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary/40" />
-                <input value={phone} onChange={(e) => setPhone(e.target.value)} disabled={!editable} placeholder="0772 123 456" className="h-8 rounded border border-border bg-muted/20 px-2 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-primary/40" />
+                <input value={name} onChange={(e) => setName(e.target.value)} disabled={!editable} placeholder="Name (optional — Nimo can find it)" className="h-8 rounded border border-border bg-muted/20 px-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary/40" />
+                <input value={phone} onChange={(e) => setPhone(e.target.value)} onBlur={handlePhoneBlur} disabled={!editable} placeholder="0772 123 456" className="h-8 rounded border border-border bg-muted/20 px-2 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-primary/40" />
                 <input value={email} onChange={(e) => setEmail(e.target.value)} disabled={!editable} placeholder="Email (optional)" className="h-8 rounded border border-border bg-muted/20 px-2 text-xs sm:col-span-2 focus:outline-none focus:ring-2 focus:ring-primary/40" />
+                <textarea value={notes} onChange={(e) => setNotes(e.target.value)} disabled={!editable} placeholder="Notes (optional)" rows={2} className="rounded border border-border bg-muted/20 px-2 py-1.5 text-xs resize-y focus:outline-none focus:ring-2 focus:ring-primary/40 sm:col-span-2" />
             </div>
             <p className={cn("text-[11px]", normalized ? "text-muted-foreground" : "text-rose-600")}>
-                {normalized ? `Will be saved as ${normalized}. You can use ${name.trim() || "this name"} next time.` : "Use a complete Ugandan number. Numbers from other countries are blocked."}
+                {!normalized ? "Use a complete Ugandan number. Numbers from other countries are blocked." : verification === "checking" ? "Checking Nimo for the subscriber name…" : verification === "verified" ? "Nimo found a verified subscriber name. You can edit it before saving." : verification === "unavailable" ? `Nimo is unavailable; the number will still be saved as ${name.trim() || normalized}.` : `Will be saved as ${name.trim() && !nameIsMissing ? name.trim() : "the verified name or number"}.`}
             </p>
+            <div className="space-y-2">
+                <p className="text-[11px] font-semibold text-muted-foreground">Contact groups <span className="font-normal">(optional)</span></p>
+                <div className="flex flex-wrap gap-1.5">
+                    {groupNames.map((groupName) => (
+                        <span key={groupName.toLowerCase()} className={cn("inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px]", missingGroups.some((missing) => missing.toLowerCase() === groupName.toLowerCase()) ? "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400" : "border-primary/30 bg-primary/10 text-primary")}>
+                            <Users className="w-3 h-3" />
+                            {groupName}
+                            {editable && <button type="button" onClick={() => setGroupNames((current) => current.filter((value) => value !== groupName))} className="ml-0.5" aria-label={`Remove group ${groupName}`}><X className="w-3 h-3" /></button>}
+                        </span>
+                    ))}
+                    {editable && (
+                        <span className="inline-flex items-center gap-1">
+                            <input value={draftGroup} onChange={(e) => setDraftGroup(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addGroups(); } }} onBlur={addGroups} placeholder="Add or create group" className="h-7 w-40 rounded-full border border-dashed border-border bg-transparent px-3 text-[11px] focus:outline-none focus:ring-1 focus:ring-primary/40" />
+                            <button type="button" onClick={addGroups} className="text-muted-foreground hover:text-foreground" aria-label="Add contact group"><Plus className="w-4 h-4" /></button>
+                        </span>
+                    )}
+                </div>
+                {editable && context.groups.length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                        {context.groups.map((group) => {
+                            const selected = groupNames.some((value) => value.toLowerCase() === group.name.toLowerCase());
+                            return <button key={group.id} type="button" onClick={() => setGroupNames((current) => selected ? current.filter((value) => value.toLowerCase() !== group.name.toLowerCase()) : [...current, group.name])} className={cn("rounded-full border px-2 py-0.5 text-[10px]", selected ? "border-primary/40 bg-primary/10 text-primary" : "border-border text-muted-foreground hover:text-foreground")}>{selected ? "✓ " : "+ "}{group.name}</button>;
+                        })}
+                    </div>
+                )}
+                {missingGroups.length > 0 && <p className="text-[11px] text-amber-700 dark:text-amber-400">New group{missingGroups.length === 1 ? "" : "s"} will be created automatically when you save.</p>}
+            </div>
             {editable && (
                 <div className="flex items-center justify-end gap-2">
                     <Button type="button" variant="ghost" size="sm" onClick={() => onChange({ ...action, status: "dismissed" })}>Dismiss</Button>
-                    <Button type="button" size="sm" onClick={save} disabled={saving || !name.trim() || !normalized} className="gap-1.5">
+                    <Button type="button" size="sm" onClick={save} disabled={saving || verification === "checking" || !normalized} className="gap-1.5">
                         {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
                         Save contact
                     </Button>

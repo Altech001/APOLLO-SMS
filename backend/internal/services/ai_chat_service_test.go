@@ -56,12 +56,15 @@ func TestParseAIChatBatchActions(t *testing.T) {
 }
 
 func TestParseAIChatSaveContactAction(t *testing.T) {
-	out, err := parseAIChat(`{"reply":"I will remember James for next time.","actions":[{"type":"save_contact","name":"James","phone":"0772 123 456"}]}`)
+	out, err := parseAIChat(`{"reply":"I will remember James for next time.","actions":[{"type":"save_contact","name":"James","phone":"0772 123 456","contact_groups":["VIP","vip"," Family "]}]}`)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(out.Actions) != 1 || out.Actions[0].Type != "save_contact" || out.Actions[0].Name != "James" || out.Actions[0].Phone != "+256772123456" {
 		t.Fatalf("contact action not normalized: %+v", out.Actions)
+	}
+	if got := out.Actions[0].ContactGroups; len(got) != 2 || got[0] != "VIP" || got[1] != "Family" {
+		t.Fatalf("contact groups not normalized: %v", got)
 	}
 }
 

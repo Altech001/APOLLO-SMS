@@ -25,6 +25,8 @@ type AIChatAction struct {
 	// send_sms / send_whatsapp: phone numbers or contact names, and contact group names.
 	Recipients []string `json:"recipients,omitempty"`
 	Groups     []string `json:"groups,omitempty"`
+	// save_contact: contact group names. Missing groups are created by the app when the user confirms.
+	ContactGroups []string `json:"contact_groups,omitempty"`
 	// Text to send. For send_from_file it may contain {Column} placeholders filled from each row.
 	Message string `json:"message,omitempty"`
 	// send_personalized / send_from_file: sms or whatsapp. create_template: the template channel.
@@ -122,7 +124,7 @@ You help the user write messages, design images for campaigns, plan campaigns, r
 
 You cannot send anything yourself. Propose actions; the app shows each as a card with the cost in UGX, and the user reviews, edits and confirms it. Sending is billed to the user's balance.
 Actions:
-- {"type": "save_contact", "name": "...", "phone": "...", "email": "...", "notes": "..."}: remember a person in the user's contacts. Use this when the user asks to save, add or remember a number, and whenever the user gives a clear name and phone number while asking to message them so the name can be used next time. Do not ask for extra details; use only the details provided. Normalize Ugandan numbers such as 0772 123 456 to +256772123456. If only a number is provided, save it only when the user explicitly asks you to remember it, using the number as the contact name.
+- {"type": "save_contact", "name": "...", "phone": "...", "email": "...", "notes": "...", "contact_groups": ["..."]}: remember a person in the user's contacts. Use this when the user asks to save, add or remember a number, and whenever the user gives a clear name and phone number while asking to message them so the name can be used next time. Do not ask for extra details; use only the details provided. Normalize Ugandan numbers such as 0772 123 456 to +256772123456. If only a number is provided, save it only when the user explicitly asks you to remember it; the app checks Nimo for the subscriber name and falls back to the normalized number. Put requested contact group names in contact_groups; the app uses existing groups or creates missing groups when the user confirms. After saving, the user can say “send to <group>” and use that group in a send_sms or send_whatsapp action.
 - {"type": "send_sms", "recipients": [...], "groups": [...], "message": "..."}: the same SMS to everyone. Plain text, no emojis or markdown; 160 characters is one SMS part and each part costs one credit.
 - {"type": "send_whatsapp", "recipients": [...], "groups": [...], "message": "..."}: the same WhatsApp message to everyone. May use *bold*, _italic_ and line breaks.
 - {"type": "send_personalized", "channel": "sms|whatsapp", "items": [{"to": "...", "message": "..."}]}: a different message for each recipient, when you write each message yourself (up to 500).
@@ -567,11 +569,12 @@ func cleanAIChatAction(action AIChatAction) (AIChatAction, bool) {
 			name = phone
 		}
 		return AIChatAction{
-			Type:  action.Type,
-			Name:  name,
-			Phone: phone,
-			Email: firstRunes(action.Email, 160),
-			Notes: firstRunes(action.Notes, 500),
+			Type:          action.Type,
+			Name:          name,
+			Phone:         phone,
+			Email:         firstRunes(action.Email, 160),
+			Notes:         firstRunes(action.Notes, 500),
+			ContactGroups: cleanList(action.ContactGroups, 20),
 		}, true
 	case "send_sms", "send_whatsapp":
 		if message == "" {

@@ -537,6 +537,7 @@ export interface ContactResponse {
   phone?: string;
   phone_number?: string;
   email?: string | null;
+  notes?: string | null;
   groups?: string[];
   group_ids?: string[];
   created_at?: string;
@@ -819,6 +820,8 @@ export interface AIChatAction {
   recipients?: string[];
   /** send_sms / send_whatsapp: contact group names. */
   groups?: string[];
+  /** save_contact: contact group names to add or create for the saved contact. */
+  contact_groups?: string[];
   /** Text to send; for send_from_file it may contain {Column} placeholders. */
   message?: string;
   channel?: MessageChannel;
@@ -942,6 +945,7 @@ function normalizeContact(contact: any): ContactResponse {
     phone: contact.phone || "",
     phone_number: contact.phone || "",
     email: contact.email || null,
+    notes: contact.notes || null,
     groups: groupIds,
     group_ids: groupIds,
   };
@@ -1879,10 +1883,10 @@ export const renultApi: any = {
       });
       return (res.contacts || []).map(normalizeContact);
     },
-    create: async (payload: { name: string; phone: string; email?: string; groups?: string[] }) =>
+    create: async (payload: { name: string; phone: string; email?: string; notes?: string; groups?: string[] }) =>
       normalizeContact(await apiRequest<any>("/contacts", { method: "POST", body: JSON.stringify(toContactPayload(payload)) })),
     /** Imports contacts (existing numbers are updated, not duplicated) and returns the refreshed list. */
-    bulkCreate: async (payload: { contacts: Array<{ name: string; phone: string; email?: string; groups?: string[] }>; group_ids?: string[] }) => {
+    bulkCreate: async (payload: { contacts: Array<{ name: string; phone: string; email?: string; notes?: string; groups?: string[] }>; group_ids?: string[] }) => {
       const summary = await apiRequest<ContactImportSummary>("/contacts/bulk", {
         method: "POST",
         body: JSON.stringify({
@@ -1892,10 +1896,10 @@ export const renultApi: any = {
       });
       return { summary, contacts: await renultApi.contacts.list() as ContactResponse[] };
     },
-    update: async (id: string, payload: Partial<{ name: string; phone: string; email: string; groups: string[] }>) =>
+    update: async (id: string, payload: Partial<{ name: string; phone: string; email: string; notes: string; groups: string[] }>) =>
       normalizeContact(await apiRequest<any>(`/contacts/${id}`, {
         method: "PUT",
-        body: JSON.stringify(toContactPayload({ name: payload.name || "", phone: payload.phone || "", email: payload.email, groups: payload.groups })),
+        body: JSON.stringify(toContactPayload({ name: payload.name || "", phone: payload.phone || "", email: payload.email, notes: payload.notes, groups: payload.groups })),
       })),
     delete: (id: string) => apiRequest<ApiMessage>(`/contacts/${id}`, { method: "DELETE" }),
     bulkDelete: (ids: string[]) =>
