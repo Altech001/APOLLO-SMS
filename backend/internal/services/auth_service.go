@@ -109,9 +109,9 @@ func (s *AuthService) Register(req *models.RegisterRequest, ipAddress, userAgent
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to render verification email: %w", err)
 	}
-	s.emailSender.SendAsync(user.Email, "Verify Your Email Address", emailBody)
+	s.emailSender.SendAsync(user.Email, "TINOVA AI: Verify Your Email Address", emailBody)
 
-	s.notifService.Notify(user.ID, "Account Created", "Welcome to Luco SMS! Please verify your account.", "info")
+	s.notifService.Notify(user.ID, "Account Created", "Welcome to TINOVA AI! Please verify your account.", "info")
 	s.cacheUserIndex(user)
 
 	info, err := s.verificationInfo(user)
@@ -433,7 +433,7 @@ func (s *AuthService) ForgotPassword(req *models.ForgotPasswordRequest, ipAddres
 	}
 
 	// Sent synchronously so the user learns immediately when the email could not go out.
-	if err := s.emailSender.Send(user.Email, "Reset Your Password", emailBody); err != nil {
+	if err := s.emailSender.Send(user.Email, "TINOVA AI: Reset Your Password", emailBody); err != nil {
 		log.Printf("❌ Password reset email to %s failed: %v", user.Email, err)
 		return nil, errors.New("We couldn't send the reset email right now. Please try again shortly or use the SMS option")
 	}
@@ -588,7 +588,7 @@ func (s *AuthService) ResendVerification(req *models.ResendVerificationRequest, 
 	if err != nil {
 		return fmt.Errorf("failed to render verification email: %w", err)
 	}
-	if err := s.emailSender.Send(user.Email, "Verify Your Email Address", emailBody); err != nil {
+	if err := s.emailSender.Send(user.Email, "TINOVA AI: Verify Your Email Address", emailBody); err != nil {
 		log.Printf("❌ Verification email to %s failed: %v", user.Email, err)
 		return errors.New("We couldn't send the verification email right now. Please try again shortly or use the SMS option")
 	}

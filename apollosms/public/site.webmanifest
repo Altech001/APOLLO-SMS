@@ -1,8 +1,8 @@
 {
   "id": "/",
-  "name": "Lucosms - SMS & WhatsApp Messaging",
-  "short_name": "Lucosms",
-  "description": "Send bulk SMS and WhatsApp messages, manage contacts and templates, and run campaigns with the Apollo AI assistant.",
+  "name": "TINOVA AI - SMS & WhatsApp Messaging",
+  "short_name": "TINOVA AI",
+  "description": "Send bulk SMS and WhatsApp messages, manage contacts and templates, and run campaigns with TINOVA AI.",
   "lang": "en",
   "dir": "ltr",
   "start_url": "/?source=pwa",
@@ -23,7 +23,7 @@
   ],
   "shortcuts": [
     {
-      "name": "Apollo AI Assistant",
+      "name": "TINOVA AI Assistant",
       "short_name": "AI Chat",
       "url": "/chat?source=shortcut",
       "icons": [{ "src": "/icons/icon-96.png", "sizes": "96x96", "type": "image/png" }]

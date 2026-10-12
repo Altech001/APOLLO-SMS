@@ -65,7 +65,7 @@ export default function Login() {
                     <div className="mx-auto w-12 h-12 flex items-center justify-center mb-3">
                         <img src="/logo.png" alt="Logo" className="w-10 h-10 object-contain" />
                     </div>
-                    <h2 className="text-[22px] font-bold text-slate-800 mb-1">LUCOSMS</h2>
+                    <h2 className="text-[22px] font-bold text-slate-800 mb-1">TINOVA AI</h2>
                     <p className="text-[13px] text-slate-500">Elevate your customer experience with AI agents</p>
                 </div>
 
@@ -136,7 +136,7 @@ export default function Login() {
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
                             className="w-full px-3 py-2 bg-white border border-slate-200 rounded text-[14px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all "
-                            placeholder="info@lucosms"
+                            placeholder="you@example.com"
                             autoFocus
                         />
                     ) : (
@@ -188,7 +188,7 @@ export default function Login() {
 
             {/* Absolute Bottom Footer */}
             <div className="absolute bottom-6 flex flex-wrap items-center justify-center gap-6 text-[10px] text-slate-500 font-bold w-full px-4">
-                <span>LUCOSMS © {new Date().getFullYear()}</span>
+                <span>TINOVA AI © {new Date().getFullYear()}</span>
             </div>
         </div>
     );

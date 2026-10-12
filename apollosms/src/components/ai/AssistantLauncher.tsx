@@ -59,13 +59,13 @@ export default function AssistantLauncher() {
                         <X className="w-3 h-3" />
                     </button>
                     <p className="font-semibold text-foreground">Need a hand?</p>
-                    <p className="text-muted-foreground mt-0.5">Ask Apollo to write, send or plan your next campaign.</p>
+                    <p className="text-muted-foreground mt-0.5">Ask TINOVA AI to write, send or plan your next campaign.</p>
                 </div>
             )}
             <button
                 type="button"
                 onClick={open}
-                aria-label="Open Apollo AI assistant"
+                    aria-label="Open TINOVA AI assistant"
                 className={cn(
                     "group relative flex items-center h-14 rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30",
                     "pl-4 pr-4 hover:pr-5 transition-all duration-300 hover:shadow-xl hover:shadow-primary/40 active:scale-95",
@@ -75,7 +75,7 @@ export default function AssistantLauncher() {
                 <span className="absolute inset-0 rounded-full bg-primary/40 animate-ping [animation-duration:3s] group-hover:hidden" />
                 <img src="/icons/ai.webp" sizes="40" className="relative w-8 h-8 shrink-0 center" />
                 <span className="relative max-w-0 overflow-hidden whitespace-nowrap text-sm font-semibold transition-all duration-300 group-hover:max-w-[120px] group-hover:ml-2 group-focus-visible:max-w-[120px] group-focus-visible:ml-2">
-                    Ask Apollo
+                    Ask TINOVA AI
                 </span>
             </button>
         </div>

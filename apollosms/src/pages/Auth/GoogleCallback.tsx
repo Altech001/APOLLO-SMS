@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { clearGoogleRedirectUri } from "./google-auth";
+import SEO from "@/components/SEO";
 
 export default function GoogleCallback() {
   const [params] = useSearchParams();
@@ -24,6 +25,7 @@ export default function GoogleCallback() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background text-sm text-muted-foreground">
+      <SEO title="Google Sign In" path="/auth/google/callback" noIndex />
       <Loader2 className="w-4 h-4 animate-spin mr-2" />
       Finishing Google sign in...
     </div>

@@ -10,8 +10,8 @@ import (
 
 // Friendly errors shown to users; the technical cause is logged instead.
 var (
-	ErrAIBusy        = errors.New("Apollo is very busy right now. Please try again in a moment.")
-	ErrAIUnavailable = errors.New("Apollo is temporarily unavailable. Please try again later.")
+	ErrAIBusy        = errors.New("TINOVA AI is very busy right now. Please try again in a moment.")
+	ErrAIUnavailable = errors.New("TINOVA AI is temporarily unavailable. Please try again later.")
 )
 
 // AIModelInfo describes a model the user can pick in the app.

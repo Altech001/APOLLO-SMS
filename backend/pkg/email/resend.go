@@ -41,7 +41,7 @@ func NewEmailSender(apiKey, fromEmail string) *EmailSender {
 	}
 	return &EmailSender{
 		apiKey:     strings.TrimSpace(apiKey),
-		fromEmail:  strings.TrimSpace(fromEmail),
+		fromEmail:  strings.TrimSpace(strings.NewReplacer("LUCOSMS", "TINOVA AI", "LucoSMS", "TINOVA AI", "Luco SMS", "TINOVA AI").Replace(fromEmail)),
 		httpClient: &http.Client{Timeout: 15 * time.Second},
 	}
 }

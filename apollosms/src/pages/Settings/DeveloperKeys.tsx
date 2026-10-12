@@ -66,7 +66,7 @@ interface DeveloperKey {
 
 const DEFAULT_PROJECT = {
   id: "apollosms-gateway",
-  name: "ApolloSMS Gateway",
+  name: "TINOVA AI Gateway",
   clientId: "apollosms-gateway",
 };
 
@@ -220,7 +220,7 @@ export default function DeveloperKeysPage() {
   // Quickstart content states
   const [quickstartTab, setQuickstartTab] = useState<"curl" | "python" | "node">("curl");
 
-  const sampleKey = createdKeyVal || keys[0]?.key || "luco_live_your_api_key";
+  const sampleKey = createdKeyVal || keys[0]?.key || "tinova_live_your_api_key";
 
   return (
     <SettingsLayout title="Developer API Keys">
@@ -806,7 +806,7 @@ export default function DeveloperKeysPage() {
 
             <div className="space-y-4 pt-4">
               <p className="text-xs text-muted-foreground">
-                Use your generated API Key to authenticate requests to the ApolloSMS APIs. Choose your preferred integration below:
+                Use your generated API Key to authenticate requests to the TINOVA AI APIs. Choose your preferred integration below:
               </p>
 
               {/* Quickstart Tabs */}
@@ -835,7 +835,7 @@ export default function DeveloperKeysPage() {
                         : quickstartTab === "python"
                           ? `import requests\n\nurl = "${renultApi.baseUrl}/gateway/send"\nheaders = {\n    "X-API-Key": "${sampleKey}",\n    "Content-Type": "application/json"\n}\npayload = {\n    "phones": ["+256700000000"],\n    "message": "Hello from ApolloSMS API!"\n}\n\nresponse = requests.post(url, headers=headers, json=payload)\nprint(response.json())`
                           : `const url = '${renultApi.baseUrl}/gateway/send';\nconst headers = {\n  'X-API-Key': '${sampleKey}',\n  'Content-Type': 'application/json'\n};\nconst body = JSON.stringify({\n  phones: ['+256700000000'],\n  message: 'Hello from ApolloSMS API!'\n});\n\nfetch(url, { method: 'POST', headers, body })\n  .then(res => res.json())\n  .then(json => console.log(json))\n  .catch(err => console.error(err));`;
-                    copyToClipboard(code, "Code snippet");
+                    copyToClipboard(code.replaceAll("ApolloSMS", "TINOVA AI"), "Code snippet");
                   }}
                   className="absolute top-2 right-2 p-1.5 bg-background text-muted-foreground hover:text-foreground rounded hover:bg-muted border border-border transition-colors"
                   title="Copy code snippet"
@@ -850,7 +850,7 @@ export default function DeveloperKeysPage() {
   -H "Content-Type: application/json" \\
   -d '{
     "phones": ["+256700000000"],
-    "message": "Hello from ApolloSMS API!"
+    "message": "Hello from TINOVA AI API!"
   }'`}
                   </pre>
                 )}
@@ -866,7 +866,7 @@ headers = {
 }
 payload = {
     "phones": ["+256700000000"],
-    "message": "Hello from ApolloSMS API!"
+    "message": "Hello from TINOVA AI API!"
 }
 
 response = requests.post(url, headers=headers, json=payload)
@@ -883,7 +883,7 @@ const headers = {
 };
 const body = JSON.stringify({
   phones: ['+256700000000'],
-  message: 'Hello from ApolloSMS API!'
+  message: 'Hello from TINOVA AI API!'
 });
 
 fetch(url, { method: 'POST', headers, body })

@@ -13,7 +13,7 @@ type DeveloperKey struct {
 	User       User           `json:"-" gorm:"foreignKey:UserID"`
 	Name       string         `json:"name" gorm:"not null"`
 	KeyHash    string         `json:"-" gorm:"uniqueIndex;not null"` // SHA-256 hash of the API key
-	MaskedKey  string         `json:"masked_key" gorm:"not null"`    // e.g., "luco_live_****1234"
+	MaskedKey  string         `json:"masked_key" gorm:"not null"`    // e.g., "tinova_live_****1234"
 	IsActive   bool           `json:"is_active" gorm:"default:true;index"`
 	CreatedAt  time.Time      `json:"created_at"`
 	UpdatedAt  time.Time      `json:"updated_at"`

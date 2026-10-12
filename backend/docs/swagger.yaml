@@ -86,7 +86,7 @@ definitions:
       last_used_at:
         type: string
       masked_key:
-        description: e.g., "luco_live_****1234"
+        description: e.g., "tinova_live_****1234"
         type: string
       name:
         type: string
@@ -483,14 +483,14 @@ definitions:
 host: localhost:8000
 info:
   contact:
-    email: support@lucosms.com
+    email: support@info.pitbox.fun
     name: API Support
   description: Backend service for SMS delivery and customer management.
   license:
     name: Private
-    url: https://lucosms.com
+    url: https://apollosms.vercel.app
   termsOfService: http://swagger.io/terms/
-  title: Luco SMS API
+  title: TINOVA AI API
   version: "1.0"
 paths:
   /auth/change-password:

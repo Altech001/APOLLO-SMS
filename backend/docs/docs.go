@@ -12,11 +12,11 @@ const docTemplate = `{
         "termsOfService": "http://swagger.io/terms/",
         "contact": {
             "name": "API Support",
-            "email": "support@lucosms.com"
+            "email": "support@info.pitbox.fun"
         },
         "license": {
             "name": "Private",
-            "url": "https://lucosms.com"
+            "url": "https://apollosms.vercel.app"
         },
         "version": "{{.Version}}"
     },
@@ -1939,7 +1939,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "masked_key": {
-                    "description": "e.g., \"luco_live_****1234\"",
+                    "description": "e.g., \"tinova_live_****1234\"",
                     "type": "string"
                 },
                 "name": {
@@ -2544,7 +2544,7 @@ var SwaggerInfo = &swag.Spec{
 	Host:             "localhost:8000",
 	BasePath:         "/api/v1",
 	Schemes:          []string{},
-	Title:            "Luco SMS API",
+	Title:            "TINOVA AI API",
 	Description:      "Backend service for SMS delivery and customer management.",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,

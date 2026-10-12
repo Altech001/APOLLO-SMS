@@ -48,7 +48,7 @@ interface ChatEntry {
     plan?: string[];
     /** The model that answered; a fallback model may not share reasoning. */
     model?: string;
-    /** The model the user picked, when not Auto; differs from `model` when Apollo switched. */
+    /** The model the user picked, when not Auto; differs from `model` when TINOVA AI switched. */
     requestedModel?: string;
     /** How long the assistant took, shown as "Thought for Xs". */
     elapsedMs?: number;
@@ -542,7 +542,7 @@ export default function ChatPage() {
                                     </div>
                                     {entry.failed && (
                                         <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-                                            <span>{entry.error || "Apollo couldn't answer just now."}</span>
+                                            <span>{entry.error || "TINOVA AI couldn't answer just now."}</span>
                                             <button
                                                 type="button"
                                                 onClick={() => retry(entry.id)}
@@ -612,7 +612,7 @@ export default function ChatPage() {
                                         </button>
                                         {entry.model && <span>{modelLabel(entry.model, models)}</span>}
                                         {entry.model && entry.requestedModel && entry.requestedModel !== entry.model && (
-                                            <span title="Your chosen model was busy, so Apollo switched automatically">
+                                            <span title="Your chosen model was busy, so TINOVA AI switched automatically">
                                                 · switched from {modelLabel(entry.requestedModel, models)} (busy)
                                             </span>
                                         )}
@@ -681,7 +681,7 @@ export default function ChatPage() {
                                         send();
                                     }
                                 }}
-                                placeholder={pendingFiles.length ? "What should I do with this file?" : "Message Apollo…"}
+                                placeholder={pendingFiles.length ? "What should I do with this file?" : "Message TINOVA AI…"}
                                 className="block w-full resize-none bg-transparent px-4 pt-3 pb-1 text-sm leading-relaxed placeholder:text-muted-foreground/70 focus:outline-none min-h-[60px] max-h-[240px]"
                             />
 
@@ -719,7 +719,7 @@ export default function ChatPage() {
                                         type="button"
                                         onClick={() => setImages((on) => !on)}
                                         aria-pressed={images}
-                                        title={images ? "Image generation on: Apollo draws flyers, artwork and status images when asked" : "Image generation off"}
+                                        title={images ? "Image generation on: TINOVA AI draws flyers, artwork and status images when asked" : "Image generation off"}
                                         className={cn(
                                             "inline-flex items-center gap-1.5 h-8 px-2.5 rounded-full text-xs font-medium transition-colors",
                                             images ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -750,7 +750,7 @@ export default function ChatPage() {
                             </div>
                         </div>
                         <p className="text-[10px] text-muted-foreground/80 text-center mt-2">
-                            Chris AI uses your contacts and history and can make mistakes. Check messages before sending.
+                            TINOVA AI uses your contacts and history and can make mistakes. Check messages before sending.
                         </p>
                     </form>
                 </div>

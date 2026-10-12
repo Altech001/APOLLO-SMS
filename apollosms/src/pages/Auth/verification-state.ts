@@ -1,7 +1,8 @@
 import type { VerificationRequired } from "@/api/apollosms";
 
 // The verify screen survives a refresh by keeping the (short-lived) ticket for this tab only.
-const KEY = "lucosms:pending-verification";
+const KEY = "tinova-ai:pending-verification";
+const LEGACY_KEY = "lucosms:pending-verification";
 
 export function saveVerification(info: VerificationRequired) {
   try {
@@ -13,7 +14,7 @@ export function saveVerification(info: VerificationRequired) {
 
 export function loadVerification(): VerificationRequired | null {
   try {
-    const raw = sessionStorage.getItem(KEY);
+    const raw = sessionStorage.getItem(KEY) || sessionStorage.getItem(LEGACY_KEY);
     return raw ? (JSON.parse(raw) as VerificationRequired) : null;
   } catch {
     return null;
@@ -23,6 +24,7 @@ export function loadVerification(): VerificationRequired | null {
 export function clearVerification() {
   try {
     sessionStorage.removeItem(KEY);
+    sessionStorage.removeItem(LEGACY_KEY);
   } catch {
     // ignore
   }

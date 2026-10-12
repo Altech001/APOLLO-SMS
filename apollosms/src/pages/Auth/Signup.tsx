@@ -78,7 +78,7 @@ export default function Signup() {
       <div className="w-full">
         <form className="space-y-2" onSubmit={handleSubmit}>
           <AuthInput required minLength={2} maxLength={120} value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Full name" autoComplete="name" autoFocus />
-          <AuthInput type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="sms@lucosms.com" autoComplete="email" />
+          <AuthInput type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" autoComplete="email" />
           <div onBlur={() => setPhoneTouched(true)}>
             <PhoneInput
               country={country}

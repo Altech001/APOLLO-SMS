@@ -2,15 +2,15 @@
     "swagger": "2.0",
     "info": {
         "description": "Backend service for SMS delivery and customer management.",
-        "title": "Luco SMS API",
+        "title": "TINOVA AI API",
         "termsOfService": "http://swagger.io/terms/",
         "contact": {
             "name": "API Support",
-            "email": "support@lucosms.com"
+            "email": "support@info.pitbox.fun"
         },
         "license": {
             "name": "Private",
-            "url": "https://lucosms.com"
+            "url": "https://apollosms.vercel.app"
         },
         "version": "1.0"
     },
@@ -1933,7 +1933,7 @@
                     "type": "string"
                 },
                 "masked_key": {
-                    "description": "e.g., \"luco_live_****1234\"",
+                    "description": "e.g., \"tinova_live_****1234\"",
                     "type": "string"
                 },
                 "name": {

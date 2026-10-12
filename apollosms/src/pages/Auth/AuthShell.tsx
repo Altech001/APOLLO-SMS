@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { Sun, Moon, Monitor } from "lucide-react";
 import { useEffect, useState } from "react";
 import PexelsMasonry from "@/components/auth/PexelsMasonry";
+import { BRAND_NAME } from "@/constants/brand";
 
 interface AuthShellProps {
   title: string;
@@ -12,6 +13,7 @@ interface AuthShellProps {
   path: string;
   children: React.ReactNode;
   footer?: React.ReactNode;
+  noIndex?: boolean;
 }
 
 type ThemeMode = "light" | "dark" | "system";
@@ -30,11 +32,15 @@ function applyTheme(mode: ThemeMode) {
   } else {
     // system
     const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-    prefersDark ? root.classList.add("dark") : root.classList.remove("dark");
+    if (prefersDark) {
+      root.classList.add("dark");
+    } else {
+      root.classList.remove("dark");
+    }
   }
 }
 
-export default function AuthShell({ title, subtitle, seoTitle, path, children, footer }: AuthShellProps) {
+export default function AuthShell({ title, subtitle, seoTitle, path, children, footer, noIndex = true }: AuthShellProps) {
   const [themeMode, setThemeMode] = useState<ThemeMode>(getInitialTheme);
 
   useEffect(() => {
@@ -45,9 +51,9 @@ export default function AuthShell({ title, subtitle, seoTitle, path, children, f
   return (
     <div className="min-h-screen flex bg-background font-sans text-foreground">
       <Helmet>
-        <link rel="preload" as="image" href="/bg/cover.jpeg" />
+        <link rel="preload" as="image" href="/bg/empty.png" />
       </Helmet>
-      <SEO title={seoTitle} path={path} />
+      <SEO title={seoTitle} path={path} noIndex={noIndex} />
 
       {/* Left branding panel */}
       <div className="hidden lg:flex lg:w-1/2 relative flex-col justify-between overflow-hidden bg-[#303030] p-10 text-white">
@@ -62,8 +68,13 @@ export default function AuthShell({ title, subtitle, seoTitle, path, children, f
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-[#1b1b1b]/70 to-[#1b1b1b]/35" />
 
+        <Link to="/" className="relative z-10 flex items-center gap-3 text-white" aria-label={`${BRAND_NAME} home`}>
+          <img src="/logo.png" alt="" className="h-10 w-10 rounded-xl object-contain" />
+          <span className="text-lg font-bold tracking-tight">{BRAND_NAME}</span>
+        </Link>
+
         <div className="relative text-[14px] text-white/55 font-medium barlow-semibold">
-          Privacy© {new Date().getFullYear()}
+          {BRAND_NAME} © {new Date().getFullYear()}
         </div>
 
         <a
@@ -103,7 +114,7 @@ export default function AuthShell({ title, subtitle, seoTitle, path, children, f
       </div>
 
       {/* Right form panel */}
-      <div className="flex-1 flex flex-col items-center justify-center p-4 relative overflow-hidden bg-background">
+      <div className="flex-1 flex flex-col items-center justify-start sm:justify-center p-4 pt-20 pb-20 relative overflow-y-auto bg-background">
         {/* Top right theme toggle for mobile/tablet */}
         <div className="absolute top-4 right-4 z-20 lg:hidden">
           <div className="flex items-center bg-muted/65 border border-border/40 rounded-full p-0.5 gap-0.5 backdrop-blur-sm">
@@ -130,8 +141,9 @@ export default function AuthShell({ title, subtitle, seoTitle, path, children, f
         </div>
 
         <div className="w-full max-w-[380px] flex flex-col items-start z-10 pb-16">
-          <Link to="/" className="mx-auto w-12 h-12 flex items-start mb-3 lg:hidden">
-            <img src="/icons/mini.png" alt="Renult" className="w-10 h-10 object-contain" />
+          <Link to="/" className="mx-auto mb-6 flex w-fit items-center gap-2.5 lg:hidden" aria-label={`${BRAND_NAME} home`}>
+            <img src="/logo.png" alt="" className="h-10 w-10 rounded-xl object-contain" />
+            <span className="text-lg font-bold tracking-tight text-foreground">{BRAND_NAME}</span>
           </Link>
           <div className="text-left mb-6">
             <h1 className="text-[22px] text-foreground mb-1 archivo-black-regular ">{title}</h1>
@@ -142,7 +154,7 @@ export default function AuthShell({ title, subtitle, seoTitle, path, children, f
         </div>
 
         <div className="absolute bottom-6 flex flex-wrap items-center  justify-center gap-6 text-[10px] text-muted-foreground font-bold w-full px-4 lg:hidden">
-          <span className="barlow-semibold">Lucosms © {new Date().getFullYear()}</span>
+          <span className="barlow-semibold">{BRAND_NAME} © {new Date().getFullYear()}</span>
         </div>
       </div>
     </div>

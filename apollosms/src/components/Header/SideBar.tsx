@@ -283,7 +283,7 @@ export default function SideBar({ isOpen, onClose }: SideBarProps) {
             >
                 <div className="flex items-center p-[10px] border-b border-border/30 space-x-4 ">
                     <div className="p-1">
-                        <img src="/logo/letter.png" alt="Logo" className="w-8 h-8" />
+                        <img src="/logo.png" alt="TINOVA AI" className="w-8 h-8 rounded-lg object-contain" />
                     </div>
                     <span className={`text-lg font-bold tracking-tight text-foreground ${isCollapsed ? "hidden" : ""}`}>
                         TINOVA AI

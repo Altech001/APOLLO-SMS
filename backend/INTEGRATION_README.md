@@ -1,4 +1,4 @@
-# Luco SMS API Integration README
+# TINOVA AI API Integration README
 
 This file is for frontend, mobile, and third-party API integration.
 
@@ -248,7 +248,7 @@ Send SMS:
 
 ```json
 {
-  "message": "Hello from Luco SMS",
+  "message": "Hello from TINOVA AI",
   "phones": ["0708215305"]
 }
 ```
@@ -428,7 +428,7 @@ Login:
 ```bash
 curl -X POST 'http://localhost:8000/api/v1/auth/login' \
   -H 'Content-Type: application/json' \
-  -d '{"email":"admin@lucosms.com","password":"adminpassword"}'
+  -d '{"email":"admin@tinova.ai","password":"adminpassword"}'
 ```
 
 Set pricing:

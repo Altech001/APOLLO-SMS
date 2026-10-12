@@ -11,7 +11,8 @@ import AuthShell from "./AuthShell";
 import { AuthInput, PasswordInput, SubmitButton } from "./auth-ui";
 import { isVerificationRequired, saveVerification } from "./verification-state";
 
-const REMEMBER_LOGIN_KEY = "lucosms:remember-login-email";
+const REMEMBER_LOGIN_KEY = "tinova-ai:remember-login-email";
+const LEGACY_REMEMBER_LOGIN_KEY = "lucosms:remember-login-email";
 
 export default function Login() {
   const navigate = useNavigate();
@@ -25,7 +26,7 @@ export default function Login() {
   const from = (location.state as any)?.from?.pathname || "/";
 
   useEffect(() => {
-    const rememberedEmail = localStorage.getItem(REMEMBER_LOGIN_KEY);
+    const rememberedEmail = localStorage.getItem(REMEMBER_LOGIN_KEY) || localStorage.getItem(LEGACY_REMEMBER_LOGIN_KEY);
     if (rememberedEmail) {
       setEmail(rememberedEmail);
       setRememberMe(true);
@@ -37,6 +38,7 @@ export default function Login() {
       localStorage.setItem(REMEMBER_LOGIN_KEY, email.trim());
     } else {
       localStorage.removeItem(REMEMBER_LOGIN_KEY);
+      localStorage.removeItem(LEGACY_REMEMBER_LOGIN_KEY);
     }
     login(auth);
     navigate(targetPath, { replace: true });
@@ -63,10 +65,10 @@ export default function Login() {
   };
 
   return (
-    <AuthShell title="Sign In to Chris-SMS" subtitle="Your are welcome Back." seoTitle="Log In" path="/login">
+    <AuthShell title="Sign in to TINOVA AI" subtitle="Welcome back." seoTitle="Log In" path="/login">
       <div className="w-full">
         <form className="space-y-2" onSubmit={handleSubmit} autoComplete="on">
-          <AuthInput type="email" name="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="arethix@sms.xyz" autoComplete="username email" autoFocus />
+          <AuthInput type="email" name="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" autoComplete="username email" autoFocus />
           <PasswordInput name="password" show={showPassword} onToggle={() => setShowPassword((next) => !next)} required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" autoComplete="current-password" />
           <div className="flex items-center justify-between gap-3 pt-1">
             <label htmlFor="remember-login" className="flex cursor-pointer rounded-none items-center gap-2 text-[13px] font-medium text-muted-foreground">
@@ -90,7 +92,7 @@ export default function Login() {
       </div>
       <div className="mt-8 text-center">
         <p className="text-[13px] text-muted-foreground font-medium barlow-semibold">
-          New to Lucosms? <Link to="/signup" className="text-foreground hover:text-primary hover:underline">Create an account</Link>
+          New to TINOVA AI? <Link to="/signup" className="text-foreground hover:text-primary hover:underline">Create an account</Link>
         </p>
       </div>
     </AuthShell>

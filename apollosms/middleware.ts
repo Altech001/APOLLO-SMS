@@ -41,7 +41,7 @@ const BACKEND_API =
   process.env.API_BASE ||
   'https://api.pitbox.fun/api';
 
-const FRONTEND_ORIGIN = 'https://form.pitbox.fun';
+const FRONTEND_ORIGIN = 'https://apollosms.vercel.app';
 
 /**
  * Escape HTML entities to prevent XSS in generated OG pages.
@@ -119,12 +119,12 @@ export default async function middleware(request: Request) {
     const rawDescription = stripHtml(form.description || '');
     const description = escapeHtml(
       truncate(
-        rawDescription || `Fill out "${form.title}" on LUCOSMS`,
+        rawDescription || `Fill out "${form.title}" on TINOVA AI`,
         160
       )
     );
     const branding = form.branding || {};
-    const organization = escapeHtml(branding.organization || 'LUCOSMS');
+    const organization = escapeHtml(branding.organization || 'TINOVA AI');
 
     // Use the form's logo if available, otherwise the default OG image
     const ogImage = branding.logo_url || `${FRONTEND_ORIGIN}/og-image.png`;
@@ -146,7 +146,7 @@ export default async function middleware(request: Request) {
 
   <!-- Open Graph (Facebook, LinkedIn, WhatsApp) -->
   <meta property="og:type" content="website" />
-  <meta property="og:site_name" content="LUCOSMS" />
+  <meta property="og:site_name" content="TINOVA AI" />
   <meta property="og:title" content="${fullTitle}" />
   <meta property="og:description" content="${description}" />
   <meta property="og:url" content="${canonicalUrl}" />

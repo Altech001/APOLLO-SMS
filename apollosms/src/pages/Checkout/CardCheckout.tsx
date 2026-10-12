@@ -76,7 +76,7 @@ export default function CardCheckout() {
             </Button>
             <p className="text-[11px] text-center text-muted-foreground flex items-center justify-center gap-1">
                 <Lock className="w-3 h-3" />
-                You're charged UGX {order.amountUgx.toLocaleString()}. Card details are handled by MarzPay, not stored by ApolloSMS.
+                You're charged UGX {order.amountUgx.toLocaleString()}. Card details are handled by MarzPay, not stored by TINOVA AI.
             </p>
         </CheckoutShell>
     );

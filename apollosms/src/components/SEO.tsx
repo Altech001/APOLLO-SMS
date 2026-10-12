@@ -1,7 +1,9 @@
 import { Helmet } from 'react-helmet-async';
+import { useLocation } from "react-router-dom";
+import { BRAND_DESCRIPTION, BRAND_KEYWORDS, BRAND_NAME, SITE_URL } from "@/constants/brand";
 
 interface SEOProps {
-    /** Page title – will be appended with "| LUCOSMS" */
+    /** Page title – will be appended with the TINOVA AI brand. */
     title?: string;
     /** Meta description – keep under 160 characters */
     description?: string;
@@ -17,25 +19,21 @@ interface SEOProps {
     noIndex?: boolean;
 }
 
-const SITE_NAME = 'LUCOSMS';
-const BASE_URL = 'https://form.pitbox.fun';
-const DEFAULT_OG_IMAGE = `${BASE_URL}/og-image.png`;
-const DEFAULT_DESCRIPTION =
-    'LUCOSMS is a free, fast online form builder. Create surveys, contact forms, registration forms, and quizzes in minutes — no coding needed.';
-const DEFAULT_KEYWORDS =
-    'form builder, online form creator, free form builder, survey maker, contact form, Google Forms alternative, quiz builder, registration form';
+const DEFAULT_OG_IMAGE = `${SITE_URL}/og-image.png`;
 
 export default function SEO({
     title,
-    description = DEFAULT_DESCRIPTION,
-    keywords = DEFAULT_KEYWORDS,
-    path = '/',
+    description = BRAND_DESCRIPTION,
+    keywords = BRAND_KEYWORDS,
+    path,
     ogImage = DEFAULT_OG_IMAGE,
     ogType = 'website',
     noIndex = false,
 }: SEOProps) {
-    const fullTitle = title ? `${title} | ${SITE_NAME}` : `${SITE_NAME} – Free Online Form Builder | Create Forms in Minutes`;
-    const canonicalUrl = `${BASE_URL}${path}`;
+    const location = useLocation();
+    const canonicalPath = path || location.pathname;
+    const fullTitle = title ? `${title} | ${BRAND_NAME}` : `${BRAND_NAME} | Business Messaging with SMS, WhatsApp & AI`;
+    const canonicalUrl = new URL(canonicalPath, `${SITE_URL}/`).toString();
 
     return (
         <Helmet>
@@ -44,11 +42,12 @@ export default function SEO({
             <meta name="description" content={description} />
             <meta name="keywords" content={keywords} />
             <link rel="canonical" href={canonicalUrl} />
+            <meta name="author" content={BRAND_NAME} />
             {noIndex && <meta name="robots" content="noindex, nofollow" />}
 
             {/* Open Graph */}
             <meta property="og:type" content={ogType} />
-            <meta property="og:site_name" content={SITE_NAME} />
+            <meta property="og:site_name" content={BRAND_NAME} />
             <meta property="og:title" content={fullTitle} />
             <meta property="og:description" content={description} />
             <meta property="og:url" content={canonicalUrl} />

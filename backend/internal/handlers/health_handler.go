@@ -23,6 +23,6 @@ func NewHealthHandler() *HealthHandler {
 func (h *HealthHandler) HealthCheck(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{
 		"status":  "ok",
-		"service": "Luco SMS API",
+		"service": "TINOVA AI API",
 	})
 }

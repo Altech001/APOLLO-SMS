@@ -76,7 +76,7 @@ func Load() *Config {
 		JWTSecret:         getEnv("JWT_SECRET", "super-secret-change-me"),
 		Environment:       environment,
 		ResendAPIKey:      getEnv("RESEND_API_KEY", ""),
-		ResendFromEmail:   getEnv("RESEND_FROM_EMAIL", "Beta <beta@info.pitbox.fun>"),
+		ResendFromEmail:   getEnv("RESEND_FROM_EMAIL", "TINOVA AI <support@info.pitbox.fun>"),
 		IPGeoAPIKey:       getEnv("IPGEO_API_KEY", "cac1d67f47e94328bae8f50764d4342e"),
 		StorageProvider:   getEnv("STORAGE_PROVIDER", "local"),
 		R2AccessKeyID:     getEnv("R2_ACCESS_KEY_ID", ""),

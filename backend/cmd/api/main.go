@@ -15,16 +15,16 @@ import (
 	fiberSwagger "github.com/swaggo/fiber-swagger"
 )
 
-// @title           Luco SMS API
+// @title           TINOVA AI API
 // @version         1.0
 // @description     Backend service for SMS delivery and customer management.
 // @termsOfService  http://swagger.io/terms/
 
 // @contact.name   API Support
-// @contact.email  support@lucosms.com
+// @contact.email  support@info.pitbox.fun
 
 // @license.name  Private
-// @license.url   https://lucosms.com
+// @license.url   https://apollosms.vercel.app
 
 // @host      localhost:8000
 // @BasePath  /api/v1
@@ -57,7 +57,7 @@ func main() {
 
 	// Create Fiber app
 	app := fiber.New(fiber.Config{
-		AppName:      "Luco SMS API",
+		AppName:      "TINOVA AI API",
 		ErrorHandler: middleware.ErrorHandler,
 		BodyLimit:    8 << 20, // room for 5 MB image uploads plus multipart overhead
 	})

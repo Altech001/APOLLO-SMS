@@ -5,6 +5,7 @@ import { useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { authErrorMessage } from "./auth-errors";
+import SEO from "@/components/SEO";
 
 export default function SubdomainHandoff() {
   const { login } = useAuth();
@@ -40,6 +41,7 @@ export default function SubdomainHandoff() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background text-sm text-muted-foreground">
+      <SEO title="Opening Account" path="/auth/handoff" noIndex />
       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
       Opening your account...
     </div>
