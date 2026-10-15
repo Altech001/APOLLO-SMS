@@ -38,6 +38,12 @@ const navItems: SettingsNavItem[] = [
     path: "/settings/password",
   },
   {
+    id: "dev-docs",
+    label: "Developer",
+    icon: <Key className="w-4 h-4" />,
+    path: "/settings/api-keys",
+  },
+  {
     id: "billing",
     label: "Transcations",
     icon: <CreditCard className="w-4 h-4" />,
