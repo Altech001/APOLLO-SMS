@@ -27,10 +27,11 @@ import {
   RadioTower,
   RotateCw,
   Server,
-  Settings
+  Settings,
+  Sparkles
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-import { useEffect, useMemo, useState } from "react";
+import { FormEvent, KeyboardEvent, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { dashboardQueryKeys, type DashboardDateRange, useDashboardForms, useDashboardSmsDashboard } from "@/hooks/use-dashboard-data";
 
@@ -114,9 +115,17 @@ export default function Dashboard() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [chartType, setChartType] = useState<"area" | "bar">("area");
   const [dateRange, setDateRange] = useState<DashboardDateRange>("month");
+  const [aiInput, setAiInput] = useState("");
   const dashboardUserId = user?.id || null;
   const formsQueryKey = dashboardQueryKeys.forms(dashboardUserId);
   const smsDashboardQueryKey = dashboardQueryKeys.sms(dashboardUserId, dateRange);
+  const firstName = (user?.full_name || user?.name || "there").trim().split(/\s+/)[0] || "there";
+
+  const openAssistant = (event?: FormEvent<HTMLFormElement> | KeyboardEvent<HTMLTextAreaElement>) => {
+    event?.preventDefault();
+    const prompt = aiInput.trim();
+    navigate("/chat", prompt ? { state: { prompt } } : undefined);
+  };
 
   const getMessageStatusBadgeClass = (status: string) => {
     switch (status) {
@@ -278,6 +287,44 @@ export default function Dashboard() {
       <AppHeader onCreateForm={createForm} />
 
       <main className="max-w-screen mx-auto px-4 sm:px-6 py-2 no-scrollbar ">
+        <section className="mx-auto mb-7 w-full max-w-3xl pt-5 sm:pt-7">
+          <div className="mb-4 text-center">
+            <div className="mb-2 flex items-center justify-center gap-1 text-2xl font-semibold tracking-tight sm:text-3xl">
+              <span>Hi {firstName}</span>
+              <span className="text-primary">.</span>
+            </div>
+            <p className="text-sm text-muted-foreground sm:text-base">Send an SMS or WhatsApp message with TINORA AI</p>
+          </div>
+
+          <form onSubmit={openAssistant}>
+            <div className="rounded-2xl border border-primary/25 bg-card shadow-[0_10px_30px_hsl(var(--primary)/0.06)] transition-shadow focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/15">
+              <textarea
+                value={aiInput}
+                onChange={(event) => setAiInput(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
+                    openAssistant(event);
+                  }
+                }}
+                rows={2}
+                maxLength={4000}
+                placeholder="Tell TINORA AI what you want to send..."
+                className="block min-h-[72px] w-full resize-none bg-transparent px-4 pt-3 text-sm leading-relaxed placeholder:text-muted-foreground/70 focus:outline-none"
+                aria-label="Describe the SMS or WhatsApp message to send"
+              />
+              <div className="flex items-center justify-between px-3 pb-3 pt-1">
+                <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <Sparkles className="h-3.5 w-3.5 text-primary" />
+                  AI Assistant
+                </span>
+                <Button type="submit" size="icon" disabled={!aiInput.trim()} className="h-8 w-8 rounded-full" aria-label="Open AI Assistant">
+                  <ArrowUp className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          </form>
+        </section>
+
         {/* form */}
         <div className="mb-4">
           <div className="flex flex-col gap-3 mb-4 xl:flex-row xl:items-center xl:justify-between">

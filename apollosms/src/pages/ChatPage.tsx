@@ -33,7 +33,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import remarkGfm from "remark-gfm";
 import { toast } from "sonner";
 
@@ -185,6 +185,10 @@ function IconButton({ label, onClick, disabled, children }: { label: string; onC
 
 export default function ChatPage() {
     const queryClient = useQueryClient();
+    const location = useLocation();
+    const routePrompt = typeof (location.state as { prompt?: unknown } | null)?.prompt === "string"
+        ? (location.state as { prompt: string }).prompt.trim()
+        : "";
     const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem("sidebar-collapsed") === "true");
     const [entries, setEntries] = useState<ChatEntry[]>([]);
     const [conversationId, setConversationId] = useState<number | null>(null);
@@ -209,6 +213,7 @@ export default function ChatPage() {
     const scrollRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLTextAreaElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const routedPromptRef = useRef<string | null>(null);
     const { summary } = useBillingSummary();
 
     // Saving: edits mark the chat dirty, and a debounced save runs through one queue so a new chat
@@ -321,6 +326,7 @@ export default function ChatPage() {
 
     // On first visit: import a chat kept in browser storage by the earlier version, else reopen the last chat.
     useEffect(() => {
+        if (routePrompt) return;
         const legacy = readStorage<ChatEntry[]>(LEGACY_STORAGE_KEY, []);
         if (legacy.length > 0) {
             writeStorage(LEGACY_STORAGE_KEY, null);
@@ -442,6 +448,14 @@ export default function ChatPage() {
         setInput("");
         ask(history);
     };
+
+    useEffect(() => {
+        if (!routePrompt || routedPromptRef.current === routePrompt) return;
+        routedPromptRef.current = routePrompt;
+        send(routePrompt);
+        // The prompt is intentionally sent once when arriving from the dashboard.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [routePrompt]);
 
     const retry = (id: string) => {
         const index = entries.findIndex((e) => e.id === id);
