@@ -287,7 +287,7 @@ export default function Dashboard() {
       <AppHeader onCreateForm={createForm} />
 
       <main className="max-w-screen mx-auto px-4 sm:px-6 py-2 no-scrollbar ">
-        <section className="mx-auto mb-7 w-full max-w-3xl pt-5 sm:pt-7">
+        {/* <section className="mx-auto mb-7 w-full max-w-3xl pt-5 sm:pt-7">
           <div className="mb-4 text-center">
             <div className="mb-2 flex items-center justify-center gap-1 text-2xl font-semibold tracking-tight sm:text-3xl">
               <span>Hi {firstName}</span>
@@ -323,7 +323,7 @@ export default function Dashboard() {
               </div>
             </div>
           </form>
-        </section>
+        </section> */}
 
         {/* form */}
         <div className="mb-4">

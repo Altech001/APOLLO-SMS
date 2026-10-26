@@ -68,13 +68,13 @@ const AppRoutes = () => {
         <Route path="/auth/google/callback" element={<GoogleCallback />} />
         <Route path="/google/callback" element={<GoogleCallback />} />
 
-        <Route path="/" element={protect(<Dashboard />)} />
+        <Route path="/dashboard" element={protect(<Dashboard />)} />
         <Route path="/profile" element={protect(<ProfilePage />)} />
         <Route path="/my-contacts" element={protect(<MyContactsIndex />)} />
         <Route path="/recents-sms" element={protect(<SalesIndex />)} />
         <Route path="/templates" element={protect(<TemplatesIndex />)} />
         <Route path="/compose" element={protect(<ComposeIndex />)} />
-        <Route path="/chat" element={protect(<ChatPage />)} />
+        <Route path="/" element={protect(<ChatPage />)} />
         <Route path="/whatsapp" element={protect(<WhatsappMsgIndex />)} />
         <Route path="/withdraw" element={protect(<Withdrawal />)} />
         <Route path="/sms-tp" element={protect(<Withdrawal />)} />
