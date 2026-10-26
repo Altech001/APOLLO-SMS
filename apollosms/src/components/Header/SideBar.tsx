@@ -41,7 +41,7 @@ const primaryNavItems: NavItem[] = [
     {
         label: "Dashboard",
         icon: <MenuSquareIcon className="w-5 h-5" />,
-        path: "/",
+        path: "/dashboard",
     },
     {
         label: "Compose Message",
@@ -51,7 +51,7 @@ const primaryNavItems: NavItem[] = [
     {
         label: "AI Assistant",
         icon: <img src="/icons/ai.webp" className="w-5 h-5" />,
-        path: "/chat",
+        path: "/",
     },
 
 ];
