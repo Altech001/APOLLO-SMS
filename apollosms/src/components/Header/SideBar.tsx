@@ -10,6 +10,7 @@ import {
     History,
     MenuSquareIcon,
     MessageCircle,
+    MessagesSquare,
     MoreVerticalIcon,
     PersonStanding,
     Send,
@@ -93,6 +94,11 @@ const adminNavItems: NavItem[] = [
         label: "Manage Users",
         icon: <UserCog className="w-5 h-5" />,
         path: "/settings/users",
+    },
+    {
+        label: "Message History",
+        icon: <MessagesSquare className="w-5 h-5" />,
+        path: "/admin/messages",
     },
 ];
 

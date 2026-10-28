@@ -8,6 +8,7 @@ import (
 type StorageProvider interface {
 	Upload(key string, content []byte, contentType string) (string, error)
 	Delete(key string) error
+	DeletePrefix(prefix string) error
 	GetURL(key string) (string, error)
 }
 

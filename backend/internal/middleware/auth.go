@@ -65,17 +65,23 @@ func AuthRequired(cfg *config.Config, db *gorm.DB) fiber.Handler {
 		}
 
 		var session models.UserSession
-		if err := db.Where("token_id = ? AND is_active = ? AND expires_at > ?", sid, true, time.Now()).First(&session).Error; err != nil {
+		if err := db.Preload("User").Where("token_id = ? AND is_active = ? AND expires_at > ?", sid, true, time.Now()).First(&session).Error; err != nil {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 				"success": false,
 				"error":   "Your session has been revoked or expired",
 			})
 		}
+		if session.User.ID == 0 || session.User.AccountStatus != models.AccountStatusActive {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"success": false,
+				"error":   "This account is no longer active",
+			})
+		}
 
 		// Store sub (userID), email, and session UUID in locals
 		c.Locals("userId", claims["sub"])
-		c.Locals("email", claims["email"])
-		c.Locals("role", claims["role"])
+		c.Locals("email", session.User.Email)
+		c.Locals("role", session.User.Role)
 		c.Locals("sessionId", sid)
 
 		return c.Next()

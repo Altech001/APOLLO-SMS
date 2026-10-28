@@ -59,6 +59,9 @@ func NewAuthService(
 // Register registers a new user, hashes password, generates verification token, and sends email.
 func (s *AuthService) Register(req *models.RegisterRequest, ipAddress, userAgent string) (*models.User, *models.VerificationRequiredResponse, error) {
 	req.Email = strings.TrimSpace(req.Email)
+	if !req.AcceptTerms {
+		return nil, nil, errors.New("You must agree to the Terms and Conditions and acknowledge the Privacy Policy")
+	}
 	// Check if email already taken
 	existing, _ := s.userRepo.FindByEmail(req.Email)
 	if existing != nil {
@@ -88,6 +91,7 @@ func (s *AuthService) Register(req *models.RegisterRequest, ipAddress, userAgent
 
 	expiresAt := time.Now().Add(24 * time.Hour) // Token valid for 24 hours
 
+	acceptedAt := time.Now()
 	user := &models.User{
 		Name:                  req.Name,
 		Email:                 req.Email,
@@ -96,6 +100,9 @@ func (s *AuthService) Register(req *models.RegisterRequest, ipAddress, userAgent
 		IsVerified:            false,
 		VerificationToken:     token,
 		VerificationExpiresAt: &expiresAt,
+		AccountStatus:         models.AccountStatusActive,
+		TermsAcceptedAt:       &acceptedAt,
+		TermsVersion:          models.CurrentTermsVersion,
 	}
 
 	if err := s.userRepo.Create(user); err != nil {

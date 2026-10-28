@@ -1,9 +1,12 @@
 package storage
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // LocalProvider implements StorageProvider for the local filesystem.
@@ -43,6 +46,44 @@ func (p *LocalProvider) Delete(key string) error {
 	cleanKey := filepath.Clean(key)
 	fullPath := filepath.Join(p.baseDir, cleanKey)
 	return os.Remove(fullPath)
+}
+
+// DeletePrefix removes every stored file whose relative key starts with prefix.
+func (p *LocalProvider) DeletePrefix(prefix string) error {
+	cleanPrefix := filepath.ToSlash(filepath.Clean(strings.TrimSpace(prefix)))
+	if cleanPrefix == "." || cleanPrefix == "" || strings.HasPrefix(cleanPrefix, "../") {
+		return fmt.Errorf("invalid storage prefix")
+	}
+	if _, err := os.Stat(p.baseDir); errors.Is(err, os.ErrNotExist) {
+		return nil
+	} else if err != nil {
+		return err
+	}
+	var matches []string
+	if err := filepath.WalkDir(p.baseDir, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() {
+			return nil
+		}
+		relative, err := filepath.Rel(p.baseDir, path)
+		if err != nil {
+			return err
+		}
+		if strings.HasPrefix(filepath.ToSlash(relative), cleanPrefix) {
+			matches = append(matches, path)
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+	for _, path := range matches {
+		if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
+	}
+	return nil
 }
 
 // GetURL constructs the static file URL.

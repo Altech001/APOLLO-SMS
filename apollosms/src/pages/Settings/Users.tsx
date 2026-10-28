@@ -16,6 +16,7 @@ import {
     BadgeCheck,
     ChevronLeft,
     ChevronRight,
+    History,
     Loader2,
     MessageCircle,
     Minus,
@@ -28,19 +29,21 @@ import {
     Wallet,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import SettingsLayout from "./SettingsLayout";
 
 const usersQueryKey = ["apollosms", "admin-users"] as const;
 const PAGE_SIZE = 3;
 
-type Filter = "all" | "verified" | "unverified" | "admin";
+type Filter = "all" | "verified" | "unverified" | "admin" | "deletion_pending";
 
 const FILTERS: Array<{ id: Filter; label: string }> = [
     { id: "all", label: "All" },
     { id: "unverified", label: "Unverified" },
     { id: "verified", label: "Verified" },
     { id: "admin", label: "Admins" },
+    { id: "deletion_pending", label: "Deletion pending" },
 ];
 
 const formatDate = (value?: string) => (value ? new Date(value).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }) : "—");
@@ -53,6 +56,7 @@ const pageNumbers = (page: number, total: number): Array<number | "…"> => {
 };
 
 export default function UsersAdminPage() {
+    const navigate = useNavigate();
     const queryClient = useQueryClient();
     const { data: users = [], isLoading, isFetching, refetch } = useQuery({
         queryKey: usersQueryKey,
@@ -73,9 +77,11 @@ export default function UsersAdminPage() {
         const q = search.trim().toLowerCase();
         return users
             .filter((u) => {
-                if (filter === "verified" && !u.is_verified) return false;
-                if (filter === "unverified" && u.is_verified) return false;
+                const accountStatus = u.account_status || "active";
+                if (filter === "verified" && (accountStatus !== "active" || !u.is_verified)) return false;
+                if (filter === "unverified" && (accountStatus !== "active" || u.is_verified)) return false;
                 if (filter === "admin" && u.role !== "admin") return false;
+                if (filter === "deletion_pending" && accountStatus !== "deletion_pending") return false;
                 if (!q) return true;
                 return [u.name, u.email, u.phone].some((v) => v?.toLowerCase().includes(q));
             })
@@ -89,12 +95,15 @@ export default function UsersAdminPage() {
 
     useEffect(() => setPage(1), [search, filter]);
 
-    const stats = useMemo(() => ({
-        total: users.length,
-        unverified: users.filter((u) => !u.is_verified).length,
-        sms: users.reduce((sum, u) => sum + (u.sms_balance || 0), 0),
-        whatsapp: users.reduce((sum, u) => sum + (u.whatsapp_balance || 0), 0),
-    }), [users]);
+    const stats = useMemo(() => {
+        const active = users.filter((u) => (u.account_status || "active") === "active");
+        return {
+            total: active.length,
+            deletionPending: users.filter((u) => u.account_status === "deletion_pending").length,
+            sms: active.reduce((sum, u) => sum + (u.sms_balance || 0), 0),
+            whatsapp: active.reduce((sum, u) => sum + (u.whatsapp_balance || 0), 0),
+        };
+    }, [users]);
 
     const toggleVerified = async (user: UserResponse) => {
         setBusyId(String(user.id));
@@ -110,6 +119,7 @@ export default function UsersAdminPage() {
     };
 
     const renderActions = (user: UserResponse) => {
+        const active = (user.account_status || "active") === "active";
         const busy = busyId === String(user.id);
         return (
             <DropdownMenu>
@@ -119,14 +129,20 @@ export default function UsersAdminPage() {
                     </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-44">
-                    <DropdownMenuItem className="text-xs gap-2" onClick={() => setAdjusting(user)}>
-                        <Wallet className="w-3.5 h-3.5" />
-                        Adjust balance
+                    <DropdownMenuItem className="text-xs gap-2" onClick={() => navigate(`/admin/messages?user_id=${user.id}`)}>
+                        <History className="w-3.5 h-3.5" />
+                        View messages
                     </DropdownMenuItem>
-                    <DropdownMenuItem className="text-xs gap-2" onClick={() => toggleVerified(user)}>
-                        {user.is_verified ? <ShieldOff className="w-3.5 h-3.5" /> : <BadgeCheck className="w-3.5 h-3.5" />}
-                        {user.is_verified ? "Remove verification" : "Verify user"}
-                    </DropdownMenuItem>
+                    {active && <>
+                        <DropdownMenuItem className="text-xs gap-2" onClick={() => setAdjusting(user)}>
+                            <Wallet className="w-3.5 h-3.5" />
+                            Adjust balance
+                        </DropdownMenuItem>
+                        <DropdownMenuItem className="text-xs gap-2" onClick={() => toggleVerified(user)}>
+                            {user.is_verified ? <ShieldOff className="w-3.5 h-3.5" /> : <BadgeCheck className="w-3.5 h-3.5" />}
+                            {user.is_verified ? "Remove verification" : "Verify user"}
+                        </DropdownMenuItem>
+                    </>}
                 </DropdownMenuContent>
             </DropdownMenu>
         );
@@ -138,12 +154,21 @@ export default function UsersAdminPage() {
         </div>
     );
 
-    const status = (user: UserResponse) => (
-        <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-            <span className={cn("w-1.5 h-1.5 rounded-full", user.is_verified ? "bg-emerald-500" : "bg-amber-500")} />
-            {user.is_verified ? "Verified" : "Unverified"}
-        </span>
-    );
+    const status = (user: UserResponse) => {
+        const accountStatus = user.account_status || "active";
+        if (accountStatus === "deletion_pending") {
+            return <span className="inline-flex items-center gap-1.5 text-xs text-rose-600"><span className="h-1.5 w-1.5 rounded-full bg-rose-500" />Deletion pending</span>;
+        }
+        if (accountStatus === "anonymized") {
+            return <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground"><span className="h-1.5 w-1.5 rounded-full bg-slate-400" />Deleted</span>;
+        }
+        return (
+            <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                <span className={cn("w-1.5 h-1.5 rounded-full", user.is_verified ? "bg-emerald-500" : "bg-amber-500")} />
+                {user.is_verified ? "Verified" : "Unverified"}
+            </span>
+        );
+    };
 
     return (
         <SettingsLayout title="Users" showNav={false}>
@@ -151,7 +176,7 @@ export default function UsersAdminPage() {
                 <div className="flex items-center justify-between gap-3">
                     <div>
                         <h1 className="text-lg font-semibold text-foreground">Users</h1>
-                        <p className="text-xs text-muted-foreground mt-0.5">Verify accounts and manage credit balances.</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">Verify accounts, manage balances, and monitor deletion status.</p>
                     </div>
                     <Button size="icon" variant="ghost" className="h-9 w-9 text-muted-foreground" onClick={() => refetch()} disabled={isFetching} aria-label="Refresh">
                         <RefreshCw className={cn("w-4 h-4", isFetching && "animate-spin")} />
@@ -160,8 +185,8 @@ export default function UsersAdminPage() {
 
                 <dl className="grid grid-cols-2 sm:grid-cols-4 gap-y-4 border-y border-border/60 py-4">
                     {[
-                        { label: "Total users", value: stats.total },
-                        { label: "Unverified", value: stats.unverified },
+                        { label: "Active users", value: stats.total },
+                        { label: "Deletion pending", value: stats.deletionPending },
                         { label: "SMS credits", value: stats.sms },
                         { label: "WhatsApp credits", value: stats.whatsapp },
                     ].map((s) => (

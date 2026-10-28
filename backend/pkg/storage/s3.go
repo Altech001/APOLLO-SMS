@@ -100,6 +100,38 @@ func (p *S3Provider) Delete(key string) error {
 	return nil
 }
 
+// DeletePrefix removes every object under a user-owned key prefix.
+func (p *S3Provider) DeletePrefix(prefix string) error {
+	prefix = strings.TrimLeft(strings.TrimSpace(prefix), "/")
+	if prefix == "" {
+		return fmt.Errorf("invalid storage prefix")
+	}
+	ctx := context.TODO()
+	var continuationToken *string
+	for {
+		result, err := p.client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
+			Bucket:            aws.String(p.bucketName),
+			Prefix:            aws.String(prefix),
+			ContinuationToken: continuationToken,
+		})
+		if err != nil {
+			return fmt.Errorf("failed to list objects for deletion: %w", err)
+		}
+		for _, object := range result.Contents {
+			if object.Key == nil {
+				continue
+			}
+			if err := p.Delete(*object.Key); err != nil {
+				return err
+			}
+		}
+		if !aws.ToBool(result.IsTruncated) || result.NextContinuationToken == nil {
+			return nil
+		}
+		continuationToken = result.NextContinuationToken
+	}
+}
+
 // GetURL returns a direct public URL if configured, or a presigned URL expiring in 1 hour.
 func (p *S3Provider) GetURL(key string) (string, error) {
 	if p.publicBaseURL != "" {

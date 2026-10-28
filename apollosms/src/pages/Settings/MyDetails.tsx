@@ -4,8 +4,9 @@ import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/lib/auth";
 import { renultApi } from "@/api/apollosms";
-import { Camera, Loader2 } from "lucide-react";
+import { Camera, Loader2, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import SettingsLayout from "./SettingsLayout";
 
@@ -252,6 +253,26 @@ export default function MyDetailsPage() {
             <Button onClick={handleSave} disabled={isSaving || isRefreshing} className="h-9 text-[13px] font-medium bg-primary hover:bg-primary/90">
               {isSaving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
               Save changes
+            </Button>
+          </div>
+
+          <Separator className="bg-border/30" />
+
+          <div className="grid grid-cols-1 gap-4 rounded-lg border border-rose-500/25 bg-rose-500/5 p-4 sm:grid-cols-[1fr_auto] sm:items-center">
+            <div>
+              <h3 className="flex items-center gap-2 text-sm font-semibold text-rose-700 dark:text-rose-400">
+                <Trash2 className="h-4 w-4" /> Delete account
+              </h3>
+              <p className="mt-1 text-[13px] leading-5 text-muted-foreground">
+                Access is revoked immediately. Personal data is permanently deleted or anonymized within 60 days, while limited lawful audit references may remain.
+              </p>
+              <div className="mt-2 flex gap-3 text-xs">
+                <Link to="/terms" className="text-primary hover:underline">Terms</Link>
+                <Link to="/privacy" className="text-primary hover:underline">Privacy policy</Link>
+              </div>
+            </div>
+            <Button asChild variant="destructive" className="h-9 shrink-0">
+              <Link to="/account-deletion">Delete my account</Link>
             </Button>
           </div>
         </div>

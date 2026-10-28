@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"strconv"
 	"time"
 
 	"backend/internal/models"
@@ -13,6 +14,27 @@ import (
 // AdminHandler serves the admin profit report, provider balances and alert settings.
 type AdminHandler struct {
 	service *services.AdminService
+}
+
+// MessageHistory godoc
+// @Summary      Platform message history
+// @Description  List SMS and WhatsApp messages sent by every user (Admin only)
+// @Tags         Admin
+// @Security     BearerAuth
+// @Produce      json
+// @Router       /admin/messages [get]
+func (h *AdminHandler) MessageHistory(c *fiber.Ctx) error {
+	page, _ := strconv.Atoi(c.Query("page", "1"))
+	perPage, _ := strconv.Atoi(c.Query("per_page", "25"))
+	userID, _ := strconv.ParseUint(c.Query("user_id", "0"), 10, 32)
+	result, err := h.service.MessageHistory(models.AdminMessageHistoryQuery{
+		Page: page, PerPage: perPage, Channel: c.Query("channel"), Status: c.Query("status"),
+		Search: c.Query("search"), UserID: uint(userID),
+	})
+	if err != nil {
+		return response.Error(c, fiber.StatusInternalServerError, err.Error())
+	}
+	return response.Success(c, result)
 }
 
 // NewAdminHandler creates an AdminHandler.

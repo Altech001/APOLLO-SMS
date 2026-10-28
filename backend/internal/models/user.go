@@ -10,7 +10,7 @@ import (
 type User struct {
 	ID                          uint           `json:"id" gorm:"primaryKey"`
 	Name                        string         `json:"name" gorm:"not null"`
-	Email                       string         `json:"email" gorm:"uniqueIndex;not null"`
+	Email                       string         `json:"email" gorm:"uniqueIndex:idx_users_email_active,where:deleted_at IS NULL;not null"`
 	Phone                       string         `json:"phone" gorm:"column:phone;index"` // E.164 (+256...), used for SMS verification and reset codes
 	Password                    string         `json:"-" gorm:"not null"`               // Hidden in JSON responses
 	Role                        string         `json:"role" gorm:"not null;default:'user'"`
@@ -22,17 +22,47 @@ type User struct {
 	VerificationExpiresAt       *time.Time     `json:"-"`
 	PasswordResetToken          string         `json:"-" gorm:"index"`
 	PasswordResetTokenExpiresAt *time.Time     `json:"-"`
+	AccountStatus               string         `json:"account_status" gorm:"type:varchar(32);not null;default:'active';index"`
+	DeletionRequestedAt         *time.Time     `json:"deletion_requested_at,omitempty" gorm:"index"`
+	DeletionScheduledFor        *time.Time     `json:"deletion_scheduled_for,omitempty" gorm:"index"`
+	DeletionCompletedAt         *time.Time     `json:"deletion_completed_at,omitempty"`
+	TermsAcceptedAt             *time.Time     `json:"terms_accepted_at,omitempty"`
+	TermsVersion                string         `json:"terms_version,omitempty" gorm:"type:varchar(32)"`
 	CreatedAt                   time.Time      `json:"created_at"`
 	UpdatedAt                   time.Time      `json:"updated_at"`
 	DeletedAt                   gorm.DeletedAt `json:"-" gorm:"index"`
 }
 
+const (
+	AccountStatusActive          = "active"
+	AccountStatusDeletionPending = "deletion_pending"
+	AccountStatusAnonymized      = "anonymized"
+	CurrentTermsVersion          = "2026-10-28"
+	AccountDeletionRetentionDays = 60
+)
+
 // RegisterRequest is the payload for registering a new user.
 type RegisterRequest struct {
-	Name     string `json:"name" validate:"required,min=2"`
-	Email    string `json:"email" validate:"required,email"`
-	Phone    string `json:"phone"`
-	Password string `json:"password" validate:"required,min=6"`
+	Name        string `json:"name" validate:"required,min=2"`
+	Email       string `json:"email" validate:"required,email"`
+	Phone       string `json:"phone"`
+	Password    string `json:"password" validate:"required,min=6"`
+	AcceptTerms bool   `json:"accept_terms"`
+}
+
+// AccountDeletionRequest confirms an account deletion request from inside or outside the app.
+type AccountDeletionRequest struct {
+	Email        string `json:"email,omitempty"`
+	Password     string `json:"password"`
+	Confirmation string `json:"confirmation"`
+}
+
+// AccountDeletionResponse reports when personal account data is scheduled for final deletion.
+type AccountDeletionResponse struct {
+	Message       string    `json:"message"`
+	RequestedAt   time.Time `json:"requested_at"`
+	ScheduledFor  time.Time `json:"scheduled_for"`
+	RetentionDays int       `json:"retention_days"`
 }
 
 // CreateUserRequest is the payload for creating a user (Admin CRUD).
@@ -156,16 +186,20 @@ type ChangePasswordRequest struct {
 
 // UserResponse is the standardized response structure for a user.
 type UserResponse struct {
-	ID              uint      `json:"id"`
-	Name            string    `json:"name"`
-	Email           string    `json:"email"`
-	Phone           string    `json:"phone"`
-	Role            string    `json:"role"`
-	SMSBalance      int       `json:"sms_balance"`
-	WhatsAppBalance int       `json:"whatsapp_balance"`
-	ProfileImage    string    `json:"profile_image"`
-	IsVerified      bool      `json:"is_verified"`
-	CreatedAt       time.Time `json:"created_at"`
+	ID                   uint       `json:"id"`
+	Name                 string     `json:"name"`
+	Email                string     `json:"email"`
+	Phone                string     `json:"phone"`
+	Role                 string     `json:"role"`
+	SMSBalance           int        `json:"sms_balance"`
+	WhatsAppBalance      int        `json:"whatsapp_balance"`
+	ProfileImage         string     `json:"profile_image"`
+	IsVerified           bool       `json:"is_verified"`
+	AccountStatus        string     `json:"account_status"`
+	DeletionRequestedAt  *time.Time `json:"deletion_requested_at,omitempty"`
+	DeletionScheduledFor *time.Time `json:"deletion_scheduled_for,omitempty"`
+	DeletionCompletedAt  *time.Time `json:"deletion_completed_at,omitempty"`
+	CreatedAt            time.Time  `json:"created_at"`
 }
 
 // CreditRecipientResponse exposes only the fields needed to select a transfer recipient.
@@ -179,16 +213,20 @@ type CreditRecipientResponse struct {
 // ToResponse formats a User model into UserResponse.
 func (u *User) ToResponse() UserResponse {
 	return UserResponse{
-		ID:              u.ID,
-		Name:            u.Name,
-		Email:           u.Email,
-		Phone:           u.Phone,
-		Role:            u.Role,
-		SMSBalance:      u.SMSBalance,
-		WhatsAppBalance: u.WhatsAppBalance,
-		ProfileImage:    u.ProfileImage,
-		IsVerified:      u.IsVerified,
-		CreatedAt:       u.CreatedAt,
+		ID:                   u.ID,
+		Name:                 u.Name,
+		Email:                u.Email,
+		Phone:                u.Phone,
+		Role:                 u.Role,
+		SMSBalance:           u.SMSBalance,
+		WhatsAppBalance:      u.WhatsAppBalance,
+		ProfileImage:         u.ProfileImage,
+		IsVerified:           u.IsVerified,
+		AccountStatus:        u.AccountStatus,
+		DeletionRequestedAt:  u.DeletionRequestedAt,
+		DeletionScheduledFor: u.DeletionScheduledFor,
+		DeletionCompletedAt:  u.DeletionCompletedAt,
+		CreatedAt:            u.CreatedAt,
 	}
 }
 

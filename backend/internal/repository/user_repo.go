@@ -81,7 +81,7 @@ func (r *UserRepository) Update(user *models.User) error {
 // FindAll returns all registered users.
 func (r *UserRepository) FindAll() ([]models.User, error) {
 	var users []models.User
-	err := r.db.Find(&users).Error
+	err := r.db.Unscoped().Order("created_at desc").Find(&users).Error
 	return users, err
 }
 

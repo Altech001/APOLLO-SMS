@@ -5,6 +5,7 @@ import (
 	"io"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"backend/internal/models"
 	"backend/internal/services"
@@ -66,6 +67,39 @@ func (h *UserHandler) UpdateMe(c *fiber.Ctx) error {
 	}
 
 	return response.Success(c, user)
+}
+
+// RequestAccountDeletion immediately revokes access and schedules personal data deletion in 60 days.
+func (h *UserHandler) RequestAccountDeletion(c *fiber.Ctx) error {
+	currentUserID := getUserID(c)
+	if currentUserID == 0 {
+		return response.Error(c, fiber.StatusUnauthorized, "Unauthorized")
+	}
+	var req models.AccountDeletionRequest
+	if err := c.BodyParser(&req); err != nil {
+		return response.Error(c, fiber.StatusBadRequest, "Invalid request body")
+	}
+	result, err := h.service.RequestAccountDeletion(currentUserID, req.Password, req.Confirmation)
+	if err != nil {
+		return response.Error(c, fiber.StatusBadRequest, err.Error())
+	}
+	return response.Success(c, result)
+}
+
+// RequestExternalAccountDeletion is the public web deletion flow used outside the installed app.
+func (h *UserHandler) RequestExternalAccountDeletion(c *fiber.Ctx) error {
+	var req models.AccountDeletionRequest
+	if err := c.BodyParser(&req); err != nil {
+		return response.Error(c, fiber.StatusBadRequest, "Invalid request body")
+	}
+	if strings.TrimSpace(req.Email) == "" || req.Password == "" {
+		return response.Error(c, fiber.StatusBadRequest, "Email and password are required")
+	}
+	result, err := h.service.RequestAccountDeletionByCredentials(req.Email, req.Password, req.Confirmation)
+	if err != nil {
+		return response.Error(c, fiber.StatusBadRequest, err.Error())
+	}
+	return response.Success(c, result)
 }
 
 // ListUsers godoc
@@ -237,7 +271,7 @@ func (h *UserHandler) DeleteUser(c *fiber.Ctx) error {
 		return response.Error(c, fiber.StatusNotFound, err.Error())
 	}
 
-	return response.Success(c, fiber.Map{"message": "User deleted successfully"})
+	return response.Success(c, fiber.Map{"message": "User access revoked; permanent personal-data deletion is scheduled within 60 days"})
 }
 
 // UploadProfileImage godoc

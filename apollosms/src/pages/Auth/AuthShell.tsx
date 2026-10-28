@@ -73,8 +73,11 @@ export default function AuthShell({ title, subtitle, seoTitle, path, children, f
           <span className="text-lg font-bold tracking-tight">{BRAND_NAME}</span>
         </Link>
 
-        <div className="relative text-[14px] text-white/55 font-medium barlow-semibold">
-          {BRAND_NAME} © {new Date().getFullYear()}
+        <div className="relative z-10 flex flex-wrap items-center gap-4 text-[12px] text-white/55 font-medium barlow-semibold">
+          <span>{BRAND_NAME} © {new Date().getFullYear()}</span>
+          <Link to="/terms" className="hover:text-white">Terms</Link>
+          <Link to="/privacy" className="hover:text-white">Privacy</Link>
+          <Link to="/account-deletion" className="hover:text-white">Delete account</Link>
         </div>
 
         <a
@@ -153,8 +156,11 @@ export default function AuthShell({ title, subtitle, seoTitle, path, children, f
           {footer}
         </div>
 
-        <div className="absolute bottom-6 flex flex-wrap items-center  justify-center gap-6 text-[10px] text-muted-foreground font-bold w-full px-4 lg:hidden">
+        <div className="absolute bottom-6 flex flex-wrap items-center justify-center gap-4 text-[10px] text-muted-foreground font-bold w-full px-4 lg:hidden">
           <span className="barlow-semibold">{BRAND_NAME} © {new Date().getFullYear()}</span>
+          <Link to="/terms" className="hover:text-foreground">Terms</Link>
+          <Link to="/privacy" className="hover:text-foreground">Privacy</Link>
+          <Link to="/account-deletion" className="hover:text-foreground">Delete account</Link>
         </div>
       </div>
     </div>

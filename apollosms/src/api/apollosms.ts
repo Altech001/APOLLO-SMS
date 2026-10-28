@@ -65,6 +65,10 @@ export interface UserResponse {
   phone_number: string | null;
   avatar_url: string | null;
   auth_provider: string;
+  account_status?: "active" | "deletion_pending" | "anonymized" | string;
+  deletion_requested_at?: string | null;
+  deletion_scheduled_for?: string | null;
+  deletion_completed_at?: string | null;
 }
 
 export interface CreditRecipientResponse {
@@ -85,7 +89,22 @@ export interface AuthResponse {
 export interface RegisterRequest {
   name: string;
   email: string;
+  phone?: string;
   password: string;
+  accept_terms: boolean;
+}
+
+export interface AccountDeletionRequest {
+  email?: string;
+  password: string;
+  confirmation: string;
+}
+
+export interface AccountDeletionResponse {
+  message: string;
+  requested_at: string;
+  scheduled_for: string;
+  retention_days: number;
 }
 
 export interface LoginRequest {
@@ -761,6 +780,33 @@ export interface ProfitSummary {
   daily: ProfitDay[];
 }
 
+export interface AdminMessageHistoryItem {
+  id: ID;
+  channel: "sms" | "whatsapp";
+  user_id: ID;
+  user_name: string;
+  user_email: string;
+  user_account_status: string;
+  recipient: string;
+  message: string;
+  status: string;
+  provider: string;
+  source: string;
+  segments: number;
+  credits: number;
+  error?: string;
+  sent_at?: string | null;
+  created_at: string;
+}
+
+export interface AdminMessageHistoryResponse {
+  items: AdminMessageHistoryItem[];
+  total: number;
+  page: number;
+  per_page: number;
+  total_pages: number;
+}
+
 export interface ProviderBalance {
   provider: string;
   label: string;
@@ -997,9 +1043,13 @@ function normalizeUser(user: any): UserResponse {
     sms_balance: Number(user?.sms_balance || 0),
     profile_image: user?.profile_image || user?.avatar_url || "",
     avatar_url: user?.avatar_url || user?.profile_image || null,
-    phone_number: user?.phone_number || null,
+    phone_number: user?.phone_number || user?.phone || null,
     is_verified: Boolean(user?.is_verified),
     auth_provider: user?.auth_provider || "password",
+    account_status: user?.account_status || "active",
+    deletion_requested_at: user?.deletion_requested_at || null,
+    deletion_scheduled_for: user?.deletion_scheduled_for || null,
+    deletion_completed_at: user?.deletion_completed_at || null,
   };
 }
 
@@ -1373,7 +1423,7 @@ export const apollosmsApi = {
       const user = normalizeUser(await apiRequest<UserResponse>("/users/me"));
       return saveUser(user);
     },
-    register: async (payload: { email: string; password: string; name?: string; full_name?: string; phone?: string }) => {
+    register: async (payload: { email: string; password: string; name?: string; full_name?: string; phone?: string; accept_terms?: boolean }) => {
       const created = await apiRequest<UserResponse & { verification?: VerificationRequired }>("/auth/register", {
         method: "POST",
         auth: false,
@@ -1382,10 +1432,17 @@ export const apollosmsApi = {
           email: payload.email,
           phone: payload.phone || "",
           password: payload.password,
+          accept_terms: payload.accept_terms === true,
         }),
       });
       return { user: normalizeUser(created), verification: created.verification };
     },
+    requestAccountDeletion: (payload: AccountDeletionRequest) =>
+      apiRequest<AccountDeletionResponse>("/auth/delete-account", {
+        method: "POST",
+        auth: false,
+        body: JSON.stringify(payload),
+      }),
     sendVerificationSms: (ticket: string) =>
       apiRequest<SmsCodeSentResponse>("/auth/verify/sms/send", { method: "POST", auth: false, body: JSON.stringify({ ticket }) }),
     confirmVerificationSms: async (payload: { ticket: string; code: string }) =>
@@ -1454,6 +1511,8 @@ export const apollosmsApi = {
     saveSettings: (payload: AdminSettings) =>
       apiRequest<AdminSettings>("/admin/settings", { method: "PUT", body: JSON.stringify(payload) }),
     testAlert: () => apiRequest<{ problems: string[] | null }>("/admin/settings/test-alert", { method: "POST" }),
+    messages: (query?: { page?: number; per_page?: number; channel?: string; status?: string; search?: string; user_id?: ID }) =>
+      apiRequest<AdminMessageHistoryResponse>("/admin/messages", { query }),
   },
   users: {
     list: () => apiRequest<UserResponse[]>("/users"),
@@ -1468,6 +1527,8 @@ export const apollosmsApi = {
     update: (id: ID, payload: UpdateUserRequest) =>
       apiRequest<UserResponse>(`/users/${id}`, { method: "PUT", body: JSON.stringify(payload) }),
     delete: (id: ID) => apiRequest<ApiMessage>(`/users/${id}`, { method: "DELETE" }),
+    requestDeletion: (payload: AccountDeletionRequest) =>
+      apiRequest<AccountDeletionResponse>("/users/me", { method: "DELETE", body: JSON.stringify(payload) }),
     setVerified: (id: ID, verified: boolean) =>
       apiRequest<UserResponse>(`/users/${id}/verify`, { method: "POST", body: JSON.stringify({ verified }) }),
     adjustBalance: (id: ID, payload: AdminAdjustBalanceRequest) =>

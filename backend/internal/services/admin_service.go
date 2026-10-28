@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"html"
 	"log"
+	"math"
 	"regexp"
 	"sort"
 	"strconv"
@@ -26,6 +27,107 @@ type AdminService struct {
 	smsConfig *SMSConfigService
 	whatsapp  *WhatsAppService
 	email     *email.EmailSender
+}
+
+// MessageHistory returns SMS and WhatsApp history for every account, including deletion-pending accounts.
+func (s *AdminService) MessageHistory(query models.AdminMessageHistoryQuery) (*models.AdminMessageHistoryResponse, error) {
+	if query.Page < 1 {
+		query.Page = 1
+	}
+	if query.PerPage < 1 {
+		query.PerPage = 25
+	}
+	if query.PerPage > 100 {
+		query.PerPage = 100
+	}
+	query.Channel = strings.ToLower(strings.TrimSpace(query.Channel))
+	if query.Channel != "sms" && query.Channel != "whatsapp" {
+		query.Channel = ""
+	}
+	query.Status = strings.ToLower(strings.TrimSpace(query.Status))
+	query.Search = strings.ToLower(strings.TrimSpace(query.Search))
+
+	base := `
+		SELECT sm.id,
+		       'sms'::text AS channel,
+		       sm.user_id,
+		       COALESCE(NULLIF(u.name, ''), 'Deleted account #' || sm.user_id::text) AS user_name,
+		       COALESCE(u.email, '') AS user_email,
+		       COALESCE(NULLIF(u.account_status, ''), 'active') AS user_account_status,
+		       sm.phone AS recipient,
+		       sm.message,
+		       sm.status,
+		       COALESCE(sm.provider, '') AS provider,
+		       COALESCE(NULLIF(sm.source, ''), 'app') AS source,
+		       sm.segments,
+		       sm.credits,
+		       COALESCE(sm.error_message, '') AS error,
+		       sm.sent_at,
+		       sm.created_at
+		FROM sms_messages sm
+		LEFT JOIN users u ON u.id = sm.user_id
+		UNION ALL
+		SELECT wm.id,
+		       'whatsapp'::text AS channel,
+		       wm.user_id,
+		       COALESCE(NULLIF(u.name, ''), 'Deleted account #' || wm.user_id::text) AS user_name,
+		       COALESCE(u.email, '') AS user_email,
+		       COALESCE(NULLIF(u.account_status, ''), 'active') AS user_account_status,
+		       wm.recipient,
+		       wm.body AS message,
+		       wm.status,
+		       COALESCE(NULLIF(wa.provider, ''), 'whatsmeow') AS provider,
+		       'app'::text AS source,
+		       1 AS segments,
+		       CASE WHEN wm.charged_from = 'credit' THEN 1 ELSE 0 END AS credits,
+		       COALESCE(wm.error, '') AS error,
+		       wm.sent_at,
+		       wm.created_at
+		FROM whats_app_messages wm
+		LEFT JOIN users u ON u.id = wm.user_id
+		LEFT JOIN whats_app_accounts wa ON wa.id = wm.account_id`
+
+	conditions := make([]string, 0, 4)
+	args := make([]interface{}, 0, 8)
+	if query.Channel != "" {
+		conditions = append(conditions, "history.channel = ?")
+		args = append(args, query.Channel)
+	}
+	if query.Status != "" {
+		conditions = append(conditions, "LOWER(history.status) = ?")
+		args = append(args, query.Status)
+	}
+	if query.UserID > 0 {
+		conditions = append(conditions, "history.user_id = ?")
+		args = append(args, query.UserID)
+	}
+	if query.Search != "" {
+		like := "%" + query.Search + "%"
+		conditions = append(conditions, `(LOWER(history.user_name) LIKE ? OR LOWER(history.user_email) LIKE ? OR LOWER(history.recipient) LIKE ? OR LOWER(history.message) LIKE ?)`)
+		args = append(args, like, like, like, like)
+	}
+	where := ""
+	if len(conditions) > 0 {
+		where = " WHERE " + strings.Join(conditions, " AND ")
+	}
+
+	var total int64
+	if err := s.db.Raw("SELECT COUNT(*) FROM ("+base+") history"+where, args...).Scan(&total).Error; err != nil {
+		return nil, err
+	}
+	items := make([]models.AdminMessageHistoryItem, 0, query.PerPage)
+	itemArgs := append(append([]interface{}{}, args...), query.PerPage, (query.Page-1)*query.PerPage)
+	if err := s.db.Raw("SELECT * FROM ("+base+") history"+where+" ORDER BY history.created_at DESC, history.channel, history.id DESC LIMIT ? OFFSET ?", itemArgs...).Scan(&items).Error; err != nil {
+		return nil, err
+	}
+
+	return &models.AdminMessageHistoryResponse{
+		Items:      items,
+		Total:      total,
+		Page:       query.Page,
+		PerPage:    query.PerPage,
+		TotalPages: int(math.Ceil(float64(total) / float64(query.PerPage))),
+	}, nil
 }
 
 // NewAdminService creates an AdminService.

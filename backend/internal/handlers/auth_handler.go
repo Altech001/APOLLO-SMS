@@ -39,6 +39,9 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 	if err := c.BodyParser(&req); err != nil {
 		return response.Error(c, fiber.StatusBadRequest, "Invalid request body")
 	}
+	if !req.AcceptTerms {
+		return response.Error(c, fiber.StatusBadRequest, "You must agree to the Terms and Conditions and acknowledge the Privacy Policy")
+	}
 
 	ipAddress := c.IP()
 	userAgent := c.Get("User-Agent")

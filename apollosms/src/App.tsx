@@ -42,6 +42,10 @@ import PlanEditorPage from "./pages/Settings/PlanEditor";
 import SecurityLogsPage from "./pages/Settings/SecurityLogs";
 import UsersAdminPage from "./pages/Settings/Users";
 import ProfitPage from "./pages/Admin/Profit";
+import AdminMessagesPage from "./pages/Admin/Messages";
+import AccountDeletionPage from "./pages/Legal/AccountDeletion";
+import PrivacyPage from "./pages/Legal/Privacy";
+import TermsPage from "./pages/Legal/Terms";
 import CardCheckout from "./pages/Checkout/CardCheckout";
 import CardReturn from "./pages/Checkout/CardReturn";
 import MobileMoneyCheckout from "./pages/Checkout/MobileMoneyCheckout";
@@ -67,6 +71,9 @@ const AppRoutes = () => {
         <Route path="/set-password" element={<SetPassword />} />
         <Route path="/auth/google/callback" element={<GoogleCallback />} />
         <Route path="/google/callback" element={<GoogleCallback />} />
+        <Route path="/terms" element={<TermsPage />} />
+        <Route path="/privacy" element={<PrivacyPage />} />
+        <Route path="/account-deletion" element={<AccountDeletionPage />} />
 
         <Route path="/dashboard" element={protect(<Dashboard />)} />
         <Route path="/profile" element={protect(<ProfilePage />)} />
@@ -97,6 +104,7 @@ const AppRoutes = () => {
         <Route path="/settings/plans" element={<AdminRoute><PlanEditorPage /></AdminRoute>} />
         <Route path="/settings/users" element={<AdminRoute><UsersAdminPage /></AdminRoute>} />
         <Route path="/admin/profit" element={<AdminRoute><ProfitPage /></AdminRoute>} />
+        <Route path="/admin/messages" element={<AdminRoute><AdminMessagesPage /></AdminRoute>} />
         <Route path="/settings/notifications" element={protect(<SettingsPage />)} />
         <Route path="/settings/support" element={protect(<Campign />)} />
         <Route path="/security-logs" element={protect(<SecurityLogsPage />)} />

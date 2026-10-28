@@ -58,6 +58,21 @@ func NewWhatsAppService(db *gorm.DB, billing *BillingService, repo *repository.W
 
 // normalizeWhatsAppPhone returns the international digits-only format WhatsApp expects (e.g. 256700000000).
 func normalizeWhatsAppPhone(phone string) (string, error) {
+	value := strings.TrimSpace(phone)
+	if strings.HasPrefix(value, "+") || strings.HasPrefix(value, "00") {
+		digits := strings.NewReplacer(" ", "", "-", "", "(", "", ")", "", ".", "").Replace(value)
+		digits = strings.TrimPrefix(digits, "+")
+		digits = strings.TrimPrefix(digits, "00")
+		if len(digits) >= 8 && len(digits) <= 15 {
+			for _, digit := range digits {
+				if digit < '0' || digit > '9' {
+					return "", fmt.Errorf("invalid phone number: %s", phone)
+				}
+			}
+			return digits, nil
+		}
+		return "", fmt.Errorf("invalid phone number: %s", phone)
+	}
 	formatted, err := NormalizeUgandanPhone(phone)
 	if err != nil {
 		return "", fmt.Errorf("invalid phone number: %s", phone)
@@ -274,6 +289,29 @@ func (s *WhatsAppService) Disconnect(accountID, userID uint) error {
 		label = account.DisplayName
 	}
 	s.notifService.Notify(userID, "WhatsApp Disconnected", fmt.Sprintf("WhatsApp number %s was disconnected.", label), "warning")
+	return nil
+}
+
+// DeleteUserData unlinks every WhatsApp device owned by a user without creating notifications.
+// It is used by the account-deletion lifecycle and is safe to call again during the final purge.
+func (s *WhatsAppService) DeleteUserData(userID uint) error {
+	accounts, err := s.repo.FindAccountsByUserID(userID)
+	if err != nil {
+		return err
+	}
+	for i := range accounts {
+		account := &accounts[i]
+		if account.Provider == models.WhatsAppProviderWhatsmeow && s.sessions != nil {
+			s.sessions.unlink(account)
+		}
+		if err := failQueuedWhatsApp(s.db, s.billing, account.ID, "Account deletion requested"); err != nil {
+			return err
+		}
+		if err := s.repo.DeleteAccount(account.ID); err != nil {
+			return err
+		}
+		s.groupsCache.invalidate(account.ID)
+	}
 	return nil
 }
 

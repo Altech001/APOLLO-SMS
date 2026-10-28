@@ -1,6 +1,6 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { apollosmsApi } from "@/api/apollosms";
 import { DEFAULT_COUNTRY, PhoneInput, toE164 } from "@/components/auth/PhoneInput";
+import { Checkbox } from "@/components/ui/checkbox";
 import type { CountryCode } from "libphonenumber-js";
 import { Loader2 } from "lucide-react";
 import React, { useState } from "react";
@@ -23,6 +23,7 @@ export default function Signup() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
 
   const phoneE164 = toE164(country, phoneNumber);
 
@@ -45,6 +46,10 @@ export default function Signup() {
       toast.error("Passwords do not match");
       return;
     }
+    if (!acceptedTerms) {
+      toast.error("Please agree to the Terms and acknowledge the Privacy Policy");
+      return;
+    }
 
     setIsLoading(true);
     try {
@@ -53,6 +58,7 @@ export default function Signup() {
         email: email.trim(),
         phone: phoneE164,
         password,
+        accept_terms: acceptedTerms,
       });
       toast.success("Account created. Verify it with the email link or an SMS code.");
       if (verification) {
@@ -90,6 +96,12 @@ export default function Signup() {
           </div>
           <PasswordInput show={showPassword} onToggle={() => setShowPassword((next) => !next)} required minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" autoComplete="new-password" />
           <PasswordInput show={showConfirmPassword} onToggle={() => setShowConfirmPassword((next) => !next)} required minLength={8} value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="Confirm password" autoComplete="new-password" />
+          <label htmlFor="accept-terms" className="flex cursor-pointer items-start gap-2.5 py-2 text-[12px] leading-5 text-muted-foreground">
+            <Checkbox id="accept-terms" checked={acceptedTerms} onCheckedChange={(checked) => setAcceptedTerms(checked === true)} className="mt-0.5 rounded" />
+            <span>
+              I agree to the <Link to="/terms" target="_blank" className="font-medium text-foreground hover:underline">Terms and Conditions</Link> and acknowledge the <Link to="/privacy" target="_blank" className="font-medium text-foreground hover:underline">Privacy Policy</Link>.
+            </span>
+          </label>
           <SubmitButton isLoading={isLoading}>
             {isLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
             Create Account
