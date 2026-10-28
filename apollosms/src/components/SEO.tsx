@@ -19,7 +19,7 @@ interface SEOProps {
     noIndex?: boolean;
 }
 
-const DEFAULT_OG_IMAGE = `${SITE_URL}/og-image.png`;
+const DEFAULT_OG_IMAGE = `${SITE_URL}/logo.png`;
 
 export default function SEO({
     title,
@@ -43,7 +43,12 @@ export default function SEO({
             <meta name="keywords" content={keywords} />
             <link rel="canonical" href={canonicalUrl} />
             <meta name="author" content={BRAND_NAME} />
-            {noIndex && <meta name="robots" content="noindex, nofollow" />}
+            <meta
+                name="robots"
+                content={noIndex
+                    ? "noindex, nofollow"
+                    : "index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1"}
+            />
 
             {/* Open Graph */}
             <meta property="og:type" content={ogType} />
@@ -52,10 +57,10 @@ export default function SEO({
             <meta property="og:description" content={description} />
             <meta property="og:url" content={canonicalUrl} />
             <meta property="og:image" content={ogImage} />
-            <meta property="og:image:width" content="1200" />
-            <meta property="og:image:height" content="630" />
+            <meta property="og:image:width" content="1024" />
+            <meta property="og:image:height" content="1024" />
             <meta property="og:image:alt" content={fullTitle} />
-            <meta property="og:locale" content="en_US" />
+            <meta property="og:locale" content="en_UG" />
 
             {/* Twitter Card */}
             <meta name="twitter:card" content="summary_large_image" />

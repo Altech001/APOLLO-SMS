@@ -93,14 +93,14 @@ export default function AppHeader({ onCreateForm }: AppHeaderProps) {
 
   const getBreadcrumbs = () => {
     const path = location.pathname;
-    if (path === "/") {
+    if (path === "/dashboard") {
       return [
-        { label: "Home", path: "/", isLast: true }
+        { label: "Home", path: "/dashboard", isLast: true }
       ];
     }
 
     const parts = path.split("/").filter(Boolean);
-    const breadcrumbs = [{ label: "Home", path: "/", isLast: false }];
+    const breadcrumbs = [{ label: "Home", path: "/dashboard", isLast: false }];
 
     let currentPath = "";
     parts.forEach((part, index) => {

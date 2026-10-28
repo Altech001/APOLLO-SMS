@@ -5,7 +5,7 @@
   "description": "Send bulk SMS and WhatsApp messages, manage contacts and templates, and run campaigns with TINORA AI.",
   "lang": "en",
   "dir": "ltr",
-  "start_url": "/?source=pwa",
+  "start_url": "/chat?source=pwa",
   "scope": "/",
   "display": "standalone",
   "display_override": ["standalone", "minimal-ui"],

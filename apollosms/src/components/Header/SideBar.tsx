@@ -52,7 +52,7 @@ const primaryNavItems: NavItem[] = [
     {
         label: "AI Assistant",
         icon: <img src="/icons/ai.webp" className="w-5 h-5" />,
-        path: "/",
+        path: "/chat",
     },
 
 ];
@@ -194,7 +194,7 @@ export default function SideBar({ isOpen, onClose }: SideBarProps) {
 
     const handleNavigate = (path: string) => {
         if (path === "/#templates") {
-            navigate("/");
+            navigate("/chat");
             // Trigger templates open via a custom event
             setTimeout(() => {
                 window.dispatchEvent(new CustomEvent("open-templates"));
@@ -206,7 +206,7 @@ export default function SideBar({ isOpen, onClose }: SideBarProps) {
     };
 
     const isActive = (path: string) => {
-        if (path === "/") return location.pathname === "/";
+        if (path === "/chat") return location.pathname === "/chat";
         if (path === "/settings" && location.pathname.startsWith("/settings/users")) return false;
         return location.pathname.startsWith(path);
     };

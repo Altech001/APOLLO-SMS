@@ -18,7 +18,7 @@ export default function SetPassword() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const from = (location.state as any)?.from || "/";
+  const from = (location.state as any)?.from || "/chat";
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace state={{ from: location }} />;

@@ -81,7 +81,7 @@ export default function VerifyAccount() {
       clearVerification();
       login(auth);
       toast.success("Account verified. Welcome!");
-      navigate("/", { replace: true });
+      navigate("/chat", { replace: true });
     } catch (err: unknown) {
       toast.error(authErrorMessage(err, "Could not verify the code"));
     } finally {

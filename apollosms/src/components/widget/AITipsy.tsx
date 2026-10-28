@@ -85,7 +85,7 @@ const HELP_ACTIONS = [
 ];
 
 const ROUTE_GUIDES = [
-    { label: "Dashboard", path: "/" },
+    { label: "Dashboard", path: "/dashboard" },
     { label: "AI Builder", path: "/complex-ai" },
     { label: "Agent", path: "/agent" },
     { label: "AI Respondents", path: "/ai-respondents" },
@@ -98,7 +98,7 @@ const COMMANDS: { name: string; label: string; description: string; prompt?: str
     { name: "find", label: "Find forms", description: "Search through your workspace forms", prompt: "Search through all my forms and show me the most important ones to review.", icon: Search, type: "action" },
     { name: "teach", label: "Teach me", description: "Step-by-step guide to TINORA AI", prompt: "Teach me how to use TINORA AI step by step with clickable places to go.", icon: BookOpen, type: "action" },
     { name: "grammar", label: "Fix grammar", description: "Correct the grammar of text you type", prompt: "Correct the grammar and wording of this text: ", icon: Wand2, type: "prefix" },
-    { name: "dashboard", label: "Dashboard", description: "Go to the main Dashboard", path: "/", icon: Navigation, type: "navigate" },
+    { name: "dashboard", label: "Dashboard", description: "Go to the main Dashboard", path: "/dashboard", icon: Navigation, type: "navigate" },
     { name: "builder", label: "AI Builder", description: "Open the AI form builder", path: "/complex-ai", icon: GitBranch, type: "navigate" },
     { name: "agent", label: "Agent", description: "Go to the AI Agent page", path: "/agent", icon: RefreshCw, type: "navigate" },
     { name: "respondents", label: "AI Respondents", description: "View AI form respondents", path: "/ai-respondents", icon: BarChart3, type: "navigate" },

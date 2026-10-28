@@ -23,7 +23,7 @@ export default function Login() {
   const [rememberMe, setRememberMe] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const from = (location.state as any)?.from?.pathname || "/";
+  const from = (location.state as any)?.from?.pathname || "/chat";
 
   useEffect(() => {
     const rememberedEmail = localStorage.getItem(REMEMBER_LOGIN_KEY) || localStorage.getItem(LEGACY_REMEMBER_LOGIN_KEY);

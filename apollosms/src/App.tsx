@@ -1,58 +1,60 @@
 import { Toaster } from "@/components/ui/toaster";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { lazy, Suspense, type ReactNode } from "react";
 import { Route, BrowserRouter as Router, Routes } from 'react-router-dom';
 import { Toaster as SonnerToaster } from "sonner";
 import { AdminRoute, AuthProvider, ProtectedRoute } from './lib/auth';
-import PageNotFound from './lib/PageNotFound';
 import OfflineBanner from './components/OfflineBanner';
+import Landing from "./pages/Landing";
 
-import AirTimeIndex from './pages/AirTime/index';
-import ForgotPassword from './pages/Auth/ForgotPassword';
-import GoogleCallback from './pages/Auth/GoogleCallback';
-import Login from './pages/Auth/Login';
-import ResetPassword from './pages/Auth/ResetPassword';
-import SetPassword from './pages/Auth/SetPassword';
-import Signup from './pages/Auth/Signup';
-import VerifyAccount from './pages/Auth/VerifyAccount';
-import VerifyEmail from './pages/Auth/VerifyEmail';
-import BranchesPage from './pages/Branches';
-import ChatPage from './pages/ChatPage';
-import ComposeIndex from './pages/Compose/index';
-import Dashboard from './pages/Dashboard';
-import MyContactsIndex from './pages/MyContacts/index';
-import NotificationsPage from './pages/Notifications';
-import ProfilePage from './pages/ProfilePage';
-import SalesIndex from './pages/Sales/index';
-import ShareCreditsPage from './pages/ShareCredits';
-import Withdrawal from './pages/Sales/Withdrawal';
-import TemplatesIndex from './pages/Templates/index';
-import WhatsappMsgIndex from './pages/WhatsappMsg/index';
+const PageNotFound = lazy(() => import('./lib/PageNotFound'));
+const AirTimeIndex = lazy(() => import('./pages/AirTime/index'));
+const ForgotPassword = lazy(() => import('./pages/Auth/ForgotPassword'));
+const GoogleCallback = lazy(() => import('./pages/Auth/GoogleCallback'));
+const Login = lazy(() => import('./pages/Auth/Login'));
+const ResetPassword = lazy(() => import('./pages/Auth/ResetPassword'));
+const SetPassword = lazy(() => import('./pages/Auth/SetPassword'));
+const Signup = lazy(() => import('./pages/Auth/Signup'));
+const VerifyAccount = lazy(() => import('./pages/Auth/VerifyAccount'));
+const VerifyEmail = lazy(() => import('./pages/Auth/VerifyEmail'));
+const BranchesPage = lazy(() => import('./pages/Branches'));
+const ChatPage = lazy(() => import('./pages/ChatPage'));
+const ComposeIndex = lazy(() => import('./pages/Compose/index'));
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const MyContactsIndex = lazy(() => import('./pages/MyContacts/index'));
+const NotificationsPage = lazy(() => import('./pages/Notifications'));
+const ProfilePage = lazy(() => import('./pages/ProfilePage'));
+const SalesIndex = lazy(() => import('./pages/Sales/index'));
+const ShareCreditsPage = lazy(() => import('./pages/ShareCredits'));
+const Withdrawal = lazy(() => import('./pages/Sales/Withdrawal'));
+const TemplatesIndex = lazy(() => import('./pages/Templates/index'));
+const WhatsappMsgIndex = lazy(() => import('./pages/WhatsappMsg/index'));
 
 /* ── settings sub-pages ── */
-import MyDetailsPage from "./pages/Settings/MyDetails";
-import PasswordPage from "./pages/Settings/Password";
-import DeveloperKeysPage from "./pages/Settings/DeveloperKeys";
+const MyDetailsPage = lazy(() => import("./pages/Settings/MyDetails"));
+const PasswordPage = lazy(() => import("./pages/Settings/Password"));
+const DeveloperKeysPage = lazy(() => import("./pages/Settings/DeveloperKeys"));
 
-import BillingPage from "./pages/Settings/Billing";
-import Campign from "./pages/Settings/Campign";
-import SettingsPage from "./pages/Settings/Settings";
-import APISettingsPage from "./pages/Settings/APISettings";
-import PlanEditorPage from "./pages/Settings/PlanEditor";
-import SecurityLogsPage from "./pages/Settings/SecurityLogs";
-import UsersAdminPage from "./pages/Settings/Users";
-import ProfitPage from "./pages/Admin/Profit";
-import AdminMessagesPage from "./pages/Admin/Messages";
-import AccountDeletionPage from "./pages/Legal/AccountDeletion";
-import PrivacyPage from "./pages/Legal/Privacy";
-import TermsPage from "./pages/Legal/Terms";
-import CardCheckout from "./pages/Checkout/CardCheckout";
-import CardReturn from "./pages/Checkout/CardReturn";
-import MobileMoneyCheckout from "./pages/Checkout/MobileMoneyCheckout";
+const BillingPage = lazy(() => import("./pages/Settings/Billing"));
+const Campign = lazy(() => import("./pages/Settings/Campign"));
+const SettingsPage = lazy(() => import("./pages/Settings/Settings"));
+const APISettingsPage = lazy(() => import("./pages/Settings/APISettings"));
+const PlanEditorPage = lazy(() => import("./pages/Settings/PlanEditor"));
+const SecurityLogsPage = lazy(() => import("./pages/Settings/SecurityLogs"));
+const UsersAdminPage = lazy(() => import("./pages/Settings/Users"));
+const ProfitPage = lazy(() => import("./pages/Admin/Profit"));
+const AdminMessagesPage = lazy(() => import("./pages/Admin/Messages"));
+const AccountDeletionPage = lazy(() => import("./pages/Legal/AccountDeletion"));
+const PrivacyPage = lazy(() => import("./pages/Legal/Privacy"));
+const TermsPage = lazy(() => import("./pages/Legal/Terms"));
+const CardCheckout = lazy(() => import("./pages/Checkout/CardCheckout"));
+const CardReturn = lazy(() => import("./pages/Checkout/CardReturn"));
+const MobileMoneyCheckout = lazy(() => import("./pages/Checkout/MobileMoneyCheckout"));
 
 const queryClient = new QueryClient();
 
-const protect = (element: React.ReactNode) => (
+const protect = (element: ReactNode) => (
   <ProtectedRoute>
     {element}
   </ProtectedRoute>
@@ -61,7 +63,8 @@ const protect = (element: React.ReactNode) => (
 const AppRoutes = () => {
   return (
     <>
-      <Routes>
+      <Suspense fallback={<div className="min-h-screen bg-background flex items-center justify-center text-sm text-muted-foreground">Loading...</div>}>
+        <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
@@ -74,6 +77,7 @@ const AppRoutes = () => {
         <Route path="/terms" element={<TermsPage />} />
         <Route path="/privacy" element={<PrivacyPage />} />
         <Route path="/account-deletion" element={<AccountDeletionPage />} />
+        <Route path="/" element={<Landing />} />
 
         <Route path="/dashboard" element={protect(<Dashboard />)} />
         <Route path="/profile" element={protect(<ProfilePage />)} />
@@ -81,7 +85,7 @@ const AppRoutes = () => {
         <Route path="/recents-sms" element={protect(<SalesIndex />)} />
         <Route path="/templates" element={protect(<TemplatesIndex />)} />
         <Route path="/compose" element={protect(<ComposeIndex />)} />
-        <Route path="/" element={protect(<ChatPage />)} />
+        <Route path="/chat" element={protect(<ChatPage />)} />
         <Route path="/whatsapp" element={protect(<WhatsappMsgIndex />)} />
         <Route path="/withdraw" element={protect(<Withdrawal />)} />
         <Route path="/sms-tp" element={protect(<Withdrawal />)} />
@@ -111,7 +115,8 @@ const AppRoutes = () => {
 
 
         <Route path="*" element={<PageNotFound />} />
-      </Routes>
+        </Routes>
+      </Suspense>
     </>
   );
 };
