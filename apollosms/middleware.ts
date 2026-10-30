@@ -41,7 +41,7 @@ const BACKEND_API =
   process.env.API_BASE ||
   'https://api.pitbox.fun/api';
 
-const FRONTEND_ORIGIN = 'https://apollosms.vercel.app';
+const FRONTEND_ORIGIN = 'https://tinoraai.com';
 
 /**
  * Escape HTML entities to prevent XSS in generated OG pages.

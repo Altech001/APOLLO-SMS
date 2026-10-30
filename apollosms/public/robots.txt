@@ -19,4 +19,4 @@ Disallow: /templates
 Disallow: /whatsapp
 Disallow: /withdraw
 
-Sitemap: https://apollosms.vercel.app/sitemap.xml
+Sitemap: https://tinoraai.com/sitemap.xml

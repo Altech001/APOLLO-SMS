@@ -6,4 +6,4 @@ export const BRAND_DESCRIPTION =
 export const BRAND_KEYWORDS =
   "TINORA AI, bulk SMS, SMS gateway, WhatsApp messaging, business messaging, SMS marketing, AI campaigns";
 
-export const SITE_URL = (import.meta.env.VITE_SITE_URL || "https://apollosms.vercel.app").replace(/\/+$/, "");
+export const SITE_URL = (import.meta.env.VITE_SITE_URL || "https://tinoraai.com").replace(/\/+$/, "");
